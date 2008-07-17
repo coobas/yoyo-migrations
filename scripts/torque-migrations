@@ -1,0 +1,145 @@
+import compiler
+import os
+import sys
+
+from storm.database import create_database
+from storm.store import Store
+from storm.exceptions import DatabaseError
+from functools import partial
+import optparse
+
+class Migration(object):
+    """
+    Model a single migration. Each migration must have a unique id and a list
+    of up and down SQL statements.
+    """
+
+    def __init__(self, id, up, down):
+
+        def _execute(statements, store):
+            if isinstance(statements, basestring):
+                statements = [statements]
+            for s in statements:
+                print s
+                store.execute(s)
+
+        self.id = id
+        if callable(up):
+            self.up = up
+        else:
+            self.up = partial(_execute, up)
+
+        self.down = down
+        if callable(down):
+            self.down = down
+        else:
+            self.down = partial(_execute, down)
+
+    def isapplied(self, store):
+        return store.execute(
+            "SELECT COUNT(1) FROM migration WHERE id=%s",
+            (self.id,)
+        ).get_one()[0] > 0
+
+    def upgrade(self, store, force=False):
+        if force or not self.isapplied(store):
+            print "applying", self.id
+            try:
+                self.up(store)
+                store.commit()
+            finally:
+                store.rollback()
+            try:
+                store.execute("INSERT INTO migration VALUES (%s, now())", (self.id,))
+            except DatabaseError:
+                store.rollback()
+            store.commit()
+
+    def downgrade(self, store, force=False):
+        if force or self.isapplied(store):
+            try:
+                store.execute("DELETE FROM migration WHERE id=%s", (self.id,))
+                store.commit()
+                self.down(store)
+                store.commit()
+            finally:
+                store.rollback()
+
+def read_migrations(directory, names=None):
+    """
+    Yield migrations from ``directory``, optionally limiting to those with the
+    specified filenames (without extensions).
+    """
+
+    paths = [ 
+        os.path.join(migrations_dir, path) for path in os.listdir(migrations_dir) if path.endswith('.py')
+    ]
+
+    for path in sorted(paths):
+
+        filename = os.path.splitext(os.path.basename(path))[0]
+        if names is not None and filename not in names:
+            continue
+
+        file = open(path, 'r')
+        marker = []
+        try:
+            migration = compiler.compile(file.read(), file.name, 'exec')
+            ns = {}
+            exec migration in ns
+            yield Migration(filename, ns['up'], ns['down'])
+        finally:
+            file.close()
+
+if __name__ == "__main__":
+
+    optparser = optparse.OptionParser()
+    optparser.add_option(
+        "--up", dest="up_migrations",
+        help="Run specified upward migrations (separate multiple names with commas)",
+    )
+    optparser.add_option(
+        "--down", dest="down_migrations",
+        help="Run specified downward migrations (separate multiple names with commas)",
+    )
+    optparser.add_option(
+        "--all", dest="all", action="store_true",
+        help="Run all applicable upward migrations"
+    )
+    optparser.add_option(
+        "--force", dest="force", action="store_true",
+        help="Force rerun even if migration appears previously applied"
+    )
+    opts, args = optparser.parse_args()
+
+    dburi, migrations_dir = args
+
+    store = Store(create_database(dburi))
+    try:
+        try:
+            store.execute("""
+                CREATE TABLE migration (id VARCHAR(255) NOT NULL PRIMARY KEY, ctime TIMESTAMP DEFAULT NOW())
+            """)
+            store.commit()
+        except DatabaseError:
+            pass
+    finally:
+        store.rollback()
+
+    if opts.up_migrations:
+        for migration in read_migrations(migrations_dir, opts.up_migrations.split(',')):
+            migration.upgrade(store, opts.force)
+
+    elif opts.down_migrations:
+        for migration in read_migrations(migrations_dir, opts.down_migrations.split(',')):
+            migration.downgrade(store, opts.force)
+
+    elif opts.all:
+        for migration in read_migrations(migrations_dir):
+            migration.upgrade(store, opts.force)
+
+    else:
+        print >> sys.stderr, "No migrations specified."
+        sys.exit(1)
+
+

@@ -1,0 +1,21 @@
+A simple database migration utility.
+
+Requires Storm, but will work in projects using another (or no) ORM, as long as
+the Storm package is installed.
+
+Usage::
+
+	torque-migrate --all mysql://user:password@localhost/datbase /path/to/migrations
+
+Each migration file must be a .py script with a unique name, containing upward
+and downward migration information. For example::
+
+	up = [
+		"CREATE TABLE foo (id INT, bar VARCHAR(20), PRIMARY KEY (id))"
+	]
+	down = [
+		"DROP TABLE foo"
+	]
+
+Save all migration files in the same directory. The filename (without the .py
+extension) will be used as an identifier for each migration.
