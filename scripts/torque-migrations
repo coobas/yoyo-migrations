@@ -1,4 +1,7 @@
+#!/usr/bin/env python
 import compiler
+import logging
+import optparse
 import os
 import sys
 
@@ -6,34 +9,14 @@ from storm.database import create_database
 from storm.store import Store
 from storm.exceptions import DatabaseError
 from functools import partial
-import optparse
+
+VERBOSITY = 0
 
 class Migration(object):
-    """
-    Model a single migration. Each migration must have a unique id and a list
-    of up and down SQL statements.
-    """
 
-    def __init__(self, id, up, down):
-
-        def _execute(statements, store):
-            if isinstance(statements, basestring):
-                statements = [statements]
-            for s in statements:
-                print s
-                store.execute(s)
-
+    def __init__(self, id, steps):
         self.id = id
-        if callable(up):
-            self.up = up
-        else:
-            self.up = partial(_execute, up)
-
-        self.down = down
-        if callable(down):
-            self.down = down
-        else:
-            self.down = partial(_execute, down)
+        self.steps = steps
 
     def isapplied(self, store):
         return store.execute(
@@ -41,29 +24,82 @@ class Migration(object):
             (self.id,)
         ).get_one()[0] > 0
 
-    def upgrade(self, store, force=False):
+    def migrate(self, store, force=False):
+
+        if VERBOSITY >= 2 and self.isapplied(store):
+            print "Migration %r already applied" % (self.id,)
+
         if force or not self.isapplied(store):
-            print "applying", self.id
-            try:
-                self.up(store)
-                store.commit()
-            finally:
-                store.rollback()
+            if VERBOSITY >= 1:
+                print "Applying", self.id
+            for ix, step in enumerate(self.steps):
+                try:
+                    step.apply(store)
+                    store.commit()
+                except DatabaseError:
+                    for ix, step in reversed(self.steps[:ix]):
+                        step.rollback(store)
+                        store.commit()
+                    raise
             try:
                 store.execute("INSERT INTO migration VALUES (%s, now())", (self.id,))
             except DatabaseError:
                 store.rollback()
             store.commit()
 
-    def downgrade(self, store, force=False):
+    def rollback(self, store, force=False):
         if force or self.isapplied(store):
+            if VERBOSITY >= 1:
+                print "rolling back", self.id
+            for step in reversed(self.steps):
+                try:
+                    step.rollback(store)
+                    store.commit()
+                except DatabaseError:
+                    step.apply(store)
+                    store.commit()
+                    raise
             try:
                 store.execute("DELETE FROM migration WHERE id=%s", (self.id,))
-                store.commit()
-                self.down(store)
-                store.commit()
-            finally:
+            except DatabaseError:
                 store.rollback()
+            store.commit()
+
+
+class MigrationStep(object):
+    """
+    Model a single migration. Each migration step comprises a single apply and rollback step
+    of up and down SQL statements.
+    """
+    def __init__(self, id, apply, rollback):
+        self.id = id
+        self._rollback = rollback
+        self._apply = apply
+
+    def _execute(self, store, stmt):
+        if VERBOSITY >= 3:
+            print " - executing", stmt
+        return store.execute(stmt)
+
+
+    def apply(self, store):
+        if VERBOSITY >= 2:
+            print " - applying step", self.id
+        if callable(self._apply):
+            self._apply(store)
+        else:
+            self._execute(store, self._apply)
+
+    def rollback(self, store):
+        if VERBOSITY >= 2:
+            print " - rolling back step", self.id
+        if self._rollback is None:
+            return
+        if callable(self._rollback):
+            self._rollback(store)
+        else:
+            self._execute(store, self._rollback)
+
 
 def read_migrations(directory, names=None):
     """
@@ -82,12 +118,16 @@ def read_migrations(directory, names=None):
             continue
 
         file = open(path, 'r')
-        marker = []
+
+        steps = []
+        def step(apply, rollback=None):
+            steps.append(MigrationStep(len(steps), apply, rollback))
+
         try:
             migration = compiler.compile(file.read(), file.name, 'exec')
-            ns = {}
+            ns = { 'step' : step }
             exec migration in ns
-            yield Migration(filename, ns['up'], ns['down'])
+            yield Migration(filename, steps)
         finally:
             file.close()
 
@@ -95,20 +135,24 @@ if __name__ == "__main__":
 
     optparser = optparse.OptionParser()
     optparser.add_option(
-        "--up", dest="up_migrations",
-        help="Run specified upward migrations (separate multiple names with commas)",
+        "--apply", dest="apply_migrations",
+        help="Apply specified migrations (separate multiple names with commas)",
     )
     optparser.add_option(
-        "--down", dest="down_migrations",
-        help="Run specified downward migrations (separate multiple names with commas)",
+        "--rollback", dest="rollback_migrations",
+        help="Rollback specified migrations (separate multiple names with commas)",
     )
     optparser.add_option(
-        "--all", dest="all", action="store_true",
+        "-a", "--all", dest="all", action="store_true",
         help="Run all applicable upward migrations"
     )
     optparser.add_option(
-        "--force", dest="force", action="store_true",
+        "-f", "--force", dest="force", action="store_true",
         help="Force rerun even if migration appears previously applied"
+    )
+    optparser.add_option(
+        "-v", "--verbosity", dest="verbosity", default="0",
+        help="Set verbosity (0-3). default is no output"
     )
     opts, args = optparser.parse_args()
 
@@ -126,17 +170,19 @@ if __name__ == "__main__":
     finally:
         store.rollback()
 
-    if opts.up_migrations:
-        for migration in read_migrations(migrations_dir, opts.up_migrations.split(',')):
-            migration.upgrade(store, opts.force)
+    VERBOSITY = int(opts.verbosity)
 
-    elif opts.down_migrations:
-        for migration in read_migrations(migrations_dir, opts.down_migrations.split(',')):
-            migration.downgrade(store, opts.force)
+    if opts.apply_migrations:
+        for migration in read_migrations(migrations_dir, opts.apply_migrations.split(',')):
+            migration.apply(store, opts.force)
+
+    elif opts.rollback_migrations:
+        for migration in read_migrations(migrations_dir, opts.rollback_migrations.split(',')):
+            migration.rollback(store, opts.force)
 
     elif opts.all:
         for migration in read_migrations(migrations_dir):
-            migration.upgrade(store, opts.force)
+            migration.migrate(store, opts.force)
 
     else:
         print >> sys.stderr, "No migrations specified."

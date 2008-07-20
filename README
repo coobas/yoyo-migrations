@@ -7,15 +7,20 @@ Usage::
 
 	torque-migrate --all mysql://user:password@localhost/datbase /path/to/migrations
 
-Each migration file must be a .py script with a unique name, containing upward
-and downward migration information. For example::
+Each migration file must be a .py script with a unique name, containing
+migration and rollback information. For example::
 
-	up = [
-		"CREATE TABLE foo (id INT, bar VARCHAR(20), PRIMARY KEY (id))"
-	]
-	down = [
+	step(
+		"CREATE TABLE foo (id INT, bar VARCHAR(20), PRIMARY KEY (id))",
 		"DROP TABLE foo"
-	]
+	)
+
+The first statement is the migration. The second is a rollback step which will
+be called if the first statement fails. Note that this is necessary because in
+MySQL and other databases DDL statements are not run in transactions.
+
+For regular SQL, no rollback statement is required if you are using a
+transactional database.
 
 Save all migration files in the same directory. The filename (without the .py
 extension) will be used as an identifier for each migration.
