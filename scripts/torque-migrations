@@ -174,7 +174,7 @@ if __name__ == "__main__":
 
     if opts.apply_migrations:
         for migration in read_migrations(migrations_dir, opts.apply_migrations.split(',')):
-            migration.apply(store, opts.force)
+            migration.migrate(store, opts.force)
 
     elif opts.rollback_migrations:
         for migration in read_migrations(migrations_dir, opts.rollback_migrations.split(',')):
