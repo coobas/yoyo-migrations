@@ -37,7 +37,7 @@ class Migration(object):
                     step.apply(store)
                     store.commit()
                 except DatabaseError:
-                    for ix, step in reversed(self.steps[:ix]):
+                    for step in reversed(self.steps[:ix]):
                         step.rollback(store)
                         store.commit()
                     raise
