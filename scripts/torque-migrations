@@ -3,7 +3,9 @@ import compiler
 import logging
 import optparse
 import os
+import re
 import sys
+import termios
 
 from storm.database import create_database
 from storm.store import Store
@@ -11,12 +13,135 @@ from storm.exceptions import DatabaseError
 from functools import partial
 
 VERBOSITY = 0
+    
+def getch():
+    """
+    Read a single character without echoing to the console and without having
+    to wait for a newline.
+    """
+    fd = sys.stdin.fileno()
+    saved_attributes = termios.tcgetattr(fd)
+    try:
+        attributes = termios.tcgetattr(fd) # get a fresh copy!
+        attributes[3] = attributes[3] & ~(termios.ICANON | termios.ECHO)
+        attributes[6][termios.VMIN] = 1
+        attributes[6][termios.VTIME] = 0
+        termios.tcsetattr(fd, termios.TCSANOW, attributes)
+
+        a = sys.stdin.read(1)
+    finally:            
+        #be sure to reset the attributes no matter what!
+        termios.tcsetattr(fd, termios.TCSANOW, saved_attributes)
+    return a
+
+def prompt(prompt, options):
+    """
+    Display the given prompt and list of options and return the user selection.
+    """
+
+    while True:
+        sys.stdout.write("%s [%s]: " % (prompt, options))
+        ch = getch()
+        if ch == '\n':
+            ch = ([o.lower() for o in options if 'A' <= o <= 'Z'] + list(options.lower()))[0]
+        print ch
+        if ch.lower() not in options.lower():
+            print "Invalid response, please try again!"
+        else:
+            break
+
+    return ch.lower()
+
+class prompted_migration(object):
+
+    def __init__(self, migration, default=None):
+        super(prompted_migration, self).__init__()
+        self.migration = migration
+        self.choice = default
+
+
+def prompt_migrations(store, migrations, direction):
+    """
+    Iterate through the list of migrations and prompt the user to apply/rollback each.
+    Return a list of user selected migrations.
+
+    direction
+        one of 'apply' or 'rollback'
+    """
+    migrations = [ prompted_migration(m) for m in migrations ]
+
+    position = 0
+    while position < len(migrations):
+        mig = migrations[position]
+
+        choice = mig.choice
+        if choice is None:
+            if direction == 'apply':
+                choice = 'n' if mig.migration.isapplied(store) else 'y'
+            else:
+                choice = 'y' if mig.migration.isapplied(store) else 'n'
+        options = ''.join(o.upper() if o == choice else o.lower() for o in 'ynvdaqjk?')
+
+        print ""
+        print '[%s]' % (mig.migration.id,)
+        response = prompt("Shall I %s this migration?" % (direction,), options)
+
+        if response == '?':
+            print ""
+            print "y: %s this migration" % (direction,)
+            print "n: don't %s it" % (direction,)
+            print ""
+            print "v: view this migration in full"
+            print ""
+            print "d: %s the selected migrations, skipping any remaining" % (direction,)
+            print "a: %s all the remaining migrations" % (direction,)
+            print "q: cancel without making any changes"
+            print ""
+            print "j: skip to next migration"
+            print "k: back up to previous migration"
+            print ""
+            print "?: show this help"
+            continue
+
+        if response in 'yn':
+            mig.choice = response
+            position += 1
+            continue
+
+        if response == 'v':
+            print mig.migration.source
+            continue
+
+        if response == 'j':
+            position = min(len(migrations), position + 1)
+            continue
+
+        if response == 'k':
+            position = max(0, position - 1)
+
+        if response == 'd':
+            break
+
+        if response == 'a':
+            for mig in migrations[position:]:
+                mig.choice = 'y'
+            break
+
+        if response == 'q':
+            for mig in migrations:
+                mig.choice = 'n'
+            break
+
+
+    return [m.migration for m in migrations if m.choice == 'y']
+
 
 class Migration(object):
 
-    def __init__(self, id, steps):
+    def __init__(self, id, steps, source):
         self.id = id
         self.steps = steps
+        self.source = source
 
     def isapplied(self, store):
         return store.execute(
@@ -24,46 +149,44 @@ class Migration(object):
             (self.id,)
         ).get_one()[0] > 0
 
-    def migrate(self, store, force=False):
+    def migrate(self, store):
 
         if VERBOSITY >= 2 and self.isapplied(store):
             print "Migration %r already applied" % (self.id,)
 
-        if force or not self.isapplied(store):
-            if VERBOSITY >= 1:
-                print "Applying", self.id
-            for ix, step in enumerate(self.steps):
-                try:
-                    step.apply(store)
-                    store.commit()
-                except DatabaseError:
-                    for step in reversed(self.steps[:ix]):
-                        step.rollback(store)
-                        store.commit()
-                    raise
+        if VERBOSITY >= 1:
+            print "Applying", self.id
+        for ix, step in enumerate(self.steps):
             try:
-                store.execute("INSERT INTO migration VALUES (%s, now())", (self.id,))
+                step.apply(store)
+                store.commit()
             except DatabaseError:
-                store.rollback()
-            store.commit()
-
-    def rollback(self, store, force=False):
-        if force or self.isapplied(store):
-            if VERBOSITY >= 1:
-                print "rolling back", self.id
-            for step in reversed(self.steps):
-                try:
+                for step in reversed(self.steps[:ix]):
                     step.rollback(store)
                     store.commit()
-                except DatabaseError:
-                    step.apply(store)
-                    store.commit()
-                    raise
+                raise
+        try:
+            store.execute("INSERT INTO migration VALUES (%s, now())", (self.id,))
+        except DatabaseError:
+            store.rollback()
+        store.commit()
+
+    def rollback(self, store):
+        if VERBOSITY >= 1:
+            print "rolling back", self.id
+        for step in reversed(self.steps):
             try:
-                store.execute("DELETE FROM migration WHERE id=%s", (self.id,))
+                step.rollback(store)
+                store.commit()
             except DatabaseError:
-                store.rollback()
-            store.commit()
+                step.apply(store)
+                store.commit()
+                raise
+        try:
+            store.execute("DELETE FROM migration WHERE id=%s", (self.id,))
+        except DatabaseError:
+            store.rollback()
+        store.commit()
 
 
 class MigrationStep(object):
@@ -117,46 +240,54 @@ def read_migrations(directory, names=None):
         if names is not None and filename not in names:
             continue
 
-        file = open(path, 'r')
-
         steps = []
         def step(apply, rollback=None):
             steps.append(MigrationStep(len(steps), apply, rollback))
 
+        file = open(path, 'r')
         try:
+            source = file.read()
             migration = compiler.compile(file.read(), file.name, 'exec')
             ns = { 'step' : step }
             exec migration in ns
-            yield Migration(filename, steps)
+            yield Migration(filename, steps, source)
         finally:
             file.close()
 
 if __name__ == "__main__":
 
-    optparser = optparse.OptionParser()
+    optparser = optparse.OptionParser(usage="%prog apply|rollback <database> <migrations>")
     optparser.add_option(
-        "--apply", dest="apply_migrations",
-        help="Apply specified migrations (separate multiple names with commas)",
-    )
-    optparser.add_option(
-        "--rollback", dest="rollback_migrations",
-        help="Rollback specified migrations (separate multiple names with commas)",
+        "-m", "--match", dest="match",
+        help="Select migrations matching PATTERN (perl-compatible regular expression)", metavar='PATTERN',
     )
     optparser.add_option(
         "-a", "--all", dest="all", action="store_true",
-        help="Run all applicable upward migrations"
+        help="Select all migrations, regardless of whether they have been previously applied"
     )
     optparser.add_option(
-        "-f", "--force", dest="force", action="store_true",
-        help="Force rerun even if migration appears previously applied"
+        "-b", "--batch", dest="batch", action="store_true",
+        help="Run in batch mode (don't ask before applying/rolling back each migration)"
     )
     optparser.add_option(
         "-v", "--verbosity", dest="verbosity", default="0",
         help="Set verbosity (0-3). default is no output"
     )
-    opts, args = optparser.parse_args()
 
-    dburi, migrations_dir = args
+    opts, args = optparser.parse_args()
+    try:
+        command, dburi, migrations_dir = args
+    except ValueError:
+        optparser.error(
+            "Please specify a command, "
+            "database connection string "
+            "and path to the migrations directory"
+        )
+        sys.exit(1)
+
+    if command not in ['apply', 'rollback']:
+        optparser.error("Invalid command")
+        sys.exit(1)
 
     store = Store(create_database(dburi))
     try:
@@ -172,20 +303,23 @@ if __name__ == "__main__":
 
     VERBOSITY = int(opts.verbosity)
 
-    if opts.apply_migrations:
-        for migration in read_migrations(migrations_dir, opts.apply_migrations.split(',')):
-            migration.migrate(store, opts.force)
+    migrations = read_migrations(migrations_dir)
+    if opts.match:
+        migrations = [ m for m in migrations if re.search(opts.match, m.id) is not None ]
 
-    elif opts.rollback_migrations:
-        for migration in read_migrations(migrations_dir, opts.rollback_migrations.split(',')):
+    if not opts.all:
+        if command == 'apply':
+            test = lambda m: not m.isapplied(store)
+        else:
+            test = lambda m: m.isapplied(store)
+        migrations = [ m for m in migrations if test(m) ]
+
+    if not opts.batch:
+        migrations = prompt_migrations(store, migrations, command)
+
+    for migration in migrations:
+        if command == 'apply':
+            migration.migrate(store, opts.force)
+        else:
             migration.rollback(store, opts.force)
-
-    elif opts.all:
-        for migration in read_migrations(migrations_dir):
-            migration.migrate(store, opts.force)
-
-    else:
-        print >> sys.stderr, "No migrations specified."
-        sys.exit(1)
-
 
