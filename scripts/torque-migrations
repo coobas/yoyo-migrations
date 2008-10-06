@@ -156,7 +156,10 @@ class Migration(object):
 
         if VERBOSITY >= 1:
             print "Applying", self.id
+
         for ix, step in enumerate(self.steps):
+            if VERBOSITY >= 3:
+                print " - step %d: %r" % (ix, step)
             try:
                 step.apply(store)
                 store.commit()
