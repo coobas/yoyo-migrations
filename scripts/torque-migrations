@@ -322,7 +322,7 @@ if __name__ == "__main__":
 
     for migration in migrations:
         if command == 'apply':
-            migration.migrate(store, opts.force)
+            migration.migrate(store)
         else:
-            migration.rollback(store, opts.force)
+            migration.rollback(store)
 
