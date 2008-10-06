@@ -250,12 +250,12 @@ def read_migrations(directory, names=None):
         file = open(path, 'r')
         try:
             source = file.read()
-            migration = compiler.compile(file.read(), file.name, 'exec')
-            ns = { 'step' : step }
-            exec migration in ns
-            yield Migration(filename, steps, source)
         finally:
             file.close()
+        migration = compiler.compile(source, file.name, 'exec')
+        ns = { 'step' : step }
+        exec migration in ns
+        yield Migration(filename, steps, source)
 
 if __name__ == "__main__":
 
