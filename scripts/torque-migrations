@@ -317,6 +317,9 @@ if __name__ == "__main__":
             test = lambda m: m.isapplied(store)
         migrations = [ m for m in migrations if test(m) ]
 
+    if command == 'rollback':
+        migrations = reversed(migrations)
+
     if not opts.batch:
         migrations = prompt_migrations(store, migrations, command)
 
