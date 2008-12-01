@@ -306,7 +306,7 @@ if __name__ == "__main__":
 
     VERBOSITY = int(opts.verbosity)
 
-    migrations = read_migrations(migrations_dir)
+    migrations = list(read_migrations(migrations_dir))
     if opts.match:
         migrations = [ m for m in migrations if re.search(opts.match, m.id) is not None ]
 
