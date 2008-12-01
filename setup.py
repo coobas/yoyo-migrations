@@ -17,7 +17,6 @@ setup(
     scripts=['scripts/torque-migrations'],
     install_requires=[
         u'Storm',
-        u'mysql-python',
     ],
     dependency_links=[
         'http://sourceforge.net/project/showfiles.php?group_id=22307'
