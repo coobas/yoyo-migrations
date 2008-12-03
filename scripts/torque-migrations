@@ -13,7 +13,7 @@ from storm.exceptions import DatabaseError
 from functools import partial
 
 VERBOSITY = 0
-    
+
 def getch():
     """
     Read a single character without echoing to the console and without having
@@ -29,7 +29,7 @@ def getch():
         termios.tcsetattr(fd, termios.TCSANOW, attributes)
 
         a = sys.stdin.read(1)
-    finally:            
+    finally:
         #be sure to reset the attributes no matter what!
         termios.tcsetattr(fd, termios.TCSANOW, saved_attributes)
     return a
@@ -164,10 +164,14 @@ class Migration(object):
                 step.apply(store)
                 store.commit()
             except DatabaseError:
-                for step in reversed(self.steps[:ix]):
-                    step.rollback(store)
-                    store.commit()
-                raise
+                exc_info = sys.exc_info()
+                try:
+                    for step in reversed(self.steps[:ix]):
+                        step.rollback(store)
+                        store.commit()
+                except DatabaseError:
+                    logging.exception()
+                raise exc_info[0], exc_info[1], exc_info[2]
         try:
             store.execute("INSERT INTO migration VALUES (%s, now())", (self.id,))
         except DatabaseError:
@@ -177,14 +181,20 @@ class Migration(object):
     def rollback(self, store):
         if VERBOSITY >= 1:
             print "rolling back", self.id
-        for step in reversed(self.steps):
+        steps = reversed(self.steps)
+        for ix, step in enumerate(steps):
             try:
                 step.rollback(store)
                 store.commit()
             except DatabaseError:
-                step.apply(store)
-                store.commit()
-                raise
+                exc_info = sys.exc_info()
+                try:
+                    for step in reversed(list(steps)[:ix]):
+                        step.apply(store)
+                        store.commit()
+                except DatabaseError:
+                    logging.exception()
+                raise exc_info[0], exc_info[1], exc_info[2]
         try:
             store.execute("DELETE FROM migration WHERE id=%s", (self.id,))
         except DatabaseError:
@@ -211,6 +221,8 @@ class MigrationStep(object):
     def apply(self, store):
         if VERBOSITY >= 2:
             print " - applying step", self.id
+        if self._apply is None:
+            return
         if callable(self._apply):
             self._apply(store)
         else:
@@ -233,7 +245,7 @@ def read_migrations(directory, names=None):
     specified filenames (without extensions).
     """
 
-    paths = [ 
+    paths = [
         os.path.join(migrations_dir, path) for path in os.listdir(migrations_dir) if path.endswith('.py')
     ]
 
