@@ -14,7 +14,7 @@ setup(
     author='Oliver Cope',
     author_email='oliver@thelettero.co.uk',
     url='http://www.thelettero.co.uk/products/',
-    scripts=['scripts/torque-migrations'],
+    scripts=['torque-migrations'],
     install_requires=[
         u'Storm',
     ],
