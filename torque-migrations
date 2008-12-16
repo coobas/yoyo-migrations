@@ -170,7 +170,7 @@ class Migration(object):
                         step.rollback(store)
                         store.commit()
                 except DatabaseError:
-                    logging.exception()
+                    logging.exception('Database error when rolling back step')
                 raise exc_info[0], exc_info[1], exc_info[2]
         try:
             store.execute("INSERT INTO migration VALUES (%s, now())", (self.id,))
@@ -193,7 +193,7 @@ class Migration(object):
                         step.apply(store)
                         store.commit()
                 except DatabaseError:
-                    logging.exception()
+                    logging.exception('Database error when re-applying step')
                 raise exc_info[0], exc_info[1], exc_info[2]
         try:
             store.execute("DELETE FROM migration WHERE id=%s", (self.id,))
