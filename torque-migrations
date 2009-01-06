@@ -214,7 +214,10 @@ class MigrationStep(object):
 
     def _execute(self, store, stmt):
         if VERBOSITY >= 3:
-            print " - executing", stmt
+            if isinstance(stmt, unicode):
+                print " - executing", stmt.encode('ascii', 'replace')
+            else:
+                print " - executing", stmt
         return store.execute(stmt)
 
 
