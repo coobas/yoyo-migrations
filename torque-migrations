@@ -207,10 +207,11 @@ class MigrationStep(object):
     Model a single migration. Each migration step comprises a single apply and rollback step
     of up and down SQL statements.
     """
-    def __init__(self, id, apply, rollback):
+    def __init__(self, id, apply, rollback, ignore_errors):
         self.id = id
         self._rollback = rollback
         self._apply = apply
+        self.ignore_errors = ignore_errors
 
     def _execute(self, store, stmt):
         if VERBOSITY >= 3:
@@ -226,20 +227,32 @@ class MigrationStep(object):
             print " - applying step", self.id
         if self._apply is None:
             return
-        if callable(self._apply):
-            self._apply(store)
-        else:
-            self._execute(store, self._apply)
+        try:
+            if callable(self._apply):
+                self._apply(store)
+            else:
+                self._execute(store, self._apply)
+        except DatabaseError:
+            if self.ignore_errors:
+                logging.exception("Ignoring error in step %d", self.id)
+            else:
+                raise
 
     def rollback(self, store):
         if VERBOSITY >= 2:
             print " - rolling back step", self.id
         if self._rollback is None:
             return
-        if callable(self._rollback):
-            self._rollback(store)
-        else:
-            self._execute(store, self._rollback)
+        try:
+            if callable(self._rollback):
+                self._rollback(store)
+            else:
+                self._execute(store, self._rollback)
+        except DatabaseError:
+            if self.ignore_errors:
+                logging.exception("Ignoring error in step %d", self.id)
+            else:
+                raise
 
 
 def read_migrations(directory, names=None):
@@ -259,8 +272,8 @@ def read_migrations(directory, names=None):
             continue
 
         steps = []
-        def step(apply, rollback=None):
-            steps.append(MigrationStep(len(steps), apply, rollback))
+        def step(apply, rollback=None, ignore_errors=False):
+            steps.append(MigrationStep(len(steps), apply, rollback, ignore_errors))
 
         file = open(path, 'r')
         try:
