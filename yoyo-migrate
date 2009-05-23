@@ -12,6 +12,7 @@ from functools import partial
 from logging import warn, info, debug
 
 from yoyo.migrate.connections import connect
+from yoyo.migrate.utils import prompt, plural
 
 CONFIG_PATH = os.path.expanduser('~/.yoyo-migrate')
 
@@ -30,44 +31,6 @@ def saveconfig(config):
 
 class DatabaseError(Exception):
     pass
-
-def getch():
-    """
-    Read a single character without echoing to the console and without having
-    to wait for a newline.
-    """
-    fd = sys.stdin.fileno()
-    saved_attributes = termios.tcgetattr(fd)
-    try:
-        attributes = termios.tcgetattr(fd) # get a fresh copy!
-        attributes[3] = attributes[3] & ~(termios.ICANON | termios.ECHO)
-        attributes[6][termios.VMIN] = 1
-        attributes[6][termios.VTIME] = 0
-        termios.tcsetattr(fd, termios.TCSANOW, attributes)
-
-        a = sys.stdin.read(1)
-    finally:
-        #be sure to reset the attributes no matter what!
-        termios.tcsetattr(fd, termios.TCSANOW, saved_attributes)
-    return a
-
-def prompt(prompt, options):
-    """
-    Display the given prompt and list of options and return the user selection.
-    """
-
-    while True:
-        sys.stdout.write("%s [%s]: " % (prompt, options))
-        ch = getch()
-        if ch == '\n':
-            ch = ([o.lower() for o in options if 'A' <= o <= 'Z'] + list(options.lower()))[0]
-        print ch
-        if ch.lower() not in options.lower():
-            print "Invalid response, please try again!"
-        else:
-            break
-
-    return ch.lower()
 
 class prompted_migration(object):
 
@@ -428,6 +391,10 @@ if __name__ == "__main__":
 
     if not opts.batch:
         migrations = prompt_migrations(conn, migrations, command)
+
+    if not opts.batch and migrations:
+        if prompt(command.title() + plural(len(migrations), " %d migration", " %d migrations") + " to %s?" % dburi, "Yn") != 'y':
+            sys.exit(0)
 
     for migration in migrations:
         if command == 'apply':
