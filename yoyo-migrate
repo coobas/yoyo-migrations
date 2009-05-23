@@ -1,18 +1,35 @@
 #!/usr/bin/env python
-import compiler
 import logging
 import optparse
 import os
 import re
 import sys
 import termios
+import ConfigParser, os
 
-from storm.database import create_database
-from storm.store import Store
-from storm.exceptions import DatabaseError
+from ConfigParser import NoSectionError, NoOptionError
 from functools import partial
+from logging import warn, info, debug
 
-VERBOSITY = 0
+from yoyo.migrate.connections import connect
+
+CONFIG_PATH = os.path.expanduser('~/.yoyo-migrate')
+
+def readconfig():
+    config = ConfigParser.ConfigParser()
+    config.read([CONFIG_PATH])
+    return config
+
+def saveconfig(config):
+    f = open(CONFIG_PATH, 'w')
+    try:
+        return config.write(f)
+    finally:
+        f.close()
+
+
+class DatabaseError(Exception):
+    pass
 
 def getch():
     """
@@ -60,7 +77,7 @@ class prompted_migration(object):
         self.choice = default
 
 
-def prompt_migrations(store, migrations, direction):
+def prompt_migrations(conn, migrations, direction):
     """
     Iterate through the list of migrations and prompt the user to apply/rollback each.
     Return a list of user selected migrations.
@@ -77,9 +94,9 @@ def prompt_migrations(store, migrations, direction):
         choice = mig.choice
         if choice is None:
             if direction == 'apply':
-                choice = 'n' if mig.migration.isapplied(store) else 'y'
+                choice = 'n' if mig.migration.isapplied(conn) else 'y'
             else:
-                choice = 'y' if mig.migration.isapplied(store) else 'n'
+                choice = 'y' if mig.migration.isapplied(conn) else 'n'
         options = ''.join(o.upper() if o == choice else o.lower() for o in 'ynvdaqjk?')
 
         print ""
@@ -143,116 +160,131 @@ class Migration(object):
         self.steps = steps
         self.source = source
 
-    def isapplied(self, store):
-        return store.execute(
-            "SELECT COUNT(1) FROM migration WHERE id=%s",
-            (self.id,)
-        ).get_one()[0] > 0
-
-    def migrate(self, store):
-
-        if VERBOSITY >= 2 and self.isapplied(store):
-            print "Migration %r already applied" % (self.id,)
-
-        if VERBOSITY >= 1:
-            print "Applying", self.id
-
-        for ix, step in enumerate(self.steps):
-            if VERBOSITY >= 3:
-                print " - step %d: %r" % (ix, step)
-            try:
-                step.apply(store)
-                store.commit()
-            except DatabaseError:
-                exc_info = sys.exc_info()
-                try:
-                    for step in reversed(self.steps[:ix]):
-                        step.rollback(store)
-                        store.commit()
-                except DatabaseError:
-                    logging.exception('Database error when rolling back step')
-                raise exc_info[0], exc_info[1], exc_info[2]
+    def isapplied(self, conn):
+        cursor = conn.cursor()
         try:
-            store.execute("INSERT INTO migration VALUES (%s, now())", (self.id,))
-        except DatabaseError:
-            store.rollback()
-        store.commit()
+            cursor.execute(
+                "SELECT COUNT(1) FROM migration WHERE id=%s",
+                (self.id,)
+            )
+            return cursor.fetchone()[0] > 0
+        finally:
+            cursor.close()
 
-    def rollback(self, store):
-        if VERBOSITY >= 1:
-            print "rolling back", self.id
-        steps = reversed(self.steps)
+    def migrate(self, conn, force=False):
+        info("Applying %s", self.id)
+        Migration._process_steps(self.steps, conn, 'apply', force=force)
+        cursor = conn.cursor()
+        cursor.execute("INSERT INTO migration (id) VALUES (%s)", (self.id,))
+        conn.commit()
+        cursor.close()
+
+    def rollback(self, conn, force=False):
+        info("Rolling back %s", self.id)
+        Migration._process_steps(reversed(self.steps), conn, 'rollback', force=force)
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM migration WHERE id=%s", (self.id,))
+        conn.commit()
+        cursor.close()
+
+    @staticmethod
+    def _process_steps(steps, conn, direction, force=False):
+
+        reverse = {
+            'rollback': 'apply',
+            'apply': 'rollback',
+        }[direction]
+
+        executed_steps = []
         for ix, step in enumerate(steps):
             try:
-                step.rollback(store)
-                store.commit()
+                if getattr(step, direction)(conn, force):
+                    executed_steps.append(step)
             except DatabaseError:
+                conn.rollback()
                 exc_info = sys.exc_info()
                 try:
-                    for step in reversed(list(steps)[:ix]):
-                        step.apply(store)
-                        store.commit()
+                    for step in reversed(executed_steps):
+                        getattr(step, reverse)(conn)
                 except DatabaseError:
-                    logging.exception('Database error when re-applying step')
+                    logging.exception('Database error when reversing %s  of step', direction)
                 raise exc_info[0], exc_info[1], exc_info[2]
-        try:
-            store.execute("DELETE FROM migration WHERE id=%s", (self.id,))
-        except DatabaseError:
-            store.rollback()
-        store.commit()
 
 
 class MigrationStep(object):
     """
-    Model a single migration. Each migration step comprises a single apply and rollback step
-    of up and down SQL statements.
+    Model a single migration. Each migration step comprises a single apply and
+    rollback step of up and down SQL statements.
     """
     def __init__(self, id, apply, rollback, ignore_errors):
+
+        assert ignore_errors in (None, 'all', 'apply', 'rollback')
+
         self.id = id
         self._rollback = rollback
         self._apply = apply
         self.ignore_errors = ignore_errors
 
-    def _execute(self, store, stmt):
-        if VERBOSITY >= 3:
-            if isinstance(stmt, unicode):
-                print " - executing", stmt.encode('ascii', 'replace')
-            else:
-                print " - executing", stmt
-        return store.execute(stmt)
+    def _execute(self, cursor, stmt):
+        if isinstance(stmt, unicode):
+            debug(" - executing %r", stmt.encode('ascii', 'replace'))
+        else:
+            debug(" - executing %r", stmt)
+        return cursor.execute(stmt)
 
 
-    def apply(self, store):
-        if VERBOSITY >= 2:
-            print " - applying step", self.id
+    def apply(self, conn, force=False):
+        """
+        Apply the step and commit the change. Return ``True`` if a change was
+        successfully applied, ``False`` if there was no apply action for this
+        step.
+        """
+        info(" - applying step %d", self.id)
         if self._apply is None:
-            return
+            return False
+        cursor = conn.cursor()
         try:
-            if callable(self._apply):
-                self._apply(store)
-            else:
-                self._execute(store, self._apply)
-        except DatabaseError:
-            if self.ignore_errors:
-                logging.exception("Ignoring error in step %d", self.id)
-            else:
-                raise
+            try:
+                if callable(self._apply):
+                    self._apply(cursor)
+                else:
+                    self._execute(cursor, self._apply)
+                conn.commit()
+            except DatabaseError:
+                if force or self.ignore_errors in ('apply', 'all'):
+                    conn.rollback()
+                    logging.exception("Ignored error in step %d", self.id)
+                else:
+                    raise
+        finally:
+            cursor.close()
+        return True
 
-    def rollback(self, store):
-        if VERBOSITY >= 2:
-            print " - rolling back step", self.id
+    def rollback(self, conn, force=False):
+        """
+        Rollback the step and commit the change. Return ``True`` if a change
+        was successfully rolled back, ``False`` if there was no rollback action
+        for this step.
+        """
+        info(" - rolling back step %d", self.id)
         if self._rollback is None:
             return
+        cursor = conn.cursor()
         try:
-            if callable(self._rollback):
-                self._rollback(store)
-            else:
-                self._execute(store, self._rollback)
-        except DatabaseError:
-            if self.ignore_errors:
-                logging.exception("Ignoring error in step %d", self.id)
-            else:
-                raise
+            try:
+                if callable(self._rollback):
+                    self._rollback(cursor)
+                else:
+                    self._execute(cursor, self._rollback)
+                conn.commit()
+            except DatabaseError:
+                if force or self.ignore_errors in ('rollback', 'all'):
+                    logging.exception("Ignoring error in step %d", self.id)
+                    conn.rollback()
+                else:
+                    raise
+        finally:
+            cursor.close()
 
 
 def read_migrations(directory, names=None):
@@ -272,21 +304,39 @@ def read_migrations(directory, names=None):
             continue
 
         steps = []
-        def step(apply, rollback=None, ignore_errors=False):
+        def step(apply, rollback=None, ignore_errors=None):
             steps.append(MigrationStep(len(steps), apply, rollback, ignore_errors))
 
         file = open(path, 'r')
         try:
             source = file.read()
+            migration = compile(source, file.name, 'exec')
         finally:
             file.close()
-        migration = compiler.compile(source, file.name, 'exec')
         ns = { 'step' : step }
         exec migration in ns
-        yield Migration(filename, steps, source)
+        yield Migration(os.path.basename(filename), steps, source)
+
+def create_migrations_table(conn):
+    try:
+        cursor = conn.cursor()
+        try:
+            try:
+                cursor.execute("""
+                    CREATE TABLE migration (id VARCHAR(255) NOT NULL PRIMARY KEY, ctime TIMESTAMP DEFAULT NOW())
+                """)
+                conn.commit()
+            except DatabaseError:
+                pass
+        finally:
+            cursor.close()
+    finally:
+        conn.rollback()
+
 
 if __name__ == "__main__":
 
+    config = readconfig()
     optparser = optparse.OptionParser(usage="%prog apply|rollback <database> <migrations>")
     optparser.add_option(
         "-m", "--match", dest="match",
@@ -304,11 +354,40 @@ if __name__ == "__main__":
         "-v", "--verbosity", dest="verbosity", default="0",
         help="Set verbosity (0-3). default is no output"
     )
+    optparser.add_option(
+        "", "--force", dest="force", action="store_true",
+        help="Force apply/rollback of steps even if previous steps have failed"
+    )
+
 
     opts, args = optparser.parse_args()
+
+    try:
+        logging.getLogger().setLevel(
+            {
+                0: logging.ERROR, 1: logging.WARN,
+                2: logging.INFO, 3: logging.DEBUG
+            }[int(opts.verbosity)]
+        )
+    except KeyError:
+        optparser.error("Invalid verbosity level")
+        sys.exit(1)
+
+
+    command = dburi = migrations_dir = None
     try:
         command, dburi, migrations_dir = args
+        migrations_dir = os.path.normpath(os.path.abspath(migrations_dir))
     except ValueError:
+        try:
+            command, migrations_dir = args
+            migrations_dir = os.path.normpath(os.path.abspath(migrations_dir))
+            logging.debug("Looking up dburi for %r", migrations_dir)
+            dburi = config.get(migrations_dir, 'dburi')
+        except (ValueError, NoSectionError, NoOptionError):
+            pass
+
+    if dburi is None:
         optparser.error(
             "Please specify a command, "
             "database connection string "
@@ -316,23 +395,22 @@ if __name__ == "__main__":
         )
         sys.exit(1)
 
+    # Store the database this directory is being applied to so that subsequent
+    # runs don't need the dburi argument
+    if not config.has_section(migrations_dir):
+        config.add_section(migrations_dir)
+    if not config.has_option(migrations_dir, 'dburi') or config.get(migrations_dir, 'dburi') != dburi:
+        config.set(migrations_dir, 'dburi', dburi)
+        saveconfig(config)
+
     if command not in ['apply', 'rollback']:
         optparser.error("Invalid command")
         sys.exit(1)
 
-    store = Store(create_database(dburi))
-    try:
-        try:
-            store.execute("""
-                CREATE TABLE migration (id VARCHAR(255) NOT NULL PRIMARY KEY, ctime TIMESTAMP DEFAULT NOW())
-            """)
-            store.commit()
-        except DatabaseError:
-            pass
-    finally:
-        store.rollback()
+    conn, module = connect(dburi)
+    getattr(module, 'DatabaseError').__bases__ += (DatabaseError,)
 
-    VERBOSITY = int(opts.verbosity)
+    create_migrations_table(conn)
 
     migrations = list(read_migrations(migrations_dir))
     if opts.match:
@@ -340,20 +418,20 @@ if __name__ == "__main__":
 
     if not opts.all:
         if command == 'apply':
-            test = lambda m: not m.isapplied(store)
+            test = lambda m: not m.isapplied(conn)
         else:
-            test = lambda m: m.isapplied(store)
+            test = lambda m: m.isapplied(conn)
         migrations = [ m for m in migrations if test(m) ]
 
     if command == 'rollback':
         migrations = reversed(migrations)
 
     if not opts.batch:
-        migrations = prompt_migrations(store, migrations, command)
+        migrations = prompt_migrations(conn, migrations, command)
 
     for migration in migrations:
         if command == 'apply':
-            migration.migrate(store)
+            migration.migrate(conn, opts.force)
         else:
-            migration.rollback(store)
+            migration.rollback(conn, opts.force)
 

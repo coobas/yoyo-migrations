@@ -1,18 +1,17 @@
-A simple database migration utility.
-
-Requires Storm, but will work in projects using another (or no) ORM, as long as
-the Storm package is installed.
+A simple database migration utility that uses only SQL and the DB-API.
 
 Usage::
 
-	torque-migrate --all mysql://user:password@localhost/datbase /path/to/migrations
+	yoyo-migrate apply postgres://user:password@localhost/datbase ./migrations
+	yoyo-migrate rollback postgres://user:password@localhost/datbase ./migrations
 
 Each migration file must be a .py script with a unique name, containing
 migration and rollback information. For example::
 
 	step(
 		"CREATE TABLE foo (id INT, bar VARCHAR(20), PRIMARY KEY (id))",
-		"DROP TABLE foo"
+		"DROP TABLE foo",
+		ignore_errors=True
 	)
 
 The first statement is the migration. The second is a rollback step which will
