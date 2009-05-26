@@ -385,7 +385,7 @@ if __name__ == "__main__":
         config.set(migrations_dir, 'dburi', dburi)
         saveconfig(config)
 
-    if command not in ['apply', 'rollback']:
+    if command not in ['apply', 'rollback', 'reapply']:
         optparser.error("Invalid command")
         sys.exit(1)
 
@@ -398,15 +398,15 @@ if __name__ == "__main__":
     if opts.match:
         migrations = [ m for m in migrations if re.search(opts.match, m.id) is not None ]
 
+    if command in ['reapply', 'rollback']:
+        migrations = reversed(migrations)
+
     if not opts.all:
-        if command == 'apply':
+        if command in ['apply']:
             test = lambda m: not m.isapplied(conn)
-        else:
+        elif command in ['reapply', 'rollback']:
             test = lambda m: m.isapplied(conn)
         migrations = [ m for m in migrations if test(m) ]
-
-    if command == 'rollback':
-        migrations = reversed(migrations)
 
     if not opts.batch:
         migrations = prompt_migrations(conn, migrations, command)
@@ -415,9 +415,15 @@ if __name__ == "__main__":
         if prompt(command.title() + plural(len(migrations), " %d migration", " %d migrations") + " to %s?" % dburi, "Yn") != 'y':
             sys.exit(0)
 
-    for migration in migrations:
-        if command == 'apply':
-            migration.migrate(conn, opts.force)
-        else:
+    if command == 'reapply':
+        for migration in migrations:
             migration.rollback(conn, opts.force)
+        for migration in reversed(migrations):
+            migration.migrate(conn, opts.force)
+    else:
+        for migration in migrations:
+            if command == 'apply':
+                migration.migrate(conn, opts.force)
+            elif command == 'rollback':
+                migration.rollback(conn, opts.force)
 
