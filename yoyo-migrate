@@ -189,12 +189,31 @@ class MigrationStep(object):
         self.ignore_errors = ignore_errors
 
     def _execute(self, cursor, stmt):
+        """
+        Execute the given statement. If rows are returned, output these in a
+        tabulated format.
+        """
         if isinstance(stmt, unicode):
             debug(" - executing %r", stmt.encode('ascii', 'replace'))
         else:
             debug(" - executing %r", stmt)
-        return cursor.execute(stmt)
-
+        cursor.execute(stmt)
+        if cursor.description:
+            result = [
+                [unicode(value) for value in row] for row in cursor.fetchall()
+            ]
+            column_names = [ desc[0] for desc in cursor.description ]
+            column_sizes = [ len(c) for c in column_names ]
+            for row in result:
+                for ix, value in enumerate(row):
+                    if len(value) > column_sizes[ix]:
+                        column_sizes[ix] = len(value)
+            format = '|'.join(' %%- %ds ' % size for size in column_sizes)
+            print format % tuple(column_names)
+            print '+'.join('-' * (size + 2) for size in column_sizes)
+            for row in result:
+                print (format % tuple(row)).encode('utf8')
+            print plural(len(result), '(%d row)', '(%d rows)')
 
     def apply(self, conn, force=False):
         """
