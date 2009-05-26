@@ -23,16 +23,16 @@ def connect_mysql(username, password, host, port, database):
 
     kwargs = {}
     if username is not None:
-        kwargs['user'] = user
+        kwargs['user'] = username
     if password is not None:
         kwargs['passwd'] = password
     if host is not None:
         kwargs['host'] = host
     if port is not None:
-        kwargs['port'] = host
+        kwargs['port'] = port
     kwargs['db'] = database
 
-    return MySQLdb.connect(**kwargs)
+    return MySQLdb.connect(**kwargs), MySQLdb
 
 
 @connection_for('postgres')
