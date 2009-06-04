@@ -1,10 +1,7 @@
 #!/usr/bin/env python
 
 import os
-try:
-    from setuptools import setup
-except ImportError:
-    from distutils.core import setup
+from setuptools import setup, find_packages
 
 def readfile(path):
     f = open(path, 'r')
@@ -34,6 +31,7 @@ setup(
         'http://sourceforge.net/project/showfiles.php?group_id=22307'
     ],
     namespace_packages=['yoyo'],
-    packages=['yoyo.migrate'],
+    packages=find_packages(exclude=['ez_setup', 'examples', 'tests']),
+    include_package_data=True,
 )
 
