@@ -228,7 +228,7 @@ class MigrationStep(object):
         try:
             try:
                 if callable(self._apply):
-                    self._apply(cursor)
+                    self._apply(conn)
                 else:
                     self._execute(cursor, self._apply)
                 conn.commit()
