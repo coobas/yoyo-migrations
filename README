@@ -1,25 +1,44 @@
-A simple database migration utility that uses only SQL and the DB-API.
+Database migrations using SQL and the DB-API.
 
 Usage::
 
-	yoyo-migrate apply postgres://user:password@localhost/datbase ./migrations
-	yoyo-migrate rollback postgres://user:password@localhost/datbase ./migrations
+	yoyo-migrate apply postgres://user:password@localhost/database ./migrations
+	yoyo-migrate rollback mysql://user:password@localhost/database ./migrations
 
-Each migration file must be a .py script with a unique name, containing
-migration and rollback information. For example::
+The migrations directory should contain a series of migration scripts. Each
+migration script is a python file (``.py``) containing a series of steps. Each
+step contains a migration query and optionally a rollback query. For example::
 
+	#
+	# file: 0001.create-foo.py
+	#
 	step(
 		"CREATE TABLE foo (id INT, bar VARCHAR(20), PRIMARY KEY (id))",
 		"DROP TABLE foo",
-		ignore_errors=True
 	)
 
-The first statement is the migration. The second is a rollback step which will
-be called if the first statement fails. Note that this is necessary because in
-MySQL and other databases DDL statements are not run in transactions.
+The filename of each file (without the .py extension) is used as the identifier
+for each migration.
 
-For regular SQL, no rollback statement is required if you are using a
-transactional database.
+Steps may also take an optional argument ``ignore_errors``, which must be one
+of ``apply``, ``rollback``, or ``all``. If in the previous example the table
+foo might have already been created by another means, we could add
+``ignore_errors='apply'`` to the step to allow the system to continue
+regardless.
 
-Save all migration files in the same directory. The filename (without the .py
-extension) will be used as an identifier for each migration.
+Steps can also be python callable objects that take a database connection as
+their single argument. For example::
+
+	#
+	# file: 0002.update_keys.py
+	#
+	def do_step(conn):
+		cursor = conn.cursor()
+		cursor.execute(
+			"INSERT INTO sysinfo "
+			" (osname, hostname, release, version, arch)"
+			" VALUES (%s, %s, %s, %s, %s %s)",
+			os.uname()
+		) 
+	step(do_step)
+
