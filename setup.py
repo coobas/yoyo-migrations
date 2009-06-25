@@ -12,7 +12,7 @@ def readfile(path):
 
 
 setup(
-    name='yoyo.migrate',
+    name='yoyo.migrations',
     description='Database migrations tool, using SQL and DB-API',
     long_description=readfile(
         os.path.join(os.path.dirname(__file__), 'README')
