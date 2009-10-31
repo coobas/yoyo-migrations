@@ -9,10 +9,13 @@ import ConfigParser, os
 
 from ConfigParser import NoSectionError, NoOptionError
 from functools import partial
-from logging import warn, info, debug
+from logging import debug
 
 from yoyo.migrate.connections import connect
 from yoyo.migrate.utils import prompt, plural
+from yoyo.migrate import Migration, MigrationStep
+from yoyo.migrate import DatabaseError
+from yoyo.migrate import read_migrations, create_migrations_table
 
 CONFIG_PATH = os.path.expanduser('~/.yoyo-migrate')
 
@@ -27,10 +30,6 @@ def saveconfig(config):
         return config.write(f)
     finally:
         f.close()
-
-
-class DatabaseError(Exception):
-    pass
 
 class prompted_migration(object):
 
@@ -48,7 +47,7 @@ def prompt_migrations(conn, migrations, direction):
     direction
         one of 'apply' or 'rollback'
     """
-    migrations = [ prompted_migration(m) for m in migrations ]
+    migrations = migrations.replace(prompted_migration(m) for m in migrations)
 
     position = 0
     while position < len(migrations):
@@ -112,209 +111,7 @@ def prompt_migrations(conn, migrations, direction):
                 mig.choice = 'n'
             break
 
-
-    return [m.migration for m in migrations if m.choice == 'y']
-
-
-class Migration(object):
-
-    def __init__(self, id, steps, source):
-        self.id = id
-        self.steps = steps
-        self.source = source
-
-    def isapplied(self, conn):
-        cursor = conn.cursor()
-        try:
-            cursor.execute(
-                "SELECT COUNT(1) FROM _yoyo_migration WHERE id=%s",
-                (self.id,)
-            )
-            return cursor.fetchone()[0] > 0
-        finally:
-            cursor.close()
-
-    def migrate(self, conn, force=False):
-        info("Applying %s", self.id)
-        Migration._process_steps(self.steps, conn, 'apply', force=force)
-        cursor = conn.cursor()
-        cursor.execute("INSERT INTO _yoyo_migration (id) VALUES (%s)", (self.id,))
-        conn.commit()
-        cursor.close()
-
-    def rollback(self, conn, force=False):
-        info("Rolling back %s", self.id)
-        Migration._process_steps(reversed(self.steps), conn, 'rollback', force=force)
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM _yoyo_migration WHERE id=%s", (self.id,))
-        conn.commit()
-        cursor.close()
-
-    @staticmethod
-    def _process_steps(steps, conn, direction, force=False):
-
-        reverse = {
-            'rollback': 'apply',
-            'apply': 'rollback',
-        }[direction]
-
-        executed_steps = []
-        for ix, step in enumerate(steps):
-            try:
-                if getattr(step, direction)(conn, force):
-                    executed_steps.append(step)
-            except DatabaseError:
-                conn.rollback()
-                exc_info = sys.exc_info()
-                try:
-                    for step in reversed(executed_steps):
-                        getattr(step, reverse)(conn)
-                except DatabaseError:
-                    logging.exception('Database error when reversing %s  of step', direction)
-                raise exc_info[0], exc_info[1], exc_info[2]
-
-
-class MigrationStep(object):
-    """
-    Model a single migration. Each migration step comprises a single apply and
-    rollback step of up and down SQL statements.
-    """
-    def __init__(self, id, apply, rollback, ignore_errors):
-
-        assert ignore_errors in (None, 'all', 'apply', 'rollback')
-
-        self.id = id
-        self._rollback = rollback
-        self._apply = apply
-        self.ignore_errors = ignore_errors
-
-    def _execute(self, cursor, stmt):
-        """
-        Execute the given statement. If rows are returned, output these in a
-        tabulated format.
-        """
-        if isinstance(stmt, unicode):
-            debug(" - executing %r", stmt.encode('ascii', 'replace'))
-        else:
-            debug(" - executing %r", stmt)
-        cursor.execute(stmt)
-        if cursor.description:
-            result = [
-                [unicode(value) for value in row] for row in cursor.fetchall()
-            ]
-            column_names = [ desc[0] for desc in cursor.description ]
-            column_sizes = [ len(c) for c in column_names ]
-            for row in result:
-                for ix, value in enumerate(row):
-                    if len(value) > column_sizes[ix]:
-                        column_sizes[ix] = len(value)
-            format = '|'.join(' %%- %ds ' % size for size in column_sizes)
-            print format % tuple(column_names)
-            print '+'.join('-' * (size + 2) for size in column_sizes)
-            for row in result:
-                print (format % tuple(row)).encode('utf8')
-            print plural(len(result), '(%d row)', '(%d rows)')
-
-    def apply(self, conn, force=False):
-        """
-        Apply the step and commit the change. Return ``True`` if a change was
-        successfully applied, ``False`` if there was no apply action for this
-        step.
-        """
-        info(" - applying step %d", self.id)
-        if self._apply is None:
-            return False
-        cursor = conn.cursor()
-        try:
-            try:
-                if callable(self._apply):
-                    self._apply(conn)
-                else:
-                    self._execute(cursor, self._apply)
-                conn.commit()
-            except DatabaseError:
-                if force or self.ignore_errors in ('apply', 'all'):
-                    conn.rollback()
-                    logging.exception("Ignored error in step %d", self.id)
-                else:
-                    raise
-        finally:
-            cursor.close()
-        return True
-
-    def rollback(self, conn, force=False):
-        """
-        Rollback the step and commit the change. Return ``True`` if a change
-        was successfully rolled back, ``False`` if there was no rollback action
-        for this step.
-        """
-        info(" - rolling back step %d", self.id)
-        if self._rollback is None:
-            return
-        cursor = conn.cursor()
-        try:
-            try:
-                if callable(self._rollback):
-                    self._rollback(cursor)
-                else:
-                    self._execute(cursor, self._rollback)
-                conn.commit()
-            except DatabaseError:
-                if force or self.ignore_errors in ('rollback', 'all'):
-                    logging.exception("Ignoring error in step %d", self.id)
-                    conn.rollback()
-                else:
-                    raise
-        finally:
-            cursor.close()
-
-
-def read_migrations(directory, names=None):
-    """
-    Yield migrations from ``directory``, optionally limiting to those with the
-    specified filenames (without extensions).
-    """
-
-    paths = [
-        os.path.join(migrations_dir, path) for path in os.listdir(migrations_dir) if path.endswith('.py')
-    ]
-
-    for path in sorted(paths):
-
-        filename = os.path.splitext(os.path.basename(path))[0]
-        if names is not None and filename not in names:
-            continue
-
-        steps = []
-        def step(apply, rollback=None, ignore_errors=None):
-            steps.append(MigrationStep(len(steps), apply, rollback, ignore_errors))
-
-        file = open(path, 'r')
-        try:
-            source = file.read()
-            migration = compile(source, file.name, 'exec')
-        finally:
-            file.close()
-        ns = { 'step' : step }
-        exec migration in ns
-        yield Migration(os.path.basename(filename), steps, source)
-
-def create_migrations_table(conn):
-    try:
-        cursor = conn.cursor()
-        try:
-            try:
-                cursor.execute("""
-                    CREATE TABLE _yoyo_migration (id VARCHAR(255) NOT NULL PRIMARY KEY, ctime TIMESTAMP DEFAULT NOW())
-                """)
-                conn.commit()
-            except DatabaseError:
-                pass
-        finally:
-            cursor.close()
-    finally:
-        conn.rollback()
-
+    return migrations.filter(lambda m: m.choice == 'y')
 
 if __name__ == "__main__":
 
@@ -364,7 +161,7 @@ if __name__ == "__main__":
         try:
             command, migrations_dir = args
             migrations_dir = os.path.normpath(os.path.abspath(migrations_dir))
-            logging.debug("Looking up dburi for %r", migrations_dir)
+            debug("Looking up dburi for %r", migrations_dir)
             dburi = config.get(migrations_dir, 'dburi')
         except (ValueError, NoSectionError, NoOptionError):
             pass
@@ -394,19 +191,20 @@ if __name__ == "__main__":
 
     create_migrations_table(conn)
 
-    migrations = list(read_migrations(migrations_dir))
+    migrations = read_migrations(conn, migrations_dir)
+
     if opts.match:
-        migrations = [ m for m in migrations if re.search(opts.match, m.id) is not None ]
+        migrations = migrations.filter(lambda m: re.search(opts.match, m.id) is not None)
 
     if command in ['reapply', 'rollback']:
         migrations = reversed(migrations)
 
     if not opts.all:
         if command in ['apply']:
-            test = lambda m: not m.isapplied(conn)
+            migrations = migrations.to_apply()
+
         elif command in ['reapply', 'rollback']:
-            test = lambda m: m.isapplied(conn)
-        migrations = [ m for m in migrations if test(m) ]
+            migrations = migrations.to_rollback()
 
     if not opts.batch:
         migrations = prompt_migrations(conn, migrations, command)
@@ -416,14 +214,12 @@ if __name__ == "__main__":
             sys.exit(0)
 
     if command == 'reapply':
-        for migration in migrations:
-            migration.rollback(conn, opts.force)
-        for migration in reversed(migrations):
-            migration.migrate(conn, opts.force)
-    else:
-        for migration in migrations:
-            if command == 'apply':
-                migration.migrate(conn, opts.force)
-            elif command == 'rollback':
-                migration.rollback(conn, opts.force)
+        migrations.rollback(opts.force)
+        migrations.apply(opts.force)
+
+    elif command == 'apply':
+        migrations.apply(opts.force)
+
+    elif command == 'rollback':
+        migrations.rollback(opts.force)
 
