@@ -34,6 +34,10 @@ def connect_mysql(username, password, host, port, database):
 
     return MySQLdb.connect(**kwargs), MySQLdb
 
+@connection_for('sqlite')
+def connect_sqlite(username, password, host, port, database):
+    import sqlite3
+    return sqlite3.connect(database), sqlite3
 
 @connection_for('postgres')
 @connection_for('postgresql')
@@ -105,8 +109,6 @@ def parse_uri(uri):
         pass
 
     database = uri
-    if not database:
-        return BadConnectionURI("No database name given in connection URI %r" % uri)
 
     return scheme, username, password, host, port, database
 
