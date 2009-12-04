@@ -196,9 +196,6 @@ if __name__ == "__main__":
     if opts.match:
         migrations = migrations.filter(lambda m: re.search(opts.match, m.id) is not None)
 
-    if command in ['reapply', 'rollback']:
-        migrations = reversed(migrations)
-
     if not opts.all:
         if command in ['apply']:
             migrations = migrations.to_apply()
