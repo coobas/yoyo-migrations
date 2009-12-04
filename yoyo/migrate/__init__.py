@@ -8,6 +8,16 @@ from logging import warn, info, debug
 class DatabaseError(Exception):
     pass
 
+def with_placeholders(conn, sql):
+    placeholder_gen = {
+        'qmark': '?',
+        'format': '%s',
+        'pyformat': '%s',
+    }.get(conn.paramstyle)
+    if placeholder_gen is None:
+        raise ValueError("Unsupported parameter format %s" % conn.paramstyle)
+    return sql.replace('?', placeholder_gen)
+
 class Migration(object):
 
     def __init__(self, id, steps, source):
@@ -17,11 +27,9 @@ class Migration(object):
 
     def isapplied(self, conn):
         cursor = conn.cursor()
-        # XXX: fixme!
-        placeholder = '?'
         try:
             cursor.execute(
-                "SELECT COUNT(1) FROM _yoyo_migration WHERE id=%s" % (placeholder,),
+                with_placeholders(conn, "SELECT COUNT(1) FROM _yoyo_migration WHERE id=?"),
                 (self.id,)
             )
             return cursor.fetchone()[0] > 0
@@ -30,12 +38,10 @@ class Migration(object):
 
     def apply(self, conn, force=False):
         info("Applying %s", self.id)
-        # XXX: fixme!
-        placeholder = '?'
         Migration._process_steps(self.steps, conn, 'apply', force=force)
         cursor = conn.cursor()
         cursor.execute(
-            "INSERT INTO _yoyo_migration (id, ctime) VALUES (%s, %s)" % (placeholder, placeholder),
+            with_placeholders(conn, "INSERT INTO _yoyo_migration (id, ctime) VALUES (?, ?)"),
             (self.id, datetime.now())
         )
         conn.commit()
@@ -43,12 +49,10 @@ class Migration(object):
 
     def rollback(self, conn, force=False):
         info("Rolling back %s", self.id)
-        # XXX: fixme!
-        placeholder = '?'
         Migration._process_steps(reversed(self.steps), conn, 'rollback', force=force)
         cursor = conn.cursor()
         cursor.execute(
-            "DELETE FROM _yoyo_migration WHERE id=%s" % (placeholder,),
+            with_placeholders(conn, "DELETE FROM _yoyo_migration WHERE id=?"),
             (self.id,)
         )
         conn.commit()
