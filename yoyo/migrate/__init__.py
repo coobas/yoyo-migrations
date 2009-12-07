@@ -1,5 +1,6 @@
 import os
 import sys
+import inspect
 import logging
 
 from datetime import datetime
@@ -13,7 +14,7 @@ def with_placeholders(conn, sql):
         'qmark': '?',
         'format': '%s',
         'pyformat': '%s',
-    }.get(conn.paramstyle)
+    }.get(inspect.getmodule(type(conn)).paramstyle)
     if placeholder_gen is None:
         raise ValueError("Unsupported parameter format %s" % conn.paramstyle)
     return sql.replace('?', placeholder_gen)
@@ -210,29 +211,13 @@ def read_migrations(conn, directory, names=None):
         result.append(Migration(os.path.basename(filename), steps, source))
     return result
 
-def create_migrations_table(conn):
-    try:
-        cursor = conn.cursor()
-        try:
-            try:
-                cursor.execute("""
-                    CREATE TABLE _yoyo_migration (id VARCHAR(255) NOT NULL PRIMARY KEY, ctime TIMESTAMP)
-                """)
-                conn.commit()
-            except DatabaseError:
-                pass
-        finally:
-            cursor.close()
-    finally:
-        conn.rollback()
-
 
 class MigrationList(list):
 
     def __init__(self, conn, items):
         super(MigrationList, self).__init__(items)
         self.conn = conn
-        create_migrations_table(self.conn)
+        initialize_connection(self.conn)
 
     def to_apply(self):
         """
@@ -268,5 +253,41 @@ class MigrationList(list):
     def rollback(self, force=False):
         for m in self:
             m.rollback(self.conn, force)
+
+
+def create_migrations_table(conn):
+    """
+    Create a database table to track migrations
+    """
+    try:
+        cursor = conn.cursor()
+        try:
+            try:
+                cursor.execute("""
+                    CREATE TABLE _yoyo_migration (id VARCHAR(255) NOT NULL PRIMARY KEY, ctime TIMESTAMP)
+                """)
+                conn.commit()
+            except DatabaseError:
+                pass
+        finally:
+            cursor.close()
+    finally:
+        conn.rollback()
+
+
+def initialize_connection(conn):
+    """
+    Initialize the DBAPI connection for use.
+
+    - Installs ``yoyo.migrate.DatabaseError`` as a base class for the
+      connection's own DatabaseError
+
+    - Creates the migrations table if not already existing
+
+    """
+    module = inspect.getmodule(type(conn))
+    if DatabaseError not in module.DatabaseError.__bases__:
+        module.DatabaseError.__bases__ += (DatabaseError,)
+    create_migrations_table(conn)
 
 
