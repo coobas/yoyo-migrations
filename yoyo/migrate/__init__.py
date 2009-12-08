@@ -6,6 +6,8 @@ import logging
 from datetime import datetime
 from logging import warn, info, debug
 
+from yoyo.migrate.utils import plural
+
 class DatabaseError(Exception):
     pass
 

@@ -111,7 +111,7 @@ def prompt_migrations(conn, migrations, direction):
                 mig.choice = 'n'
             break
 
-    return migrations.filter(lambda m: m.choice == 'y')
+    return migrations.replace(m.migration for m in migrations if m.choice == 'y')
 
 if __name__ == "__main__":
 
