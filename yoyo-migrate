@@ -11,7 +11,7 @@ from ConfigParser import NoSectionError, NoOptionError
 from functools import partial
 from logging import debug
 
-from yoyo.migrate.connections import DBConnection
+from yoyo.migrate.connections import connect
 from yoyo.migrate.utils import prompt, plural
 from yoyo.migrate import Migration, MigrationStep
 from yoyo.migrate import DatabaseError
@@ -186,10 +186,7 @@ if __name__ == "__main__":
         optparser.error("Invalid command")
         sys.exit(1)
 
-    conn = DBConnection(dburi)
-    getattr(conn.module, 'DatabaseError').__bases__ += (DatabaseError,)
-
-    create_migrations_table(conn)
+    conn = connect(dburi)
 
     migrations = read_migrations(conn, migrations_dir)
 

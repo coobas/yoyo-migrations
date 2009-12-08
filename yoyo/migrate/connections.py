@@ -32,7 +32,7 @@ def connect_mysql(username, password, host, port, database):
         kwargs['port'] = port
     kwargs['db'] = database
 
-    return MySQLdb.connect(**kwargs), MySQLdb
+    return MySQLdb.connect(**kwargs)
 
 @connection_for('sqlite')
 def connect_sqlite(username, password, host, port, database):
@@ -55,22 +55,16 @@ def connect_postgres(username, password, host, port, database):
     if host is not None:
         connargs.append('host=%s' % host)
     connargs.append('dbname=%s' % database)
-    return psycopg2.connect(' '.join(connargs)), psycopg2
+    return psycopg2.connect(' '.join(connargs))
 
-class DBConnection(object):
+def connect(uri):
 
-    def __init__(self, uri):
-        self.uri = parse_uri(uri)
-        scheme, username, password, host, port, database = parse_uri(uri)
-        try:
-            self.connection_func = _schemes[scheme.lower()]
-        except KeyError:
-            raise BadConnectionURI('Unrecognised database connection scheme %r' % scheme)
-        self.conn, self.module = self.connection_func(username, password, host, port, database)
-        self.paramstyle = self.module.paramstyle
-
-    def __getattr__(self, name):
-        return getattr(self.conn, name)
+    scheme, username, password, host, port, database = parse_uri(uri)
+    try:
+        connection_func = _schemes[scheme.lower()]
+    except KeyError:
+        raise BadConnectionURI('Unrecognised database connection scheme %r' % scheme)
+    return connection_func(username, password, host, port, database)
 
 
 def parse_uri(uri):
@@ -116,4 +110,3 @@ def parse_uri(uri):
     database = uri
 
     return scheme, username, password, host, port, database
-
