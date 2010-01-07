@@ -11,14 +11,14 @@ from yoyo.migrate.utils import plural
 class DatabaseError(Exception):
     pass
 
-def with_placeholders(conn, sql):
+def with_placeholders(conn, paramstyle, sql):
     placeholder_gen = {
         'qmark': '?',
         'format': '%s',
         'pyformat': '%s',
-    }.get(inspect.getmodule(type(conn)).paramstyle)
+    }.get(paramstyle)
     if placeholder_gen is None:
-        raise ValueError("Unsupported parameter format %s" % conn.paramstyle)
+        raise ValueError("Unsupported parameter format %s" % paramstyle)
     return sql.replace('?', placeholder_gen)
 
 class Migration(object):
@@ -28,41 +28,41 @@ class Migration(object):
         self.steps = steps
         self.source = source
 
-    def isapplied(self, conn):
+    def isapplied(self, conn, paramstyle):
         cursor = conn.cursor()
         try:
             cursor.execute(
-                with_placeholders(conn, "SELECT COUNT(1) FROM _yoyo_migration WHERE id=?"),
+                with_placeholders(conn, paramstyle, "SELECT COUNT(1) FROM _yoyo_migration WHERE id=?"),
                 (self.id,)
             )
             return cursor.fetchone()[0] > 0
         finally:
             cursor.close()
 
-    def apply(self, conn, force=False):
+    def apply(self, conn, paramstyle, force=False):
         info("Applying %s", self.id)
-        Migration._process_steps(self.steps, conn, 'apply', force=force)
+        Migration._process_steps(self.steps, conn, paramstyle, 'apply', force=force)
         cursor = conn.cursor()
         cursor.execute(
-            with_placeholders(conn, "INSERT INTO _yoyo_migration (id, ctime) VALUES (?, ?)"),
+            with_placeholders(conn, paramstyle, "INSERT INTO _yoyo_migration (id, ctime) VALUES (?, ?)"),
             (self.id, datetime.now())
         )
         conn.commit()
         cursor.close()
 
-    def rollback(self, conn, force=False):
+    def rollback(self, conn, paramstyle, force=False):
         info("Rolling back %s", self.id)
-        Migration._process_steps(reversed(self.steps), conn, 'rollback', force=force)
+        Migration._process_steps(reversed(self.steps), conn, paramstyle, 'rollback', force=force)
         cursor = conn.cursor()
         cursor.execute(
-            with_placeholders(conn, "DELETE FROM _yoyo_migration WHERE id=?"),
+            with_placeholders(conn, paramstyle, "DELETE FROM _yoyo_migration WHERE id=?"),
             (self.id,)
         )
         conn.commit()
         cursor.close()
 
     @staticmethod
-    def _process_steps(steps, conn, direction, force=False):
+    def _process_steps(steps, conn, paramstyle, direction, force=False):
 
         reverse = {
             'rollback': 'apply',
@@ -72,7 +72,7 @@ class Migration(object):
         executed_steps = []
         for ix, step in enumerate(steps):
             try:
-                if getattr(step, direction)(conn, force):
+                if getattr(step, direction)(conn, paramstyle, force):
                     executed_steps.append(step)
             except DatabaseError:
                 conn.rollback()
@@ -127,7 +127,7 @@ class MigrationStep(object):
                 out.write((format % tuple(row)).encode('utf8') + "\n")
             out.write(plural(len(result), '(%d row)', '(%d rows)') + "\n")
 
-    def apply(self, conn, force=False):
+    def apply(self, conn, paramstyle, force=False):
         """
         Apply the step and commit the change. Return ``True`` if a change was
         successfully applied, ``False`` if there was no apply action for this
@@ -154,7 +154,7 @@ class MigrationStep(object):
             cursor.close()
         return True
 
-    def rollback(self, conn, force=False):
+    def rollback(self, conn, paramstyle, force=False):
         """
         Rollback the step and commit the change. Return ``True`` if a change
         was successfully rolled back, ``False`` if there was no rollback action
@@ -181,13 +181,13 @@ class MigrationStep(object):
             cursor.close()
 
 
-def read_migrations(conn, directory, names=None):
+def read_migrations(conn, paramstyle, directory, names=None):
     """
-    Return a MigrationList of migrations from ``directory``, optionally
-    limiting to those with the specified filenames (without extensions).
+    Return a ``MigrationList`` containing all migrations from ``directory``.
+    If ``names`` is given, this only return migrations with names from the given list (without file extensions).
     """
 
-    result = MigrationList(conn, [])
+    result = MigrationList(conn, paramstyle, [])
     paths = [
         os.path.join(directory, path) for path in os.listdir(directory) if path.endswith('.py')
     ]
@@ -215,46 +215,58 @@ def read_migrations(conn, directory, names=None):
 
 
 class MigrationList(list):
+    """
+    A list of database migrations.
 
-    def __init__(self, conn, items):
+    Use ``to_apply`` or ``to_rollback`` to retrieve subset lists of migrations
+    that can be applied/rolled back.
+    """
+
+
+    def __init__(self, conn, paramstyle, items):
         super(MigrationList, self).__init__(items)
         self.conn = conn
+        self.paramstyle = paramstyle
         initialize_connection(self.conn)
 
     def to_apply(self):
         """
-        Subset of migrations that have not already been applied
+        Return a list of the subset of migrations not already applied.
         """
         return self.__class__(
             self.conn,
-            [ m for m in self if not m.isapplied(self.conn) ]
+            self.paramstyle,
+            [ m for m in self if not m.isapplied(self.conn, self.paramstyle) ]
         )
 
     def to_rollback(self):
         """
-        Subset of migrations that have been applied and may be rolled back
+        Return a list of the subset of migrations already applied, which may be
+        rolled back.
         """
         return self.__class__(
             self.conn,
-            [ m for m in self if m.isapplied(self.conn) ]
+            self.paramstyle,
+            [ m for m in self if m.isapplied(self.conn, self.paramstyle) ]
         )
 
     def filter(self, predicate):
         return self.__class__(
             self.conn,
+            self.paramstyle,
             [ m for m in self if predicate(m) ]
         )
 
     def replace(self, newmigrations):
-        return self.__class__(self.conn, newmigrations)
+        return self.__class__(self.conn, self.paramstyle, newmigrations)
 
     def apply(self, force=False):
         for m in self:
-            m.apply(self.conn, force)
+            m.apply(self.conn, self.paramstyle, force)
 
     def rollback(self, force=False):
         for m in self:
-            m.rollback(self.conn, force)
+            m.rollback(self.conn, self.paramstyle, force)
 
 
 def create_migrations_table(conn):

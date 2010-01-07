@@ -32,12 +32,12 @@ def connect_mysql(username, password, host, port, database):
         kwargs['port'] = port
     kwargs['db'] = database
 
-    return MySQLdb.connect(**kwargs)
+    return MySQLdb.connect(**kwargs), MySQLdb.paramstyle
 
 @connection_for('sqlite')
 def connect_sqlite(username, password, host, port, database):
     import sqlite3
-    return sqlite3.connect(database), sqlite3
+    return sqlite3.connect(database), sqlite3.paramstyle
 
 @connection_for('postgres')
 @connection_for('postgresql')
@@ -55,9 +55,14 @@ def connect_postgres(username, password, host, port, database):
     if host is not None:
         connargs.append('host=%s' % host)
     connargs.append('dbname=%s' % database)
-    return psycopg2.connect(' '.join(connargs))
+    return psycopg2.connect(' '.join(connargs)), psycopg2.paramstyle
 
 def connect(uri):
+    """
+    Connect to the given DB uri (in the format
+    ``driver://user:pass@host/database_name``), returning a DB-API connection
+    object and the paramstyle used by the DB-API module.
+    """
 
     scheme, username, password, host, port, database = parse_uri(uri)
     try:

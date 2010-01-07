@@ -39,7 +39,7 @@ class prompted_migration(object):
         self.choice = default
 
 
-def prompt_migrations(conn, migrations, direction):
+def prompt_migrations(conn, paramstyle, migrations, direction):
     """
     Iterate through the list of migrations and prompt the user to apply/rollback each.
     Return a list of user selected migrations.
@@ -56,9 +56,9 @@ def prompt_migrations(conn, migrations, direction):
         choice = mig.choice
         if choice is None:
             if direction == 'apply':
-                choice = 'n' if mig.migration.isapplied(conn) else 'y'
+                choice = 'n' if mig.migration.isapplied(conn, paramstyle) else 'y'
             else:
-                choice = 'y' if mig.migration.isapplied(conn) else 'n'
+                choice = 'y' if mig.migration.isapplied(conn, paramstyle) else 'n'
         options = ''.join(o.upper() if o == choice else o.lower() for o in 'ynvdaqjk?')
 
         print ""
@@ -186,9 +186,9 @@ if __name__ == "__main__":
         optparser.error("Invalid command")
         sys.exit(1)
 
-    conn = connect(dburi)
+    conn, paramstyle = connect(dburi)
 
-    migrations = read_migrations(conn, migrations_dir)
+    migrations = read_migrations(conn, paramstyle, migrations_dir)
 
     if opts.match:
         migrations = migrations.filter(lambda m: re.search(opts.match, m.id) is not None)
@@ -201,7 +201,7 @@ if __name__ == "__main__":
             migrations = migrations.to_rollback()
 
     if not opts.batch:
-        migrations = prompt_migrations(conn, migrations, command)
+        migrations = prompt_migrations(conn, paramstyle, migrations, command)
 
     if not opts.batch and migrations:
         if prompt(command.title() + plural(len(migrations), " %d migration", " %d migrations") + " to %s?" % dburi, "Yn") != 'y':
