@@ -20,7 +20,7 @@ setup(
 
     author='Oliver Cope',
     author_email='oliver@redgecko.org',
-    scripts=['yoyo-migrate'],
+    scripts=['scripts/yoyo-migrate'],
     install_requires=[
     ],
     extras_require = {
