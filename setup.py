@@ -30,7 +30,6 @@ setup(
     dependency_links=[
         'http://sourceforge.net/project/showfiles.php?group_id=22307'
     ],
-    namespace_packages=['yoyo'],
     packages=find_packages(exclude=['ez_setup', 'examples', 'tests']),
     include_package_data=True,
 )
