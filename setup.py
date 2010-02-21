@@ -12,8 +12,8 @@ def readfile(path):
 
 
 setup(
-    name='yoyo.migrations',
-    description='Database migrations tool, using SQL and DB-API',
+    name='yoyo-migrations',
+    description='Database schema migration tool, using SQL and DB-API',
     long_description=readfile(
         os.path.join(os.path.dirname(__file__), 'README')
     ).decode('utf-8').encode('ascii', 'replace'),
@@ -34,4 +34,3 @@ setup(
     packages=find_packages(exclude=['ez_setup', 'examples', 'tests']),
     include_package_data=True,
 )
-

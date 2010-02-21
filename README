@@ -1,5 +1,7 @@
 Database migrations using SQL and the DB-API.
 
+Currently PostgreSQL, MySQL and SQLite databases are supported.
+
 Usage::
 
 	yoyo-migrate apply postgres://user:password@localhost/database ./migrations
@@ -20,11 +22,23 @@ step contains a migration query and optionally a rollback query. For example::
 The filename of each file (without the .py extension) is used as the identifier
 for each migration.
 
+yoyo-migrate creates a table in your target database, ``_yoyo_migration``, to
+track which migrations have been applied.
+
 Steps may also take an optional argument ``ignore_errors``, which must be one
 of ``apply``, ``rollback``, or ``all``. If in the previous example the table
 foo might have already been created by another means, we could add
 ``ignore_errors='apply'`` to the step to allow the system to continue
-regardless.
+regardless::
+
+	#
+	# file: 0001.create-foo.py
+	#
+	step(
+		"CREATE TABLE foo (id INT, bar VARCHAR(20), PRIMARY KEY (id))",
+		"DROP TABLE foo",
+		ignore_errors='apply',
+	)
 
 Steps can also be python callable objects that take a database connection as
 their single argument. For example::
