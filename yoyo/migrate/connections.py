@@ -90,27 +90,29 @@ def parse_uri(uri):
 
     try:
         netloc, uri = uri.split('/', 1)
-        try:
-            auth, netloc = netloc.split('@', 1)
-            try:
-                username, password = auth.split(':', 1)
-            except ValueError:
-                username = auth
-        except ValueError:
-            auth = ''
-
-        if netloc:
-            try:
-                host, port = netloc.split(':')
-                try:
-                    port = int(port)
-                except ValueError:
-                    raise BadConnectionURI('Port %r is not numeric' % port)
-            except ValueError:
-                host = netloc
-
     except ValueError:
-        pass
+        netloc = ''
+
+    try:
+        auth, netloc = netloc.split('@', 1)
+    except ValueError:
+        auth = ''
+
+    if auth:
+        try:
+            username, password = auth.split(':', 1)
+        except ValueError:
+            username = auth
+
+    if netloc:
+        try:
+            host, port = netloc.split(':')
+            try:
+                port = int(port)
+            except ValueError:
+                raise BadConnectionURI('Port %r is not numeric' % port)
+        except ValueError:
+            host = netloc
 
     database = uri
 
