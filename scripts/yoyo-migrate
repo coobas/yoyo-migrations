@@ -5,27 +5,27 @@ import os
 import re
 import sys
 import termios
-import ConfigParser, os
+import ConfigParser
 
 from ConfigParser import NoSectionError, NoOptionError
 from functools import partial
+from getpass import getpass
 from logging import debug
 
-from yoyo.migrate.connections import connect
+from yoyo.migrate.connections import connect, parse_uri, unparse_uri
 from yoyo.migrate.utils import prompt, plural
 from yoyo.migrate import Migration, MigrationStep
 from yoyo.migrate import DatabaseError
 from yoyo.migrate import read_migrations, create_migrations_table
 
-CONFIG_PATH = os.path.expanduser('~/.yoyo-migrate')
-
-def readconfig():
+def readconfig(path):
     config = ConfigParser.ConfigParser()
-    config.read([CONFIG_PATH])
+    config.read([path])
     return config
 
-def saveconfig(config):
-    f = open(CONFIG_PATH, 'w')
+def saveconfig(config, path):
+    os.umask(077)
+    f = open(path, 'w')
     try:
         return config.write(f)
     finally:
@@ -37,7 +37,6 @@ class prompted_migration(object):
         super(prompted_migration, self).__init__()
         self.migration = migration
         self.choice = default
-
 
 def prompt_migrations(conn, paramstyle, migrations, direction):
     """
@@ -113,10 +112,9 @@ def prompt_migrations(conn, paramstyle, migrations, direction):
 
     return migrations.replace(m.migration for m in migrations if m.choice == 'y')
 
-if __name__ == "__main__":
+def make_optparser():
 
-    config = readconfig()
-    optparser = optparse.OptionParser(usage="%prog apply|rollback <database> <migrations>")
+    optparser = optparse.OptionParser(usage="%prog apply|rollback <migrations> <database>")
     optparser.add_option(
         "-m", "--match", dest="match",
         help="Select migrations matching PATTERN (perl-compatible regular expression)", metavar='PATTERN',
@@ -137,54 +135,93 @@ if __name__ == "__main__":
         "", "--force", dest="force", action="store_true",
         help="Force apply/rollback of steps even if previous steps have failed"
     )
+    optparser.add_option(
+        "-p", "--prompt-password", dest="prompt_password", action="store_true",
+        help="Prompt for the database password"
+    )
+    optparser.add_option(
+        "", "--no-cache", dest="cache", action="store_false", default=True,
+        help="Don't cache database login credentials"
+    )
 
+    return optparser
 
-    opts, args = optparser.parse_args()
+def set_logging(level):
+    """
+    Configure the python logging module with the requested loglevel
+    """
+    logging.getLogger().setLevel(
+        {
+            0: logging.ERROR, 1: logging.WARN,
+            2: logging.INFO, 3: logging.DEBUG
+        }[level]
+    )
 
+def main(argv):
+
+    optparser = make_optparser()
+    opts, args = optparser.parse_args(argv)
     try:
-        logging.getLogger().setLevel(
-            {
-                0: logging.ERROR, 1: logging.WARN,
-                2: logging.INFO, 3: logging.DEBUG
-            }[int(opts.verbosity)]
-        )
-    except KeyError:
-        optparser.error("Invalid verbosity level")
-        sys.exit(1)
-
+        set_logging(int(opts.verbosity))
+    except (ValueError, KeyError):
+        optparser.error("verbosity: invalid level")
 
     command = dburi = migrations_dir = None
     try:
-        command, dburi, migrations_dir = args
+        command, migrations_dir, dburi = args
         migrations_dir = os.path.normpath(os.path.abspath(migrations_dir))
     except ValueError:
+        command, migrations_dir = args
+        dburi = None
+
+    config_path = os.path.join(migrations_dir, '.yoyo-migrate')
+    config = readconfig(config_path)
+
+    if dburi is None and opts.cache:
         try:
-            command, migrations_dir = args
-            migrations_dir = os.path.normpath(os.path.abspath(migrations_dir))
-            debug("Looking up dburi for %r", migrations_dir)
+            debug("Looking up connection string for %r", migrations_dir)
             dburi = config.get(migrations_dir, 'dburi')
         except (ValueError, NoSectionError, NoOptionError):
             pass
 
     if dburi is None:
         optparser.error(
-            "Please specify a command, "
-            "database connection string "
-            "and path to the migrations directory"
+            "Please specify command, migrations directory and "
+            "database connection string arguments"
         )
-        sys.exit(1)
-
-    # Store the database this directory is being applied to so that subsequent
-    # runs don't need the dburi argument
-    if not config.has_section(migrations_dir):
-        config.add_section(migrations_dir)
-    if not config.has_option(migrations_dir, 'dburi') or config.get(migrations_dir, 'dburi') != dburi:
-        config.set(migrations_dir, 'dburi', dburi)
-        saveconfig(config)
 
     if command not in ['apply', 'rollback', 'reapply']:
         optparser.error("Invalid command")
-        sys.exit(1)
+
+    if opts.prompt_password:
+        password = getpass('Password for %s: ' % dburi)
+        scheme, username, _, host, port, database = parse_uri(dburi)
+        dburi = unparse_uri((scheme, username, password, host, port, database))
+
+    # Cache the database this migration set is applied to so that subsequent
+    # runs don't need the dburi argument. Don't cache anything in batch mode -
+    # we can't prompt to find the user's preference.
+    if opts.cache and not opts.batch:
+        if not config.has_option('DEFAULT', 'dburi'):
+            response = prompt(
+                "Save connection string to %s for future migrations?\n"
+                "This is saved in plain text and "
+                "contains your database password." % (config_path,),
+                "yn"
+            )
+            if response == 'y':
+                config.set('DEFAULT', 'dburi', dburi)
+
+        elif config.get('DEFAULT', 'dburi') != dburi:
+            response = prompt(
+                "Specified connection string differs from that saved in %s. "
+                "Update saved connection string?" % (config_path,),
+                "yn"
+            )
+            if response == 'y':
+                config.set('DEFAULT', 'dburi', dburi)
+
+        saveconfig(config, config_path)
 
     conn, paramstyle = connect(dburi)
 
@@ -205,7 +242,7 @@ if __name__ == "__main__":
 
     if not opts.batch and migrations:
         if prompt(command.title() + plural(len(migrations), " %d migration", " %d migrations") + " to %s?" % dburi, "Yn") != 'y':
-            sys.exit(0)
+            return 0
 
     if command == 'reapply':
         migrations.rollback(opts.force)
@@ -216,4 +253,8 @@ if __name__ == "__main__":
 
     elif command == 'rollback':
         migrations.rollback(opts.force)
+
+if __name__ == "__main__":
+
+    main(sys.argv[1:])
 

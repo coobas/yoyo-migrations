@@ -115,3 +115,34 @@ def parse_uri(uri):
     database = uri
 
     return scheme, username, password, host, port, database
+
+def unparse_uri(uri_tuple):
+    """
+    Examples::
+
+        >>> unparse_uri(('postgres', 'fred', 'bassett', 'dbserver', 5432, 'fredsdatabase'))
+        'postgres://fred:bassett@dbserver:5432/fredsdatabase'
+
+        >>> unparse_uri(('postgres', 'pgsql', None, None, None, 'template1'))
+        'postgres://pgsql@/template1'
+
+        >>> unparse_uri(('mysql', 'jim', None, 'localhost', None, 'jimsdatabase'))
+        'mysql://jim@localhost/jimsdatabase'
+    """
+
+    scheme, username, password, host, port, database = uri_tuple
+    uri = scheme + "://"
+    if username:
+        uri += username
+        if password:
+            uri += ':' + str(password)
+        uri += '@'
+    if host:
+        uri += host
+    if port:
+        uri += ':%s' % (port,)
+    uri += '/'
+    uri += database
+
+    return uri
+
