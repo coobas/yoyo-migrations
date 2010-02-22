@@ -114,7 +114,7 @@ def prompt_migrations(conn, paramstyle, migrations, direction):
 
 def make_optparser():
 
-    optparser = optparse.OptionParser(usage="%prog apply|rollback <migrations> <database>")
+    optparser = optparse.OptionParser(usage="%prog apply|rollback|reapply <migrations> <database>")
     optparser.add_option(
         "-m", "--match", dest="match",
         help="Select migrations matching PATTERN (perl-compatible regular expression)", metavar='PATTERN',
