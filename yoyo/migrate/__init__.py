@@ -79,7 +79,7 @@ class Migration(object):
                 exc_info = sys.exc_info()
                 try:
                     for step in reversed(executed_steps):
-                        getattr(step, reverse)(conn)
+                        getattr(step, reverse)(conn, paramstyle)
                 except DatabaseError:
                     logging.exception('Database error when reversing %s  of step', direction)
                 raise exc_info[0], exc_info[1], exc_info[2]
