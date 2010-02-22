@@ -180,7 +180,7 @@ def main(argv):
     if dburi is None and opts.cache:
         try:
             debug("Looking up connection string for %r", migrations_dir)
-            dburi = config.get(migrations_dir, 'dburi')
+            dburi = config.get('DEFAULT', 'dburi')
         except (ValueError, NoSectionError, NoOptionError):
             pass
 

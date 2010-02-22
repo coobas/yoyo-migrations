@@ -8,7 +8,7 @@ from logging import warn, info, debug
 
 from yoyo.migrate.utils import plural
 
-__version__ = '1'
+__version__ = '2'
 
 class DatabaseError(Exception):
     pass
