@@ -157,7 +157,10 @@ def set_logging(level):
         }[level]
     )
 
-def main(argv):
+def main(argv=None):
+
+    if argv is None:
+        argv = sys.argv[1:]
 
     optparser = make_optparser()
     opts, args = optparser.parse_args(argv)

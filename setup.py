@@ -31,7 +31,6 @@ setup(
 
     author='Oliver Cope',
     author_email='oliver@redgecko.org',
-    scripts=['scripts/yoyo-migrate'],
     url='',
     license='BSD',
     packages=find_packages(exclude=['ez_setup', 'examples', 'tests']),
@@ -47,4 +46,9 @@ setup(
     dependency_links=[
         'http://sourceforge.net/project/showfiles.php?group_id=22307'
     ],
+    entry_points= {
+        'console_scripts': [
+            'yoyo-migrate=yoyo.scripts.migrate:main'
+        ],
+    }
 )
