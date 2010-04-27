@@ -1,3 +1,12 @@
+Version 3
+
+  * Use the console_scripts entry_point in preference to scripts=[] in
+    setup.py, this provides better interoperability with buildout
+  
+Version 2
+
+  * Fixed error when reading dburi from config file
+
 Version 1
 
   * Initial release
