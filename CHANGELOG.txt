@@ -1,3 +1,7 @@
+Version 4
+
+  * Fixed problem installing due to missing manifest entry
+
 Version 3
 
   * Use the console_scripts entry_point in preference to scripts=[] in
