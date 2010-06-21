@@ -284,11 +284,13 @@ class MigrationList(list):
         """
         Return a list of the subset of migrations already applied, which may be
         rolled back.
+
+        The order of migrations will be reversed.
         """
         return self.__class__(
             self.conn,
             self.paramstyle,
-            [ m for m in self if m.isapplied(self.conn, self.paramstyle) ],
+            list(reversed([m for m in self if m.isapplied(self.conn, self.paramstyle)])),
             self.post_apply
         )
 
