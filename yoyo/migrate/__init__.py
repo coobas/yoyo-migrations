@@ -86,6 +86,32 @@ class Migration(object):
                     logging.exception('Database error when reversing %s  of step', direction)
                 raise exc_info[0], exc_info[1], exc_info[2]
 
+class PostApplyHookMigration(Migration):
+    """
+    A special migration that is run after successfully applying a set of migrations.
+    Unlike a normal migration this will be run every time migrations are applied
+    script is called.
+    """
+
+    def apply(self, conn, paramstyle, force=False):
+        info("Applying %s", self.id)
+        self.__class__._process_steps(
+            self.steps,
+            conn,
+            paramstyle,
+            'apply',
+            force=True
+        )
+
+    def rollback(self, conn, paramstyle, force=False):
+        info("Rolling back %s", self.id)
+        self.__class__._process_steps(
+            reversed(self.steps),
+            conn,
+            paramstyle,
+            'rollback',
+            force=True
+        )
 
 class MigrationStep(object):
     """
@@ -189,7 +215,7 @@ def read_migrations(conn, paramstyle, directory, names=None):
     If ``names`` is given, this only return migrations with names from the given list (without file extensions).
     """
 
-    result = MigrationList(conn, paramstyle, [])
+    migrations = MigrationList(conn, paramstyle)
     paths = [
         os.path.join(directory, path) for path in os.listdir(directory) if path.endswith('.py')
     ]
@@ -197,7 +223,13 @@ def read_migrations(conn, paramstyle, directory, names=None):
     for path in sorted(paths):
 
         filename = os.path.splitext(os.path.basename(path))[0]
-        if names is not None and filename not in names:
+
+        if filename.startswith('post-apply'):
+            migration_class = PostApplyHookMigration
+        else:
+            migration_class = Migration
+
+        if migration_class is Migration and names is not None and filename not in names:
             continue
 
         steps = []
@@ -207,13 +239,18 @@ def read_migrations(conn, paramstyle, directory, names=None):
         file = open(path, 'r')
         try:
             source = file.read()
-            migration = compile(source, file.name, 'exec')
+            migration_code = compile(source, file.name, 'exec')
         finally:
             file.close()
         ns = { 'step' : step }
-        exec migration in ns
-        result.append(Migration(os.path.basename(filename), steps, source))
-    return result
+        exec migration_code in ns
+        migration = migration_class(os.path.basename(filename), steps, source)
+        if migration_class is PostApplyHookMigration:
+            migrations.post_apply.append(migration)
+        else:
+            migrations.append(migration)
+
+    return migrations
 
 
 class MigrationList(list):
@@ -225,10 +262,11 @@ class MigrationList(list):
     """
 
 
-    def __init__(self, conn, paramstyle, items):
-        super(MigrationList, self).__init__(items)
+    def __init__(self, conn, paramstyle, items=None, post_apply=None):
+        super(MigrationList, self).__init__(items if items else [])
         self.conn = conn
         self.paramstyle = paramstyle
+        self.post_apply = post_apply if post_apply else []
         initialize_connection(self.conn)
 
     def to_apply(self):
@@ -238,7 +276,8 @@ class MigrationList(list):
         return self.__class__(
             self.conn,
             self.paramstyle,
-            [ m for m in self if not m.isapplied(self.conn, self.paramstyle) ]
+            [ m for m in self if not m.isapplied(self.conn, self.paramstyle) ],
+            self.post_apply
         )
 
     def to_rollback(self):
@@ -249,25 +288,31 @@ class MigrationList(list):
         return self.__class__(
             self.conn,
             self.paramstyle,
-            [ m for m in self if m.isapplied(self.conn, self.paramstyle) ]
+            [ m for m in self if m.isapplied(self.conn, self.paramstyle) ],
+            self.post_apply
         )
 
     def filter(self, predicate):
         return self.__class__(
             self.conn,
             self.paramstyle,
-            [ m for m in self if predicate(m) ]
+            [ m for m in self if predicate(m) ],
+            self.post_apply
         )
 
     def replace(self, newmigrations):
-        return self.__class__(self.conn, self.paramstyle, newmigrations)
+        return self.__class__(self.conn, self.paramstyle, newmigrations, self.post_apply)
 
     def apply(self, force=False):
-        for m in self:
+        if not self:
+            return
+        for m in self + self.post_apply:
             m.apply(self.conn, self.paramstyle, force)
 
     def rollback(self, force=False):
-        for m in self:
+        if not self:
+            return
+        for m in self + self.post_apply:
             m.rollback(self.conn, self.paramstyle, force)
 
 
