@@ -59,7 +59,7 @@ example::
 
 The filename of each file (without the .py extension) is used as the identifier
 for each migration. Migrations are applied in filename order, so it's useful to
-name your files using a date (eg '20090115-xyz.py') or with another incrementing
+name your files using a date (eg '20090115-xyz.py') or some other incrementing
 number.
 
 yoyo-migrate creates a table in your target database, ``_yoyo_migration``, to
@@ -72,7 +72,7 @@ foo might have already been created by another means, we could add
 regardless::
 
 	#
-	# file: 0001.create-foo.py
+	# file: migrations/0001.create-foo.py
 	#
 	step(
 		"CREATE TABLE foo (id INT, bar VARCHAR(20), PRIMARY KEY (id))",
@@ -84,7 +84,7 @@ Steps can also be python callable objects that take a database connection as
 their single argument. For example::
 
 	#
-	# file: 0002.update_keys.py
+	# file: migrations/0002.update-keys.py
 	#
 	def do_step(conn):
 		cursor = conn.cursor()
