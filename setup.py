@@ -44,7 +44,6 @@ setup(
         'postgres': [u'psycopg2'],
     },
     dependency_links=[
-        'http://sourceforge.net/project/showfiles.php?group_id=22307'
     ],
     entry_points= {
         'console_scripts': [
