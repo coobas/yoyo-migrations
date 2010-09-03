@@ -3,6 +3,7 @@ import sys
 import inspect
 import logging
 
+from itertools import count
 from datetime import datetime
 from logging import warn, info, debug
 
@@ -72,10 +73,10 @@ class Migration(object):
         }[direction]
 
         executed_steps = []
-        for ix, step in enumerate(steps):
+        for step in steps:
             try:
-                if getattr(step, direction)(conn, paramstyle, force):
-                    executed_steps.append(step)
+                getattr(step, direction)(conn, paramstyle, force)
+                executed_steps.append(step)
             except DatabaseError:
                 conn.rollback()
                 exc_info = sys.exc_info()
@@ -83,7 +84,7 @@ class Migration(object):
                     for step in reversed(executed_steps):
                         getattr(step, reverse)(conn, paramstyle)
                 except DatabaseError:
-                    logging.exception('Database error when reversing %s  of step', direction)
+                    logging.exception('Database error when reversing %s of step', direction)
                 raise exc_info[0], exc_info[1], exc_info[2]
 
 class PostApplyHookMigration(Migration):
@@ -113,19 +114,57 @@ class PostApplyHookMigration(Migration):
             force=True
         )
 
-class MigrationStep(object):
-    """
-    Model a single migration. Each migration step comprises a single apply and
-    rollback step of up and down SQL statements.
-    """
-    def __init__(self, id, apply, rollback, ignore_errors):
+class StepBase(object):
 
+
+    def apply(self, conn, paramstyle, force=False):
+        raise NotImplementedError()
+
+    def rollback(self, conn, paramstyle, force=False):
+        raise NotImplementedError()
+
+class Transaction(StepBase):
+    """
+    A ``Transaction`` object causes all associated steps to be run within a
+    single database transaction.
+    """
+
+    def __init__(self, steps, ignore_errors=None):
         assert ignore_errors in (None, 'all', 'apply', 'rollback')
+        self.steps = steps
+        self.ignore_errors = ignore_errors
+
+    def apply(self, conn, paramstyle, force=False):
+
+        for step in self.steps:
+            try:
+                step.apply(conn, paramstyle, force)
+            except DatabaseError:
+                if force or self.ignore_errors in ('apply', 'all'):
+                    conn.rollback()
+                logging.exception("Ignored error in step %d", step.id)
+        conn.commit()
+
+    def rollback(self, conn, paramstyle, force=False):
+        for step in reversed(self.steps):
+            step.rollback(conn, paramstyle, force)
+        conn.commit()
+
+class MigrationStep(StepBase):
+    """
+    Model a single migration.
+
+    Each migration step comprises apply and rollback steps of up and down SQL
+    statements.
+    """
+
+    transaction = None
+
+    def __init__(self, id, apply, rollback):
 
         self.id = id
         self._rollback = rollback
         self._apply = apply
-        self.ignore_errors = ignore_errors
 
     def _execute(self, cursor, stmt, out=sys.stdout):
         """
@@ -157,36 +196,26 @@ class MigrationStep(object):
 
     def apply(self, conn, paramstyle, force=False):
         """
-        Apply the step and commit the change. Return ``True`` if a change was
-        successfully applied, ``False`` if there was no apply action for this
-        step.
+        Apply the step.
+
+        force
+            If true, errors will be logged but not be re-raised
         """
         info(" - applying step %d", self.id)
-        if self._apply is None:
-            return False
+        if not self._apply:
+            return
         cursor = conn.cursor()
         try:
-            try:
-                if callable(self._apply):
-                    self._apply(conn)
-                else:
-                    self._execute(cursor, self._apply)
-                conn.commit()
-            except DatabaseError:
-                if force or self.ignore_errors in ('apply', 'all'):
-                    conn.rollback()
-                    logging.exception("Ignored error in step %d", self.id)
-                else:
-                    raise
+            if isinstance(self._apply, (str, unicode)):
+                self._execute(cursor, self._apply)
+            else:
+                self._apply(conn)
         finally:
             cursor.close()
-        return True
 
     def rollback(self, conn, paramstyle, force=False):
         """
-        Rollback the step and commit the change. Return ``True`` if a change
-        was successfully rolled back, ``False`` if there was no rollback action
-        for this step.
+        Rollback the step.
         """
         info(" - rolling back step %d", self.id)
         if self._rollback is None:
@@ -194,10 +223,11 @@ class MigrationStep(object):
         cursor = conn.cursor()
         try:
             try:
-                if callable(self._rollback):
-                    self._rollback(cursor)
-                else:
-                    self._execute(cursor, self._rollback)
+                for item in reversed(self._rollback):
+                    if isinstance(item, (str, unicode)):
+                        self._execute(cursor, self._rollback)
+                    else:
+                        item(conn)
                 conn.commit()
             except DatabaseError:
                 if force or self.ignore_errors in ('rollback', 'all'):
@@ -232,9 +262,38 @@ def read_migrations(conn, paramstyle, directory, names=None):
         if migration_class is Migration and names is not None and filename not in names:
             continue
 
-        steps = []
+        step_id = count(0)
+        transactions = []
+
         def step(apply, rollback=None, ignore_errors=None):
-            steps.append(MigrationStep(len(steps), apply, rollback, ignore_errors))
+            """
+            Wrap the given apply and rollback code in a transaction, and add it
+            to the list of steps. Return the transaction-wrapped step.
+            """
+            t = Transaction([MigrationStep(step_id.next(), apply, rollback)], ignore_errors)
+            transactions.append(t)
+            return t
+
+        def transaction(*steps, **kwargs):
+            """
+            Wrap the given list of steps in a single transaction, removing the
+            default transactions around individual steps.
+            """
+            ignore_errors = kwargs.pop('ignore_errors', None)
+            assert kwargs == {}
+
+            transaction = Transaction([], ignore_errors)
+            for oldtransaction in steps:
+                if oldtransaction.ignore_errors is not None:
+                    raise AssertionError("ignore_errors cannot be specified within a transaction")
+                try:
+                    (step,) = oldtransaction.steps
+                except ValueError:
+                    raise AssertionError("Transactions cannot be nested")
+                transaction.steps.append(step)
+                transactions.remove(oldtransaction)
+            transactions.append(transaction)
+            return transaction
 
         file = open(path, 'r')
         try:
@@ -242,9 +301,10 @@ def read_migrations(conn, paramstyle, directory, names=None):
             migration_code = compile(source, file.name, 'exec')
         finally:
             file.close()
-        ns = { 'step' : step }
+
+        ns = {'step' : step, 'transaction': transaction}
         exec migration_code in ns
-        migration = migration_class(os.path.basename(filename), steps, source)
+        migration = migration_class(os.path.basename(filename), transactions, source)
         if migration_class is PostApplyHookMigration:
             migrations.post_apply.append(migration)
         else:

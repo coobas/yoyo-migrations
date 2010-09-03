@@ -96,6 +96,26 @@ their single argument. For example::
 		) 
 	step(do_step)
 
+Each step is run in its own transaction so that database errors do not cause
+subsequent steps to fail. You can nest steps within a ``transaction`` so
+that they run within a single transaction::
+
+	#
+	# file: migrations/0001.create-foo.py
+	#
+	transaction(
+		step(
+			"CREATE TABLE foo (id INT, bar VARCHAR(20), PRIMARY KEY (id))",
+			"DROP TABLE foo",
+		),
+		step("INSERT INTO foo (1, 'baz')"),
+		ignore_errors='all',
+	)
+
+If this is the case setting ``ignore_errors`` on individual steps makes no
+sense: a database error will cause the entire transaction to be rolled back
+anyway. The outer ``transaction`` can however have ``ignore_errors`` set.
+
 Password security
 -----------------
 
