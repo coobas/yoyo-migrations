@@ -377,6 +377,13 @@ class MigrationList(list):
         for m in self + self.post_apply:
             m.rollback(self.conn, self.paramstyle, force)
 
+    def __getslice__(self, i, j):
+        return self.__class__(
+            self.conn,
+            self.paramstyle,
+            super(MigrationList, self).__getslice__(i, j),
+            self.post_apply
+        )
 
 def create_migrations_table(conn):
     """
