@@ -43,6 +43,9 @@ setup(
         'mysql': [u'mysql-python'],
         'postgres': [u'psycopg2'],
     },
+    tests_require = [
+        'sqlite3',
+    ],
     dependency_links=[
     ],
     entry_points= {
