@@ -96,9 +96,12 @@ their single argument. For example::
 		) 
 	step(do_step)
 
-Each step is run in its own transaction so that database errors do not cause
-subsequent steps to fail. You can nest steps within a ``transaction`` so
-that they run within a single transaction::
+Transactions
+------------
+
+By default each step is run in its own transaction.
+You can run multiple steps within a single transaction by wrapping them in a
+``transaction`` call, like so::
 
 	#
 	# file: migrations/0001.create-foo.py
@@ -113,8 +116,16 @@ that they run within a single transaction::
 	)
 
 If this is the case setting ``ignore_errors`` on individual steps makes no
-sense: a database error will cause the entire transaction to be rolled back
-anyway. The outer ``transaction`` can however have ``ignore_errors`` set.
+sense: database errors will always cause the entire transaction to be rolled
+back. The outer ``transaction`` can however have ``ignore_errors`` set.
+
+Post-apply hook
+---------------
+
+It can be useful to have a script that's run after successful migrations. For
+example you could use this to update database permissions or re-create views.
+To do this, create a migration file called ``post-apply.py``. This file should
+have the same format as any other migration file.
 
 Password security
 -----------------
@@ -145,3 +156,9 @@ history when you have moved to a different directory).
 
 If you do not want this cache file to be used, add the ``--no-cache`` parameter
 to the command line options.
+
+Thanks
+------
+
+Thank you to Ryan Williams for the transactions functionality and assorted bug fixes.
+

@@ -1,3 +1,14 @@
+CHANGELOG
+---------
+
+Version 5
+
+  * Introduced ability to run steps within a transaction
+
+  * "post-apply" migrations can be run after every successful upward migration
+
+  * Other minor bugfixes and improvements
+
 Version 4
 
   * Fixed problem installing due to missing manifest entry
