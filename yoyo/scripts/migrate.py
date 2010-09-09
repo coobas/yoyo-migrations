@@ -174,7 +174,11 @@ def main(argv=None):
         command, migrations_dir, dburi = args
         migrations_dir = os.path.normpath(os.path.abspath(migrations_dir))
     except ValueError:
-        command, migrations_dir = args
+        try:
+            command, migrations_dir = args
+        except ValueError:
+            optparser.print_help()
+            return
         dburi = None
 
     config_path = os.path.join(migrations_dir, '.yoyo-migrate')
