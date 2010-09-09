@@ -140,9 +140,11 @@ class Transaction(StepBase):
             try:
                 step.apply(conn, paramstyle, force)
             except DatabaseError:
+                conn.rollback()
                 if force or self.ignore_errors in ('apply', 'all'):
-                    conn.rollback()
-                logging.exception("Ignored error in step %d", step.id)
+                    logging.exception("Ignored error in step %d", step.id)
+                    return
+                raise
         conn.commit()
 
     def rollback(self, conn, paramstyle, force=False):
