@@ -9,7 +9,7 @@ from logging import warn, info, debug
 
 from yoyo.migrate.utils import plural
 
-__version__ = '4'
+__version__ = '5dev'
 
 class DatabaseError(Exception):
     pass
