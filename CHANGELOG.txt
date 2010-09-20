@@ -1,13 +1,15 @@
 CHANGELOG
 ---------
 
-Version 5
+Version 4.1
 
   * Introduced ability to run steps within a transaction
 
   * "post-apply" migrations can be run after every successful upward migration
 
   * Other minor bugfixes and improvements
+
+  * Switched to <major>.<minor> version numbering convention
 
 Version 4
 
