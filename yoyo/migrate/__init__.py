@@ -149,7 +149,14 @@ class Transaction(StepBase):
 
     def rollback(self, conn, paramstyle, force=False):
         for step in reversed(self.steps):
-            step.rollback(conn, paramstyle, force)
+            try:
+                step.rollback(conn, paramstyle, force)
+            except DatabaseError:
+                conn.rollback()
+                if force or self.ignore_errors in ('rollback', 'all'):
+                    logging.exception("Ignored error in step %d", step.id)
+                    return
+                raise
         conn.commit()
 
 class MigrationStep(StepBase):
@@ -224,19 +231,10 @@ class MigrationStep(StepBase):
             return
         cursor = conn.cursor()
         try:
-            try:
-                for item in reversed(self._rollback):
-                    if isinstance(item, (str, unicode)):
-                        self._execute(cursor, self._rollback)
-                    else:
-                        item(conn)
-                conn.commit()
-            except DatabaseError:
-                if force or self.ignore_errors in ('rollback', 'all'):
-                    logging.exception("Ignoring error in step %d", self.id)
-                    conn.rollback()
-                else:
-                    raise
+            if isinstance(self._rollback, (str, unicode)):
+                self._execute(cursor, self._rollback)
+            else:
+                self._rollback(conn)
         finally:
             cursor.close()
 
