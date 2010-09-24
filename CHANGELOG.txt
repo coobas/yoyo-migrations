@@ -1,7 +1,7 @@
 CHANGELOG
 ---------
 
-Version 4.1
+Version 4.1.0
 
   * Introduced ability to run steps within a transaction
 

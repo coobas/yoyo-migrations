@@ -25,10 +25,9 @@ def read(*path):
 
 setup(
     name='yoyo-migrations',
-    version=yoyo.migrate.__version__,
+    version=read("VERSION.txt").strip(),
     description='Database schema migration tool, using SQL and DB-API',
     long_description=read('README').encode('ascii', 'replace'),
-
     author='Oliver Cope',
     author_email='oliver@redgecko.org',
     url='',
