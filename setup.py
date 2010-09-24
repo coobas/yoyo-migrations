@@ -27,7 +27,7 @@ setup(
     name='yoyo-migrations',
     version=read("VERSION.txt").strip(),
     description='Database schema migration tool, using SQL and DB-API',
-    long_description=read('README').encode('ascii', 'replace'),
+    long_description=read('README.txt') + '\n\n' + read('CHANGELOG.txt'),
     author='Oliver Cope',
     author_email='oliver@redgecko.org',
     url='',
