@@ -11,6 +11,7 @@ logger = getLogger(__name__)
 
 from yoyo.migrate.utils import plural
 
+
 class DatabaseError(Exception):
     pass
 
@@ -31,23 +32,23 @@ class Migration(object):
         self.steps = steps
         self.source = source
 
-    def isapplied(self, conn, paramstyle):
+    def isapplied(self, conn, paramstyle, migration_table):
         cursor = conn.cursor()
         try:
             cursor.execute(
-                with_placeholders(conn, paramstyle, "SELECT COUNT(1) FROM _yoyo_migration WHERE id=?"),
+                with_placeholders(conn, paramstyle, "SELECT COUNT(1) FROM " + migration_table + " WHERE id=?"),
                 (self.id,)
             )
             return cursor.fetchone()[0] > 0
         finally:
             cursor.close()
 
-    def apply(self, conn, paramstyle, force=False):
+    def apply(self, conn, paramstyle, migration_table, force=False):
         logger.info("Applying %s", self.id)
         Migration._process_steps(self.steps, conn, paramstyle, 'apply', force=force)
         cursor = conn.cursor()
         cursor.execute(
-            with_placeholders(conn, paramstyle, "INSERT INTO _yoyo_migration (id, ctime) VALUES (?, ?)"),
+            with_placeholders(conn, paramstyle, "INSERT INTO " + migration_table + " (id, ctime) VALUES (?, ?)"),
             (self.id, datetime.now())
         )
         conn.commit()
@@ -58,7 +59,7 @@ class Migration(object):
         Migration._process_steps(reversed(self.steps), conn, paramstyle, 'rollback', force=force)
         cursor = conn.cursor()
         cursor.execute(
-            with_placeholders(conn, paramstyle, "DELETE FROM _yoyo_migration WHERE id=?"),
+            with_placeholders(conn, paramstyle, "DELETE FROM " + migration_table + " WHERE id=?"),
             (self.id,)
         )
         conn.commit()
@@ -239,13 +240,13 @@ class MigrationStep(StepBase):
             cursor.close()
 
 
-def read_migrations(conn, paramstyle, directory, names=None):
+def read_migrations(conn, paramstyle, directory, names=None, migration_table="_yoyo_migrations"):
     """
     Return a ``MigrationList`` containing all migrations from ``directory``.
     If ``names`` is given, this only return migrations with names from the given list (without file extensions).
     """
 
-    migrations = MigrationList(conn, paramstyle)
+    migrations = MigrationList(conn, paramstyle, migration_table)
     paths = [
         os.path.join(directory, path) for path in os.listdir(directory) if path.endswith('.py')
     ]
@@ -322,12 +323,13 @@ class MigrationList(list):
     """
 
 
-    def __init__(self, conn, paramstyle, items=None, post_apply=None):
+    def __init__(self, conn, paramstyle, migration_table, items=None, post_apply=None):
         super(MigrationList, self).__init__(items if items else [])
         self.conn = conn
         self.paramstyle = paramstyle
+        self.migration_table = migration_table
         self.post_apply = post_apply if post_apply else []
-        initialize_connection(self.conn)
+        initialize_connection(self.conn, migration_table)
 
     def to_apply(self):
         """
@@ -336,7 +338,7 @@ class MigrationList(list):
         return self.__class__(
             self.conn,
             self.paramstyle,
-            [ m for m in self if not m.isapplied(self.conn, self.paramstyle) ],
+            [ m for m in self if not m.isapplied(self.conn, self.paramstyle, self.migration_table) ],
             self.post_apply
         )
 
@@ -350,7 +352,7 @@ class MigrationList(list):
         return self.__class__(
             self.conn,
             self.paramstyle,
-            list(reversed([m for m in self if m.isapplied(self.conn, self.paramstyle)])),
+            list(reversed([m for m in self if m.isapplied(self.conn, self.paramstyle, self.migration_table)])),
             self.post_apply
         )
 
@@ -363,19 +365,19 @@ class MigrationList(list):
         )
 
     def replace(self, newmigrations):
-        return self.__class__(self.conn, self.paramstyle, newmigrations, self.post_apply)
+        return self.__class__(self.conn, self.paramstyle, self.migration_table, newmigrations, self.post_apply)
 
     def apply(self, force=False):
         if not self:
             return
         for m in self + self.post_apply:
-            m.apply(self.conn, self.paramstyle, force)
+            m.apply(self.conn, self.paramstyle, self.migration_table, force)
 
     def rollback(self, force=False):
         if not self:
             return
         for m in self + self.post_apply:
-            m.rollback(self.conn, self.paramstyle, force)
+            m.rollback(self.conn, self.paramstyle, self.migration_table, force)
 
     def __getslice__(self, i, j):
         return self.__class__(
@@ -385,7 +387,7 @@ class MigrationList(list):
             self.post_apply
         )
 
-def create_migrations_table(conn):
+def create_migrations_table(conn, tablename):
     """
     Create a database table to track migrations
     """
@@ -394,8 +396,8 @@ def create_migrations_table(conn):
         try:
             try:
                 cursor.execute("""
-                    CREATE TABLE _yoyo_migration (id VARCHAR(255) NOT NULL PRIMARY KEY, ctime TIMESTAMP)
-                """)
+                    CREATE TABLE %s (id VARCHAR(255) NOT NULL PRIMARY KEY, ctime TIMESTAMP)
+                """ % (tablename,))
                 conn.commit()
             except DatabaseError:
                 pass
@@ -405,7 +407,7 @@ def create_migrations_table(conn):
         conn.rollback()
 
 
-def initialize_connection(conn):
+def initialize_connection(conn, tablename):
     """
     Initialize the DBAPI connection for use.
 
@@ -418,6 +420,6 @@ def initialize_connection(conn):
     module = inspect.getmodule(type(conn))
     if DatabaseError not in module.DatabaseError.__bases__:
         module.DatabaseError.__bases__ += (DatabaseError,)
-    create_migrations_table(conn)
+    create_migrations_table(conn, tablename)
 
 

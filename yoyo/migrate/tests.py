@@ -76,7 +76,7 @@ def test_rollbacks_happen_in_reverse(tmpdir):
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM test")
     assert cursor.fetchall() == [(2,)]
-    migrations[1:].rollback()
+    migrations.rollback()
     cursor.execute("SELECT * FROM test")
     assert cursor.fetchall() == []
 
@@ -133,4 +133,19 @@ def test_rollbackignores_errors(tmpdir):
     migrations.rollback()
     cursor.execute("SELECT * FROM test")
     assert cursor.fetchall() == []
+
+
+@with_migrations(
+    '''
+    step("CREATE TABLE test (id INT)")
+    step("DROP TABLE test")
+    '''
+)
+def test_specify_migration_table(tmpdir):
+    conn, paramstyle = connect(dburi)
+    migrations = read_migrations(conn, paramstyle, tmpdir, migration_table='another_migration_table')
+    migrations.apply()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id FROM another_migration_table")
+    assert cursor.fetchall() == [(u'0',)]
 
