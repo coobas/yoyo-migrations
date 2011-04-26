@@ -5,7 +5,9 @@ import logging
 
 from itertools import count
 from datetime import datetime
-from logging import warn, info, debug
+from logging import getLogger
+
+logger = getLogger(__name__)
 
 from yoyo.migrate.utils import plural
 
@@ -41,7 +43,7 @@ class Migration(object):
             cursor.close()
 
     def apply(self, conn, paramstyle, force=False):
-        info("Applying %s", self.id)
+        logger.info("Applying %s", self.id)
         Migration._process_steps(self.steps, conn, paramstyle, 'apply', force=force)
         cursor = conn.cursor()
         cursor.execute(
@@ -51,8 +53,8 @@ class Migration(object):
         conn.commit()
         cursor.close()
 
-    def rollback(self, conn, paramstyle, force=False):
-        info("Rolling back %s", self.id)
+    def rollback(self, conn, paramstyle, migration_table, force=False):
+        logger.info("Rolling back %s", self.id)
         Migration._process_steps(reversed(self.steps), conn, paramstyle, 'rollback', force=force)
         cursor = conn.cursor()
         cursor.execute(
@@ -93,7 +95,7 @@ class PostApplyHookMigration(Migration):
     """
 
     def apply(self, conn, paramstyle, force=False):
-        info("Applying %s", self.id)
+        logger.info("Applying %s", self.id)
         self.__class__._process_steps(
             self.steps,
             conn,
@@ -103,7 +105,7 @@ class PostApplyHookMigration(Migration):
         )
 
     def rollback(self, conn, paramstyle, force=False):
-        info("Rolling back %s", self.id)
+        logger.info("Rolling back %s", self.id)
         self.__class__._process_steps(
             reversed(self.steps),
             conn,
@@ -179,9 +181,9 @@ class MigrationStep(StepBase):
         tabulated format.
         """
         if isinstance(stmt, unicode):
-            debug(" - executing %r", stmt.encode('ascii', 'replace'))
+            logger.debug(" - executing %r", stmt.encode('ascii', 'replace'))
         else:
-            debug(" - executing %r", stmt)
+            logger.debug(" - executing %r", stmt)
         cursor.execute(stmt)
         if cursor.description:
             result = [
@@ -208,7 +210,7 @@ class MigrationStep(StepBase):
         force
             If true, errors will be logged but not be re-raised
         """
-        info(" - applying step %d", self.id)
+        logger.info(" - applying step %d", self.id)
         if not self._apply:
             return
         cursor = conn.cursor()
@@ -224,7 +226,7 @@ class MigrationStep(StepBase):
         """
         Rollback the step.
         """
-        info(" - rolling back step %d", self.id)
+        logger.info(" - rolling back step %d", self.id)
         if self._rollback is None:
             return
         cursor = conn.cursor()
