@@ -25,7 +25,7 @@ def read(*path):
 
 setup(
     name='yoyo-migrations',
-    version=read("VERSION.txt").strip(),
+    version=read('VERSION.txt').strip().encode('ASCII'),
     description='Database schema migration tool, using SQL and DB-API',
     long_description=read('README.txt') + '\n\n' + read('CHANGELOG.txt'),
     author='Oliver Cope',

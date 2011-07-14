@@ -3,71 +3,139 @@ from fabric.api import *
 
 env.shell = '/bin/sh -c'
 
-def release():
+# Where to host generated sphinx documentation
+env.hosts = ['www.ollycope.com']
+env.docsdir = 'www/ollycope.com/htdocs/software/yoyo-migrations'
 
-    local("test \! -e clean")
+# Where to locally checkout a clean version for build and upload
+env.builddir = './clean'
 
-    with open("VERSION.txt", 'r') as f:
-        version = f.read().strip()
+def builddocs():
+    """
+    Run doctests and build HTML docs
+    """
+    local("cd %(builddir)s/doc && make doctest clean html" % env)
 
-    assert version.endswith('dev')
-    release_version = version.replace('dev', '')
-    new_dev_version = increment_version(release_version) + 'dev'
+def uploaddocs():
+    """
+    Upload sphinx docs to website
+    """
+    env.version = local("python %(builddir)s/setup.py --version" % env, capture=True).strip()
+    local("tar -cf docs.tar -C %(builddir)s/doc/_build/html ." % env)
+    run("test -d %(docsdir)s/%(version)s || mkdir -p %(docsdir)s/%(version)s" % env)
+    put("docs.tar", "%(docsdir)s/%(version)s/" % env)
+    run("cd %(docsdir)s/%(version)s && tar xf docs.tar" % env)
+    run("cd %(docsdir)s/%(version)s && rm docs.tar" % env)
 
-    with open("CHANGELOG.txt", 'r') as f:
+    run("cd %(docsdir)s; test -L latest && rm latest || true" % env)
+    run("cd %(docsdir)s; ln -s %(version)s latest" % env)
+
+def _make_clean_checkout():
+    local("rm -rf %(builddir)s" % env)
+    local("darcs get --lazy . %(builddir)s" % env)
+
+def _make_build():
+    local("cd %(builddir)s && python bootstrap.py" % env)
+    local("cd %(builddir)s && ./bin/buildout" % env)
+    local("cd %(builddir)s && ./bin/python setup.py sdist" % env)
+
+def build(clean="yes"):
+    """
+    Checkout and build a clean source distribution
+    """
+    _make_clean_checkout()
+    _make_build()
+    _check_release()
+    #builddocs()
+
+def _readversion():
+    """
+    Read the contents of VERSION.txt and return the current version number
+    """
+    with open("%(builddir)s/VERSION.txt" % env, 'r') as f:
+        return f.read().strip()
+
+def _check_changelog(version):
+    """
+    Check that a changelog entry exists for the given version
+    """
+
+    with open("%(builddir)s/CHANGELOG.txt" % env, 'r') as f:
         changes = f.read()
 
     # Check we've a changelog entry for the newly released version
     assert re.search(
-        r'\b%s\b' % (re.escape(release_version),),
+        r'\b%s\b' % (re.escape(version),),
         changes,
         re.M
-    ) is not None, "No changelog entry found for version %s" % (release_version,)
+    ) is not None, "No changelog entry found for version %s" % (version,)
 
-    # Bump to a release version number
-    with open("VERSION.txt", 'w') as f:
-        f.write(release_version + '\n')
-
-    local("darcs record -a VERSION.txt -m 'Bumped version number'")
-    local("darcs tag %s" % (release_version,))
-    local("darcs get --lazy --ephemeral . clean")
-    local("cd clean && python bootstrap.py")
-    local("cd clean && ./bin/buildout")
-    local("cd clean && ./bin/python setup.py sdist")
-    check_release()
-    local("cd clean && ./bin/python setup.py sdist upload")
-    local("rm -rf clean")
-
-    with open("VERSION.txt", 'w') as f:
-        f.write(
-            prompt(
-                "New development version number?",
-                default=increment_version(release_version) + 'dev'
-            ) + '\n'
-        )
-
-    local("darcs record -a VERSION.txt -m 'Bumped version number'")
-
-
-def check_release():
+def _updateversion(version):
     """
-    Check that the sdist can be installed and imported
+    Write the given version number to VERSION.txt and record a new patch
     """
+    _set_darcs_author()
+    with open("%(builddir)s/VERSION.txt" % env, 'w') as f:
+        f.write(version + '\n')
+    local("darcs record -A %(darcs_author)s --repodir=%(builddir)s -a VERSION.txt -m 'Bumped version number'" % env)
+
+def _tag(version):
+    _set_darcs_author()
+    local("darcs tag %s --repodir=%s -A %s" % (version, env.builddir, env.darcs_author))
+
+def release():
+    """
+    Upload a new release to the PyPI. Requires ``build`` to have been run previously.
+    """
+
+    version = _readversion()
+    assert version.endswith('dev')
+    release_version = version.replace('dev', '')
+    _check_changelog(release_version)
+
+    _updateversion(release_version)
+    _tag(release_version)
+
+    #uploaddocs()
+    local("cd %(builddir)s && ./bin/python setup.py sdist upload" % env)
+
+    _updateversion(
+        prompt(
+            "New development version number?",
+            default=_increment_version(release_version) + 'dev'
+        ) + '\n'
+    )
+    local("darcs pull --no-set-default %(builddir)s" % env, capture=False)
+
+def _check_release():
+    """
+    Check that the sdist can be at least be installed and imported
+    """
+    local("cd %(builddir)s && ./bin/nosetests" % env)
     local("test \! -e test_virtualenv")
     local("virtualenv test_virtualenv")
-    local("./test_virtualenv/bin/easy_install ./clean/dist/yoyo-migrations*.tar.gz")
+    local("./test_virtualenv/bin/easy_install ./%(builddir)s/dist/*.tar.gz" % env)
     local("./test_virtualenv/bin/python -c'import yoyo.migrate'")
     local("rm -rf test_virtualenv")
 
-def increment_version(version):
+def _increment_version(version):
     """
     Increment the least significant part of a version number string.
 
-        >>> increment_version("1.0.0")
+        >>> _increment_version("1.0.0")
         '1.0.1'
     """
-
     version = map(int, version.split('.'))
     version = version[:-1] + [version[-1] + 1,]
     version = '.'.join(map(str, version))
     return version
+
+def _set_darcs_author():
+    if env.get("darcs_author"):
+        return env.get("darcs_author")
+    env.darcs_author = re.search(
+        r"Author: (\S*)$",
+        local("darcs show repo", capture=True),
+        re.M
+    ).group(1)
+    return env.darcs_author
