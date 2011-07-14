@@ -95,22 +95,24 @@ class PostApplyHookMigration(Migration):
     script is called.
     """
 
-    def apply(self, conn, paramstyle, force=False):
+    def apply(self, conn, paramstyle, migration_table, force=False):
         logger.info("Applying %s", self.id)
         self.__class__._process_steps(
             self.steps,
             conn,
             paramstyle,
+            migration_table,
             'apply',
             force=True
         )
 
-    def rollback(self, conn, paramstyle, force=False):
+    def rollback(self, conn, paramstyle, migration_table, force=False):
         logger.info("Rolling back %s", self.id)
         self.__class__._process_steps(
             reversed(self.steps),
             conn,
             paramstyle,
+            migration_table,
             'rollback',
             force=True
         )
@@ -338,6 +340,7 @@ class MigrationList(list):
         return self.__class__(
             self.conn,
             self.paramstyle,
+            self.migration_table,
             [ m for m in self if not m.isapplied(self.conn, self.paramstyle, self.migration_table) ],
             self.post_apply
         )
@@ -352,6 +355,7 @@ class MigrationList(list):
         return self.__class__(
             self.conn,
             self.paramstyle,
+            self.migration_table,
             list(reversed([m for m in self if m.isapplied(self.conn, self.paramstyle, self.migration_table)])),
             self.post_apply
         )
@@ -360,6 +364,7 @@ class MigrationList(list):
         return self.__class__(
             self.conn,
             self.paramstyle,
+            self.migration_table,
             [ m for m in self if predicate(m) ],
             self.post_apply
         )
@@ -383,6 +388,7 @@ class MigrationList(list):
         return self.__class__(
             self.conn,
             self.paramstyle,
+            self.migration_table,
             super(MigrationList, self).__getslice__(i, j),
             self.post_apply
         )

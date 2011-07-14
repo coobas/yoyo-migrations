@@ -17,6 +17,7 @@ from yoyo.migrate.utils import prompt, plural
 from yoyo.migrate import Migration, MigrationStep
 from yoyo.migrate import DatabaseError
 from yoyo.migrate import read_migrations, create_migrations_table
+from yoyo.migrate import logger
 
 def readconfig(path):
     config = ConfigParser.ConfigParser()
@@ -143,6 +144,10 @@ def make_optparser():
         "", "--no-cache", dest="cache", action="store_false", default=True,
         help="Don't cache database login credentials"
     )
+    optparser.add_option(
+        "", "--migration-table", dest="migration_table", action="store", default='None',
+        help="Name of table to use for storing migration metadata"
+    )
 
     return optparser
 
@@ -191,6 +196,12 @@ def main(argv=None):
         except (ValueError, NoSectionError, NoOptionError):
             pass
 
+    if opts.migration_table is None:
+        try:
+            migration_table = config.get('DEFAULT', 'migration_table')
+        except (ValueError, NoSectionError, NoOptionError):
+            migration_table = '_yoyo_migrations'
+
     if dburi is None:
         optparser.error(
             "Please specify command, migrations directory and "
@@ -205,6 +216,9 @@ def main(argv=None):
         scheme, username, _, host, port, database = parse_uri(dburi)
         dburi = unparse_uri((scheme, username, password, host, port, database))
 
+    if opts.migration_table:
+        migration_table = opts.migration_table
+        config.set('DEFAULT', 'migration_table', migration_table)
     # Cache the database this migration set is applied to so that subsequent
     # runs don't need the dburi argument. Don't cache anything in batch mode -
     # we can't prompt to find the user's preference.
@@ -228,6 +242,7 @@ def main(argv=None):
             if response == 'y':
                 config.set('DEFAULT', 'dburi', dburi)
 
+        config.set('DEFAULT', 'migration_table', migration_table)
         saveconfig(config, config_path)
 
     conn, paramstyle = connect(dburi)
