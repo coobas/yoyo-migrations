@@ -10,7 +10,6 @@ import ConfigParser
 from ConfigParser import NoSectionError, NoOptionError
 from functools import partial
 from getpass import getpass
-from logging import debug
 
 from yoyo.migrate.connections import connect, parse_uri, unparse_uri
 from yoyo.migrate.utils import prompt, plural
@@ -191,7 +190,7 @@ def main(argv=None):
 
     if dburi is None and opts.cache:
         try:
-            debug("Looking up connection string for %r", migrations_dir)
+            logger.debug("Looking up connection string for %r", migrations_dir)
             dburi = config.get('DEFAULT', 'dburi')
         except (ValueError, NoSectionError, NoOptionError):
             pass
