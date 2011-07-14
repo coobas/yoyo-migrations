@@ -1,6 +1,10 @@
 CHANGELOG
 ---------
 
+Version 4.1.1
+
+  * Introduced configuration option for migration table name
+
 Version 4.1.0
 
   * Introduced ability to run steps within a transaction
