@@ -55,9 +55,9 @@ def prompt_migrations(conn, paramstyle, migrations, direction):
         choice = mig.choice
         if choice is None:
             if direction == 'apply':
-                choice = 'n' if mig.migration.isapplied(conn, paramstyle) else 'y'
+                choice = 'n' if mig.migration.isapplied(conn, paramstyle, migrations.migration_table) else 'y'
             else:
-                choice = 'y' if mig.migration.isapplied(conn, paramstyle) else 'n'
+                choice = 'y' if mig.migration.isapplied(conn, paramstyle, migrations.migration_table) else 'n'
         options = ''.join(o.upper() if o == choice else o.lower() for o in 'ynvdaqjk?')
 
         print ""
