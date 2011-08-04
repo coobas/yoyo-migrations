@@ -199,7 +199,7 @@ def main(argv=None):
         try:
             migration_table = config.get('DEFAULT', 'migration_table')
         except (ValueError, NoSectionError, NoOptionError):
-            migration_table = '_yoyo_migrations'
+            migration_table = '_yoyo_migration'
 
     if dburi is None:
         optparser.error(

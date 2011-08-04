@@ -242,7 +242,7 @@ class MigrationStep(StepBase):
             cursor.close()
 
 
-def read_migrations(conn, paramstyle, directory, names=None, migration_table="_yoyo_migrations"):
+def read_migrations(conn, paramstyle, directory, names=None, migration_table="_yoyo_migration"):
     """
     Return a ``MigrationList`` containing all migrations from ``directory``.
     If ``names`` is given, this only return migrations with names from the given list (without file extensions).
