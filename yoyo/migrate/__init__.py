@@ -101,7 +101,6 @@ class PostApplyHookMigration(Migration):
             self.steps,
             conn,
             paramstyle,
-            migration_table,
             'apply',
             force=True
         )
@@ -112,7 +111,6 @@ class PostApplyHookMigration(Migration):
             reversed(self.steps),
             conn,
             paramstyle,
-            migration_table,
             'rollback',
             force=True
         )
