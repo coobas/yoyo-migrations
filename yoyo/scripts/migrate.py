@@ -168,6 +168,9 @@ def main(argv=None):
 
     optparser = make_optparser()
     opts, args = optparser.parse_args(argv)
+
+    logging.basicConfig()
+
     try:
         set_logging(int(opts.verbosity))
     except (ValueError, KeyError):
