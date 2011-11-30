@@ -18,6 +18,13 @@ from yoyo.migrate import DatabaseError
 from yoyo.migrate import read_migrations, create_migrations_table
 from yoyo.migrate import logger
 
+verbosity_levels = {
+    0: logging.ERROR,
+    1: logging.WARN,
+    2: logging.INFO,
+    3: logging.DEBUG
+}
+
 def readconfig(path):
     config = ConfigParser.ConfigParser()
     config.read([path])
@@ -128,8 +135,12 @@ def make_optparser():
         help="Run in batch mode (don't ask before applying/rolling back each migration)"
     )
     optparser.add_option(
-        "-v", "--verbosity", dest="verbosity", default="0",
-        help="Set verbosity (0-3). default is no output"
+        "-v", dest="verbose", action="count",
+        help="Verbose output. Use multiple times to increase level of verbosity"
+    )
+    optparser.add_option(
+        "--verbosity", dest="verbosity_level", action="store", type="int",
+        help="Set verbosity level (%d-%d)" % (min(verbosity_levels), max(verbosity_levels)),
     )
     optparser.add_option(
         "", "--force", dest="force", action="store_true",
@@ -150,16 +161,11 @@ def make_optparser():
 
     return optparser
 
-def set_logging(level):
+def configure_logging(level):
     """
     Configure the python logging module with the requested loglevel
     """
-    logging.getLogger().setLevel(
-        {
-            0: logging.ERROR, 1: logging.WARN,
-            2: logging.INFO, 3: logging.DEBUG
-        }[level]
-    )
+    logging.basicConfig(level=verbosity_levels[level])
 
 def main(argv=None):
 
@@ -169,12 +175,13 @@ def main(argv=None):
     optparser = make_optparser()
     opts, args = optparser.parse_args(argv)
 
-    logging.basicConfig()
-
-    try:
-        set_logging(int(opts.verbosity))
-    except (ValueError, KeyError):
-        optparser.error("verbosity: invalid level")
+    if opts.verbosity_level:
+        verbosity_level = opts.verbosity_level
+    else:
+        verbosity_level = opts.verbose
+    verbosity_level = min(verbosity_level, max(verbosity_levels))
+    verbosity_level = max(verbosity_level, min(verbosity_levels))
+    configure_logging(verbosity_level)
 
     command = dburi = migrations_dir = None
     try:
