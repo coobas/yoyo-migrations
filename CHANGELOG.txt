@@ -1,5 +1,14 @@
 CHANGELOG
 ---------
+Version 4.1.5
+
+* Configure logging handlers so that the -v switch causes output to go to the
+  console (thanks to Andrew Nelis).
+
+* ``-v`` command line switch no longer takes an argument but may be specified
+  multiple times instead (ie use ``-vvv`` instead of ``-v3``). ``--verbosity``
+  retains the old behaviour.
+
 Version 4.1.4
 
 * Bugfix for post apply hooks
