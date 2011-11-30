@@ -2,10 +2,12 @@ import re
 from fabric.api import *
 
 env.shell = '/bin/sh -c'
+env.package_name = 'yoyo-migrations'
+env.module_name = 'yoyo.migrate'
 
 # Where to host generated sphinx documentation
 env.hosts = ['www.ollycope.com']
-env.docsdir = 'www/ollycope.com/htdocs/software/yoyo-migrations'
+env.docsdir = 'www/ollycope.com/htdocs/software/%(package_name)s' % env
 
 # Where to locally checkout a clean version for build and upload
 env.builddir = './clean'
@@ -115,7 +117,7 @@ def _check_release():
     local("test \! -e test_virtualenv")
     local("virtualenv test_virtualenv")
     local("./test_virtualenv/bin/easy_install ./%(builddir)s/dist/*.tar.gz" % env)
-    local("./test_virtualenv/bin/python -c'import yoyo.migrate'")
+    local("./test_virtualenv/bin/python -c'import %(module_name)s'" % env)
     local("rm -rf test_virtualenv")
 
 def _increment_version(version):
