@@ -1,25 +1,31 @@
 import sys
-import termios
 
-def getch():
-    """
-    Read a single character without echoing to the console and without having
-    to wait for a newline.
-    """
-    fd = sys.stdin.fileno()
-    saved_attributes = termios.tcgetattr(fd)
-    try:
-        attributes = termios.tcgetattr(fd) # get a fresh copy!
-        attributes[3] = attributes[3] & ~(termios.ICANON | termios.ECHO)
-        attributes[6][termios.VMIN] = 1
-        attributes[6][termios.VTIME] = 0
-        termios.tcsetattr(fd, termios.TCSANOW, attributes)
+try:
+    import termios
 
-        a = sys.stdin.read(1)
-    finally:
-        #be sure to reset the attributes no matter what!
-        termios.tcsetattr(fd, termios.TCSANOW, saved_attributes)
-    return a
+    def getch():
+        """
+        Read a single character without echoing to the console and without having
+        to wait for a newline.
+        """
+        fd = sys.stdin.fileno()
+        saved_attributes = termios.tcgetattr(fd)
+        try:
+            attributes = termios.tcgetattr(fd) # get a fresh copy!
+            attributes[3] = attributes[3] & ~(termios.ICANON | termios.ECHO)
+            attributes[6][termios.VMIN] = 1
+            attributes[6][termios.VTIME] = 0
+            termios.tcsetattr(fd, termios.TCSANOW, attributes)
+
+            a = sys.stdin.read(1)
+        finally:
+            #be sure to reset the attributes no matter what!
+            termios.tcsetattr(fd, termios.TCSANOW, saved_attributes)
+        return a
+
+except ImportError:
+    from msvcrt import getch
+
 
 def prompt(prompt, options):
     """

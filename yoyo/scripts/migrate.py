@@ -4,7 +4,6 @@ import optparse
 import os
 import re
 import sys
-import termios
 import ConfigParser
 
 from ConfigParser import NoSectionError, NoOptionError
