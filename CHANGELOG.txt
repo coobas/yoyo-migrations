@@ -2,7 +2,7 @@ CHANGELOG
 ---------
 Version 4.1.6
 
-* Added windows support (thanks to Peter Shinner)
+* Added windows support (thanks to Peter Shinners)
 
 Version 4.1.5
 
