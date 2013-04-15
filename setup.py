@@ -1,26 +1,15 @@
 #!/usr/bin/env python
 
 import os
-import ez_setup
-ez_setup.use_setuptools()
-from setuptools import setup, find_packages
-import yoyo.migrate
+from setuptools import setup
+
 
 def read(*path):
     """
     Read and return content from ``path``
     """
-    f = open(
-        os.path.join(
-            os.path.dirname(__file__),
-            *path
-        ),
-        'r'
-    )
-    try:
+    with open(os.path.join(os.path.dirname(__file__), *path), 'rb') as f:
         return f.read().decode('UTF-8')
-    finally:
-        f.close()
 
 
 setup(
@@ -32,22 +21,15 @@ setup(
     author_email='oliver@redgecko.org',
     url='',
     license='BSD',
-    packages=find_packages(exclude=['ez_setup', 'examples', 'tests']),
+    packages=['yoyo'],
     include_package_data=True,
     zip_safe=False,
-    install_requires=[
-        # -*- Extra requirements: -*-
-    ],
-    extras_require = {
+    extras_require={
         'mysql': [u'mysql-python'],
         'postgres': [u'psycopg2'],
     },
-    tests_require = [
-        'sqlite3',
-    ],
-    dependency_links=[
-    ],
-    entry_points= {
+    tests_require=['sqlite3'],
+    entry_points={
         'console_scripts': [
             'yoyo-migrate=yoyo.scripts.migrate:main'
         ],
