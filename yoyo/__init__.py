@@ -1,19 +1,19 @@
 import os
 import sys
 import inspect
-import logging
 
 from itertools import count
 from datetime import datetime
 from logging import getLogger
 
-logger = getLogger(__name__)
-
 from yoyo.utils import plural
+
+logger = getLogger(__name__)
 
 
 class DatabaseError(Exception):
     pass
+
 
 def with_placeholders(conn, paramstyle, sql):
     placeholder_gen = {
@@ -24,6 +24,7 @@ def with_placeholders(conn, paramstyle, sql):
     if placeholder_gen is None:
         raise ValueError("Unsupported parameter format %s" % paramstyle)
     return sql.replace('?', placeholder_gen)
+
 
 class Migration(object):
 
@@ -36,7 +37,8 @@ class Migration(object):
         cursor = conn.cursor()
         try:
             cursor.execute(
-                with_placeholders(conn, paramstyle, "SELECT COUNT(1) FROM " + migration_table + " WHERE id=?"),
+                with_placeholders(conn, paramstyle, "SELECT COUNT(1) FROM " +
+                                  migration_table + " WHERE id=?"),
                 (self.id,)
             )
             return cursor.fetchone()[0] > 0
@@ -45,10 +47,12 @@ class Migration(object):
 
     def apply(self, conn, paramstyle, migration_table, force=False):
         logger.info("Applying %s", self.id)
-        Migration._process_steps(self.steps, conn, paramstyle, 'apply', force=force)
+        Migration._process_steps(self.steps, conn, paramstyle, 'apply',
+                                 force=force)
         cursor = conn.cursor()
         cursor.execute(
-            with_placeholders(conn, paramstyle, "INSERT INTO " + migration_table + " (id, ctime) VALUES (?, ?)"),
+            with_placeholders(conn, paramstyle, "INSERT INTO " +
+                              migration_table + " (id, ctime) VALUES (?, ?)"),
             (self.id, datetime.now())
         )
         conn.commit()
@@ -56,10 +60,12 @@ class Migration(object):
 
     def rollback(self, conn, paramstyle, migration_table, force=False):
         logger.info("Rolling back %s", self.id)
-        Migration._process_steps(reversed(self.steps), conn, paramstyle, 'rollback', force=force)
+        Migration._process_steps(reversed(self.steps), conn, paramstyle,
+                                 'rollback', force=force)
         cursor = conn.cursor()
         cursor.execute(
-            with_placeholders(conn, paramstyle, "DELETE FROM " + migration_table + " WHERE id=?"),
+            with_placeholders(conn, paramstyle, "DELETE FROM " +
+                              migration_table + " WHERE id=?"),
             (self.id,)
         )
         conn.commit()
@@ -85,14 +91,16 @@ class Migration(object):
                     for step in reversed(executed_steps):
                         getattr(step, reverse)(conn, paramstyle)
                 except DatabaseError:
-                    logging.exception('Database error when reversing %s of step', direction)
+                    logger.exception(
+                        'Database error when reversing %s of step', direction)
                 raise exc_info[0], exc_info[1], exc_info[2]
+
 
 class PostApplyHookMigration(Migration):
     """
-    A special migration that is run after successfully applying a set of migrations.
-    Unlike a normal migration this will be run every time migrations are applied
-    script is called.
+    A special migration that is run after successfully applying a set of
+    migrations. Unlike a normal migration this will be run every time
+    migrations are applied script is called.
     """
 
     def apply(self, conn, paramstyle, migration_table, force=False):
@@ -115,14 +123,15 @@ class PostApplyHookMigration(Migration):
             force=True
         )
 
-class StepBase(object):
 
+class StepBase(object):
 
     def apply(self, conn, paramstyle, force=False):
         raise NotImplementedError()
 
     def rollback(self, conn, paramstyle, force=False):
         raise NotImplementedError()
+
 
 class Transaction(StepBase):
     """
@@ -143,7 +152,7 @@ class Transaction(StepBase):
             except DatabaseError:
                 conn.rollback()
                 if force or self.ignore_errors in ('apply', 'all'):
-                    logging.exception("Ignored error in step %d", step.id)
+                    logger.exception("Ignored error in step %d", step.id)
                     return
                 raise
         conn.commit()
@@ -155,10 +164,11 @@ class Transaction(StepBase):
             except DatabaseError:
                 conn.rollback()
                 if force or self.ignore_errors in ('rollback', 'all'):
-                    logging.exception("Ignored error in step %d", step.id)
+                    logger.exception("Ignored error in step %d", step.id)
                     return
                 raise
         conn.commit()
+
 
 class MigrationStep(StepBase):
     """
@@ -187,11 +197,10 @@ class MigrationStep(StepBase):
             logger.debug(" - executing %r", stmt)
         cursor.execute(stmt)
         if cursor.description:
-            result = [
-                [unicode(value) for value in row] for row in cursor.fetchall()
-            ]
-            column_names = [ desc[0] for desc in cursor.description ]
-            column_sizes = [ len(c) for c in column_names ]
+            result = [[unicode(value) for value in row]
+                      for row in cursor.fetchall()]
+            column_names = [desc[0] for desc in cursor.description]
+            column_sizes = [len(c) for c in column_names]
 
             for row in result:
                 for ix, value in enumerate(row):
@@ -199,7 +208,8 @@ class MigrationStep(StepBase):
                         column_sizes[ix] = len(value)
             format = '|'.join(' %%- %ds ' % size for size in column_sizes)
             out.write(format % tuple(column_names) + "\n")
-            out.write('+'.join('-' * (size + 2) for size in column_sizes) + "\n")
+            out.write('+'.join('-' * (size + 2) for size in column_sizes)
+                      + "\n")
             for row in result:
                 out.write((format % tuple(row)).encode('utf8') + "\n")
             out.write(plural(len(result), '(%d row)', '(%d rows)') + "\n")
@@ -208,8 +218,7 @@ class MigrationStep(StepBase):
         """
         Apply the step.
 
-        force
-            If true, errors will be logged but not be re-raised
+        :param force: If true, errors will be logged but not be re-raised
         """
         logger.info(" - applying step %d", self.id)
         if not self._apply:
@@ -240,16 +249,17 @@ class MigrationStep(StepBase):
             cursor.close()
 
 
-def read_migrations(conn, paramstyle, directory, names=None, migration_table="_yoyo_migration"):
+def read_migrations(conn, paramstyle, directory, names=None,
+                    migration_table="_yoyo_migration"):
     """
     Return a ``MigrationList`` containing all migrations from ``directory``.
-    If ``names`` is given, this only return migrations with names from the given list (without file extensions).
+    If ``names`` is given, this only return migrations with names from the
+    given list (without file extensions).
     """
 
     migrations = MigrationList(conn, paramstyle, migration_table)
-    paths = [
-        os.path.join(directory, path) for path in os.listdir(directory) if path.endswith('.py')
-    ]
+    paths = [os.path.join(directory, path)
+             for path in os.listdir(directory) if path.endswith('.py')]
 
     for path in sorted(paths):
 
@@ -260,7 +270,8 @@ def read_migrations(conn, paramstyle, directory, names=None, migration_table="_y
         else:
             migration_class = Migration
 
-        if migration_class is Migration and names is not None and filename not in names:
+        if migration_class is Migration and \
+                names is not None and filename not in names:
             continue
 
         step_id = count(0)
@@ -271,7 +282,8 @@ def read_migrations(conn, paramstyle, directory, names=None, migration_table="_y
             Wrap the given apply and rollback code in a transaction, and add it
             to the list of steps. Return the transaction-wrapped step.
             """
-            t = Transaction([MigrationStep(step_id.next(), apply, rollback)], ignore_errors)
+            t = Transaction([MigrationStep(step_id.next(), apply, rollback)],
+                            ignore_errors)
             transactions.append(t)
             return t
 
@@ -286,7 +298,8 @@ def read_migrations(conn, paramstyle, directory, names=None, migration_table="_y
             transaction = Transaction([], ignore_errors)
             for oldtransaction in steps:
                 if oldtransaction.ignore_errors is not None:
-                    raise AssertionError("ignore_errors cannot be specified within a transaction")
+                    raise AssertionError("ignore_errors cannot be specified "
+                                         "within a transaction")
                 try:
                     (step,) = oldtransaction.steps
                 except ValueError:
@@ -303,9 +316,10 @@ def read_migrations(conn, paramstyle, directory, names=None, migration_table="_y
         finally:
             file.close()
 
-        ns = {'step' : step, 'transaction': transaction}
+        ns = {'step': step, 'transaction': transaction}
         exec migration_code in ns
-        migration = migration_class(os.path.basename(filename), transactions, source)
+        migration = migration_class(os.path.basename(filename), transactions,
+                                    source)
         if migration_class is PostApplyHookMigration:
             migrations.post_apply.append(migration)
         else:
@@ -322,8 +336,8 @@ class MigrationList(list):
     that can be applied/rolled back.
     """
 
-
-    def __init__(self, conn, paramstyle, migration_table, items=None, post_apply=None):
+    def __init__(self, conn, paramstyle, migration_table, items=None,
+                 post_apply=None):
         super(MigrationList, self).__init__(items if items else [])
         self.conn = conn
         self.paramstyle = paramstyle
@@ -339,7 +353,10 @@ class MigrationList(list):
             self.conn,
             self.paramstyle,
             self.migration_table,
-            [ m for m in self if not m.isapplied(self.conn, self.paramstyle, self.migration_table) ],
+            [m
+             for m in self
+             if not m.isapplied(self.conn, self.paramstyle,
+                                self.migration_table)],
             self.post_apply
         )
 
@@ -354,7 +371,10 @@ class MigrationList(list):
             self.conn,
             self.paramstyle,
             self.migration_table,
-            list(reversed([m for m in self if m.isapplied(self.conn, self.paramstyle, self.migration_table)])),
+            list(reversed([m
+                           for m in self
+                           if m.isapplied(self.conn, self.paramstyle,
+                                          self.migration_table)])),
             self.post_apply
         )
 
@@ -363,12 +383,13 @@ class MigrationList(list):
             self.conn,
             self.paramstyle,
             self.migration_table,
-            [ m for m in self if predicate(m) ],
+            [m for m in self if predicate(m)],
             self.post_apply
         )
 
     def replace(self, newmigrations):
-        return self.__class__(self.conn, self.paramstyle, self.migration_table, newmigrations, self.post_apply)
+        return self.__class__(self.conn, self.paramstyle, self.migration_table,
+                              newmigrations, self.post_apply)
 
     def apply(self, force=False):
         if not self:
@@ -391,6 +412,7 @@ class MigrationList(list):
             self.post_apply
         )
 
+
 def create_migrations_table(conn, tablename):
     """
     Create a database table to track migrations
@@ -400,7 +422,8 @@ def create_migrations_table(conn, tablename):
         try:
             try:
                 cursor.execute("""
-                    CREATE TABLE %s (id VARCHAR(255) NOT NULL PRIMARY KEY, ctime TIMESTAMP)
+                    CREATE TABLE %s (id VARCHAR(255) NOT NULL PRIMARY KEY,
+                                     ctime TIMESTAMP)
                 """ % (tablename,))
                 conn.commit()
             except DatabaseError:
@@ -425,5 +448,3 @@ def initialize_connection(conn, tablename):
     if DatabaseError not in module.DatabaseError.__bases__:
         module.DatabaseError.__bases__ += (DatabaseError,)
     create_migrations_table(conn, tablename)
-
-

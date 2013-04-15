@@ -1,10 +1,11 @@
-
 _schemes = {}
+
 
 class BadConnectionURI(Exception):
     """
     An invalid connection URI
     """
+
 
 def connection_for(scheme):
     """
@@ -16,6 +17,7 @@ def connection_for(scheme):
         _schemes[scheme] = func
         return func
     return decorate
+
 
 @connection_for('mysql')
 def connect_mysql(username, password, host, port, database):
@@ -34,10 +36,12 @@ def connect_mysql(username, password, host, port, database):
 
     return MySQLdb.connect(**kwargs), MySQLdb.paramstyle
 
+
 @connection_for('sqlite')
 def connect_sqlite(username, password, host, port, database):
     import sqlite3
     return sqlite3.connect(database), sqlite3.paramstyle
+
 
 @connection_for('postgres')
 @connection_for('postgresql')
@@ -57,6 +61,7 @@ def connect_postgres(username, password, host, port, database):
     connargs.append('dbname=%s' % database)
     return psycopg2.connect(' '.join(connargs)), psycopg2.paramstyle
 
+
 def connect(uri):
     """
     Connect to the given DB uri (in the format
@@ -68,7 +73,8 @@ def connect(uri):
     try:
         connection_func = _schemes[scheme.lower()]
     except KeyError:
-        raise BadConnectionURI('Unrecognised database connection scheme %r' % scheme)
+        raise BadConnectionURI('Unrecognised database connection scheme %r' %
+                               scheme)
     return connection_func(username, password, host, port, database)
 
 
@@ -86,7 +92,8 @@ def parse_uri(uri):
     try:
         scheme, uri = uri.split('://', 1)
     except ValueError:
-        raise BadConnectionURI("No scheme specified in connection URI %r" % uri)
+        raise BadConnectionURI("No scheme specified in connection URI %r" %
+                               uri)
 
     try:
         netloc, uri = uri.split('/', 1)
@@ -118,17 +125,20 @@ def parse_uri(uri):
 
     return scheme, username, password, host, port, database
 
+
 def unparse_uri(uri_tuple):
     """
     Examples::
 
-        >>> unparse_uri(('postgres', 'fred', 'bassett', 'dbserver', 5432, 'fredsdatabase'))
+        >>> unparse_uri(('postgres', 'fred', 'bassett', 'dbserver', 5432,
+        ...              'fredsdatabase'))
         'postgres://fred:bassett@dbserver:5432/fredsdatabase'
 
         >>> unparse_uri(('postgres', 'pgsql', None, None, None, 'template1'))
         'postgres://pgsql@/template1'
 
-        >>> unparse_uri(('mysql', 'jim', None, 'localhost', None, 'jimsdatabase'))
+        >>> unparse_uri(('mysql', 'jim', None, 'localhost', None,
+        ...              'jimsdatabase'))
         'mysql://jim@localhost/jimsdatabase'
     """
 
@@ -147,4 +157,3 @@ def unparse_uri(uri_tuple):
     uri += database
 
     return uri
-

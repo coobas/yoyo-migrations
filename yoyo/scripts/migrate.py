@@ -21,10 +21,12 @@ verbosity_levels = {
     3: logging.DEBUG
 }
 
+
 def readconfig(path):
     config = ConfigParser.ConfigParser()
     config.read([path])
     return config
+
 
 def saveconfig(config, path):
     os.umask(077)
@@ -34,6 +36,7 @@ def saveconfig(config, path):
     finally:
         f.close()
 
+
 class prompted_migration(object):
 
     def __init__(self, migration, default=None):
@@ -41,10 +44,11 @@ class prompted_migration(object):
         self.migration = migration
         self.choice = default
 
+
 def prompt_migrations(conn, paramstyle, migrations, direction):
     """
-    Iterate through the list of migrations and prompt the user to apply/rollback each.
-    Return a list of user selected migrations.
+    Iterate through the list of migrations and prompt the user to
+    apply/rollback each. Return a list of user selected migrations.
 
     direction
         one of 'apply' or 'rollback'
@@ -57,11 +61,14 @@ def prompt_migrations(conn, paramstyle, migrations, direction):
 
         choice = mig.choice
         if choice is None:
+            isapplied = mig.migration.isapplied(conn, paramstyle,
+                                                migrations.migration_table)
             if direction == 'apply':
-                choice = 'n' if mig.migration.isapplied(conn, paramstyle, migrations.migration_table) else 'y'
+                choice = 'n' if isapplied else 'y'
             else:
-                choice = 'y' if mig.migration.isapplied(conn, paramstyle, migrations.migration_table) else 'n'
-        options = ''.join(o.upper() if o == choice else o.lower() for o in 'ynvdaqjk?')
+                choice = 'y' if isapplied else 'n'
+        options = ''.join(o.upper() if o == choice else o.lower()
+                          for o in 'ynvdaqjk?')
 
         print ""
         print '[%s]' % (mig.migration.id,)
@@ -74,7 +81,8 @@ def prompt_migrations(conn, paramstyle, migrations, direction):
             print ""
             print "v: view this migration in full"
             print ""
-            print "d: %s the selected migrations, skipping any remaining" % (direction,)
+            print "d: %s the selected migrations, skipping any remaining" % \
+                    (direction,)
             print "a: %s all the remaining migrations" % (direction,)
             print "q: cancel without making any changes"
             print ""
@@ -113,30 +121,39 @@ def prompt_migrations(conn, paramstyle, migrations, direction):
                 mig.choice = 'n'
             break
 
-    return migrations.replace(m.migration for m in migrations if m.choice == 'y')
+    return migrations.replace(m.migration
+                              for m in migrations
+                              if m.choice == 'y')
+
 
 def make_optparser():
 
-    optparser = optparse.OptionParser(usage="%prog apply|rollback|reapply <migrations> <database>")
+    optparser = optparse.OptionParser(usage="%prog apply|rollback|reapply "
+                                            "<migrations> <database>")
     optparser.add_option(
         "-m", "--match", dest="match",
-        help="Select migrations matching PATTERN (perl-compatible regular expression)", metavar='PATTERN',
+        help="Select migrations matching PATTERN "
+             "(perl-compatible regular expression)", metavar='PATTERN',
     )
     optparser.add_option(
         "-a", "--all", dest="all", action="store_true",
-        help="Select all migrations, regardless of whether they have been previously applied"
+        help="Select all migrations, regardless of whether "
+             "they have been previously applied"
     )
     optparser.add_option(
         "-b", "--batch", dest="batch", action="store_true",
-        help="Run in batch mode (don't ask before applying/rolling back each migration)"
+        help="Run in batch mode "
+             "(don't ask before applying/rolling back each migration)"
     )
     optparser.add_option(
         "-v", dest="verbose", action="count",
-        help="Verbose output. Use multiple times to increase level of verbosity"
+        help="Verbose output. "
+             "Use multiple times to increase level of verbosity"
     )
     optparser.add_option(
         "--verbosity", dest="verbosity_level", action="store", type="int",
-        help="Set verbosity level (%d-%d)" % (min(verbosity_levels), max(verbosity_levels)),
+        help="Set verbosity level (%d-%d)" % (min(verbosity_levels),
+                                              max(verbosity_levels)),
     )
     optparser.add_option(
         "", "--force", dest="force", action="store_true",
@@ -151,17 +168,20 @@ def make_optparser():
         help="Don't cache database login credentials"
     )
     optparser.add_option(
-        "", "--migration-table", dest="migration_table", action="store", default='None',
+        "", "--migration-table", dest="migration_table",
+        action="store", default='None',
         help="Name of table to use for storing migration metadata"
     )
 
     return optparser
+
 
 def configure_logging(level):
     """
     Configure the python logging module with the requested loglevel
     """
     logging.basicConfig(level=verbosity_levels[level])
+
 
 def main(argv=None):
 
@@ -255,7 +275,8 @@ def main(argv=None):
     migrations = read_migrations(conn, paramstyle, migrations_dir)
 
     if opts.match:
-        migrations = migrations.filter(lambda m: re.search(opts.match, m.id) is not None)
+        migrations = migrations.filter(
+            lambda m: re.search(opts.match, m.id) is not None)
 
     if not opts.all:
         if command in ['apply']:
@@ -268,7 +289,9 @@ def main(argv=None):
         migrations = prompt_migrations(conn, paramstyle, migrations, command)
 
     if not opts.batch and migrations:
-        if prompt(command.title() + plural(len(migrations), " %d migration", " %d migrations") + " to %s?" % dburi, "Yn") != 'y':
+        if prompt(command.title() +
+                  plural(len(migrations), " %d migration", " %d migrations") +
+                  " to %s?" % dburi, "Yn") != 'y':
             return 0
 
     if command == 'reapply':
@@ -282,6 +305,4 @@ def main(argv=None):
         migrations.rollback(opts.force)
 
 if __name__ == "__main__":
-
     main(sys.argv[1:])
-

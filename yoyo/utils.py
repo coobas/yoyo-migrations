@@ -5,13 +5,13 @@ try:
 
     def getch():
         """
-        Read a single character without echoing to the console and without having
-        to wait for a newline.
+        Read a single character without echoing to the console and without
+        having to wait for a newline.
         """
         fd = sys.stdin.fileno()
         saved_attributes = termios.tcgetattr(fd)
         try:
-            attributes = termios.tcgetattr(fd) # get a fresh copy!
+            attributes = termios.tcgetattr(fd)  # get a fresh copy!
             attributes[3] = attributes[3] & ~(termios.ICANON | termios.ECHO)
             attributes[6][termios.VMIN] = 1
             attributes[6][termios.VTIME] = 0
@@ -19,7 +19,7 @@ try:
 
             a = sys.stdin.read(1)
         finally:
-            #be sure to reset the attributes no matter what!
+            # be sure to reset the attributes no matter what!
             termios.tcsetattr(fd, termios.TCSANOW, saved_attributes)
         return a
 
@@ -36,7 +36,8 @@ def prompt(prompt, options):
         sys.stdout.write("%s [%s]: " % (prompt, options))
         ch = getch()
         if ch == '\n':
-            ch = ([o.lower() for o in options if 'A' <= o <= 'Z'] + list(options.lower()))[0]
+            ch = ([o.lower() for o in options if 'A' <= o <= 'Z'] +
+                  list(options.lower()))[0]
         print ch
         if ch.lower() not in options.lower():
             print "Invalid response, please try again!"

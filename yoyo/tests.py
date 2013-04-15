@@ -10,17 +10,19 @@ from yoyo import DatabaseError
 
 dburi = "sqlite:///:memory:"
 
+
 def with_migrations(*migrations):
     """
     Decorator taking a list of migrations. Creates a temporary directory writes
-    each migration to a file (named '0.py', '1.py', '2.py' etc), calls the decorated
-    function with the directory name as the first argument, and cleans up the
-    temporary directory on exit.
+    each migration to a file (named '0.py', '1.py', '2.py' etc), calls the
+    decorated function with the directory name as the first argument, and
+    cleans up the temporary directory on exit.
     """
 
     def unindent(s):
         initial_indent = re.search(r'^([ \t]*)\S', s, re.M).group(1)
-        return re.sub(r'(^|[\r\n]){0}'.format(re.escape(initial_indent)), r'\1', s)
+        return re.sub(r'(^|[\r\n]){0}'.format(re.escape(initial_indent)),
+                      r'\1', s)
 
     def decorator(func):
         tmpdir = mkdtemp()
@@ -37,6 +39,7 @@ def with_migrations(*migrations):
 
         return decorated
     return decorator
+
 
 @with_migrations(
     """
@@ -80,6 +83,7 @@ def test_rollbacks_happen_in_reverse(tmpdir):
     cursor.execute("SELECT * FROM test")
     assert cursor.fetchall() == []
 
+
 @with_migrations(
     '''
     step("CREATE TABLE test (id INT)")
@@ -95,6 +99,7 @@ def test_execution_continues_with_ignore_errors(tmpdir):
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM test")
     assert cursor.fetchall() == [(1,), (2,)]
+
 
 @with_migrations(
     '''
@@ -115,11 +120,13 @@ def test_execution_continues_with_ignore_errors_in_transaction(tmpdir):
     cursor.execute("SELECT * FROM test")
     assert cursor.fetchall() == [(2,)]
 
+
 @with_migrations(
     '''
     step("CREATE TABLE test (id INT)")
     step("INSERT INTO test VALUES (1)", "DELETE FROM test WHERE id=2")
-    step("UPDATE test SET id=2 WHERE id=1", "SELECT nonexistent FROM imaginary", ignore_errors='rollback')
+    step("UPDATE test SET id=2 WHERE id=1",
+         "SELECT nonexistent FROM imaginary", ignore_errors='rollback')
     '''
 )
 def test_rollbackignores_errors(tmpdir):
@@ -143,9 +150,9 @@ def test_rollbackignores_errors(tmpdir):
 )
 def test_specify_migration_table(tmpdir):
     conn, paramstyle = connect(dburi)
-    migrations = read_migrations(conn, paramstyle, tmpdir, migration_table='another_migration_table')
+    migrations = read_migrations(conn, paramstyle, tmpdir,
+                                 migration_table='another_migration_table')
     migrations.apply()
     cursor = conn.cursor()
     cursor.execute("SELECT id FROM another_migration_table")
     assert cursor.fetchall() == [(u'0',)]
-
