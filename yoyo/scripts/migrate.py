@@ -9,10 +9,10 @@ import ConfigParser
 from ConfigParser import NoSectionError, NoOptionError
 from getpass import getpass
 
-from yoyo.migrate.connections import connect, parse_uri, unparse_uri
-from yoyo.migrate.utils import prompt, plural
-from yoyo.migrate import read_migrations
-from yoyo.migrate import logger
+from yoyo.connections import connect, parse_uri, unparse_uri
+from yoyo.utils import prompt, plural
+from yoyo import read_migrations
+from yoyo import logger
 
 verbosity_levels = {
     0: logging.ERROR,

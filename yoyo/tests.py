@@ -4,9 +4,9 @@ from shutil import rmtree
 from functools import wraps
 import os
 
-from yoyo.migrate.connections import connect
-from yoyo.migrate import read_migrations
-from yoyo.migrate import DatabaseError
+from yoyo.connections import connect
+from yoyo import read_migrations
+from yoyo import DatabaseError
 
 dburi = "sqlite:///:memory:"
 
