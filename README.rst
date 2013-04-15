@@ -1,7 +1,7 @@
-Yoyo-migrations
-===============
+Yoyo database migrations
+========================
 
-Yoyo-migrations is a database schema migration tool using plain SQL and the
+Yoyo is a database schema migration tool using plain SQL and python's builtin 
 DB-API.
 
 What does yoyo-migrations do?
@@ -10,9 +10,9 @@ What does yoyo-migrations do?
 As database applications evolve, changes to the database schema are often
 required. These can usually be written as one-off SQL scripts containing
 CREATE/ALTER table statements (although any SQL or python script may be used
-with yoyo-migrations).
+with yoyo).
 
-Yoyo-migrations provides a command line tool for reading a directory of such
+Yoyo provides a command line tool for reading a directory of such
 scripts and applying them to your database as required.
 
 Database support
@@ -24,18 +24,18 @@ PostgreSQL, MySQL and SQLite databases are supported.
 Usage
 -----
 
-Yoyo-migrations is usually invoked as a command line script.
+Yoyo is usually invoked as a command line script.
 
 Examples:
 
 Read all migrations from directory ``migrations`` and apply them to a
 PostgreSQL database::
 
-    yoyo-migrate apply ./migrations/ postgres://user:password@localhost/database
+   yoyo-migrate apply ./migrations/ postgres://user:password@localhost/database
 
 Rollback migrations previously applied to a MySQL database::
 
-    yoyo-migrate rollback ./migrations/ mysql://user:password@localhost/database
+   yoyo-migrate rollback ./migrations/ mysql://user:password@localhost/database
 
 Reapply (ie rollback then apply again) migrations to a SQLite database at
 location ``/home/sheila/important-data.db``::
@@ -160,10 +160,17 @@ your command history when you have moved to a different directory).
 If you do not want this cache file to be used, add the ``--no-cache`` parameter
 to the command line options.
 
-Thanks
-------
+Using yoyo from python code
+---------------------------
 
-* Thanks to Ryan Williams for suggesting the transactions functionality and
-  assorted bug fixes.
+The following example shows how to apply migrations from inside python code::
+
+    from yoyo import read_migrations
+    from yoyo.connections import connect
+
+    conn, paramstyle = connect('postgres://myuser@localhost/mydatabase')
+    migrations = read_migrations(conn, paramstyle, 'path/to/migrations'))
+    migrations.to_apply().apply()
+    conn.commit()
 
 .. :vim:sw=4:et

@@ -1,5 +1,21 @@
 CHANGELOG
 ---------
+Version 4.2.0
+
+* Removed yoyo.migrate namespace package. Any code that uses the yoyo api
+  directly needs have any imports modified, eg this::
+
+    from yoyo.migrate import read_migrations
+    from yoyo.migrate.connections import connect
+
+  Should be changed to this::
+
+    from yoyo import read_migrations
+    from yoyo.connections import connect
+
+* Migrated from darcs to mercurial. Code is now hosted at
+  https://bitbucket.org/ollyc/yoyo
+
 Version 4.1.6
 
 * Added windows support (thanks to Peter Shinners)
@@ -31,7 +47,8 @@ Version 4.1.1
 
 Version 4.1.0
 
-* Introduced ability to run steps within a transaction
+* Introduced ability to run steps within a transaction (thanks to Ryan Williams
+  for suggesting this functionality along with assorted bug fixes.)
 
 * "post-apply" migrations can be run after every successful upward migration
 
