@@ -15,6 +15,13 @@ with yoyo).
 Yoyo provides a command line tool for reading a directory of such
 scripts and applying them to your database as required.
 
+Installation
+------------
+
+Install from the PyPI with the command::
+
+  pip install yoyo-migrations
+
 Database support
 ----------------
 
