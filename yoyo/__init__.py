@@ -8,6 +8,7 @@ from logging import getLogger
 
 from yoyo.utils import plural
 
+__version__ = '4.2.0dev'
 logger = getLogger(__name__)
 
 
