@@ -1,68 +1,92 @@
 import re
-from fabric.api import *
+from shutil import rmtree
+from contextlib import contextmanager
+from fabric.api import env, lcd, local, prompt, task
+from tempfile import mkdtemp
 
 env.shell = '/bin/sh -c'
-env.package_name = 'yoyo-migrations'
-env.module_name = 'yoyo.migrate'
 
-# Where to host generated sphinx documentation
+#: Name of python module provided by this package
+env.module_name = 'yoyo'
+
+#: PyPI registered name
+env.package_name = 'yoyo-migrations'
+
+#: Where to host generated sphinx documentation
 env.hosts = ['www.ollycope.com']
 env.docsdir = 'www/ollycope.com/htdocs/software/%(package_name)s' % env
 
-# Where to locally checkout a clean version for build and upload
-env.builddir = './clean'
+#: Regular expression to parse the version number out of a python source file
+version_re = re.compile(b"^(__version__\s*=\s*)['\"]([^'\"]*)['\"]", re.M)
 
-def builddocs():
+#: File in which we can find the version number
+env.version_file = '{module_name}/__init__.py'.format(**env)
+
+
+def scm_get_repo_root():
+    return local("hg root", capture=True).strip()
+
+
+def scm_get_repo_author():
+    return local("hg showconfig ui.username", capture=True).strip()
+
+
+def scm_clone_repo(src, dst):
+    local("hg clone {} {}".format(src, dst))
+
+
+def scm_record(message, *files):
     """
-    Run doctests and build HTML docs
+    Record a commit
     """
-    local("cd %(builddir)s/doc && make doctest clean html" % env)
+    local('hg commit -m "{message}" {files}'.format(files=' '.join(files),
+                                                    message=message))
 
-def uploaddocs():
+
+def scm_tag(version):
+    with lcd(env.build_path):
+        local("hg tag {version}".format(version=version))
+
+
+def scm_pull(src, dst):
     """
-    Upload sphinx docs to website
+    Pull commits/patches/tags from ``src`` to ``dst``
     """
-    env.version = local("python %(builddir)s/setup.py --version" % env, capture=True).strip()
-    local("tar -cf docs.tar -C %(builddir)s/doc/_build/html ." % env)
-    run("test -d %(docsdir)s/%(version)s || mkdir -p %(docsdir)s/%(version)s" % env)
-    put("docs.tar", "%(docsdir)s/%(version)s/" % env)
-    run("cd %(docsdir)s/%(version)s && tar xf docs.tar" % env)
-    run("cd %(docsdir)s/%(version)s && rm docs.tar" % env)
+    with lcd(dst):
+        local("hg pull {}".format(src))
 
-    run("cd %(docsdir)s; test -L latest && rm latest || true" % env)
-    run("cd %(docsdir)s; ln -s %(version)s latest" % env)
 
-def _make_clean_checkout():
-    local("rm -rf %(builddir)s" % env)
-    local("darcs get --lazy . %(builddir)s" % env)
-
-def _make_build():
-    local("cd %(builddir)s && python bootstrap.py" % env)
-    local("cd %(builddir)s && ./bin/buildout" % env)
-    local("cd %(builddir)s && ./bin/python setup.py sdist" % env)
-
-def build(clean="yes"):
+@contextmanager
+def build():
     """
     Checkout and build a clean source distribution
     """
-    _make_clean_checkout()
-    _make_build()
-    _check_release()
-    #builddocs()
+    if 'build_path' in env:
+        with lcd(env.build_path):
+            yield
+        return
 
-def _readversion():
-    """
-    Read the contents of VERSION.txt and return the current version number
-    """
-    with open("%(builddir)s/VERSION.txt" % env, 'r') as f:
-        return f.read().strip()
+    env.author = scm_get_repo_author()
+    env.dev_path = scm_get_repo_root()
+    env.build_path = mkdtemp() + '/build'
+    scm_clone_repo(env.dev_path, env.build_path)
+    try:
+        with lcd(env.build_path):
+            local("python bootstrap.py")
+            local("./bin/buildout")
+            local("./bin/python setup.py sdist")
+            _check_release()
+            yield
+    finally:
+        rmtree(env.build_path)
+
 
 def _check_changelog(version):
     """
     Check that a changelog entry exists for the given version
     """
 
-    with open("%(builddir)s/CHANGELOG.txt" % env, 'r') as f:
+    with open("%(build_path)s/CHANGELOG.rst" % env, 'r') as f:
         changes = f.read()
 
     # Check we've a changelog entry for the newly released version
@@ -72,53 +96,69 @@ def _check_changelog(version):
         re.M
     ) is not None, "No changelog entry found for version %s" % (version,)
 
-def _updateversion(version):
-    """
-    Write the given version number to VERSION.txt and record a new patch
-    """
-    _set_darcs_author()
-    with open("%(builddir)s/VERSION.txt" % env, 'w') as f:
-        f.write(version + '\n')
-    local("darcs record -A %(darcs_author)s --repodir=%(builddir)s -a VERSION.txt -m 'Bumped version number'" % env)
 
-def _tag(version):
-    _set_darcs_author()
-    local("darcs tag %s --repodir=%s -A %s" % (version, env.builddir, env.darcs_author))
+def _readversion():
+    """
+    Parse and return the current version number
+    """
+    with open("{build_path}/{version_file}".format(**env), 'r') as f:
+        return version_re.search(f.read()).group(2)
 
+
+def _updateversion(version, for_=''):
+    """\
+    Write the given version number and record a new commit
+    """
+    with open("{build_path}/{version_file}".format(**env), 'r') as f:
+        s = f.read()
+
+    s = version_re.sub(r"__version__ = '{}'".format(version), s)
+    with open("{build_path}/{version_file}".format(**env), 'w') as f:
+        f.write(s)
+
+    if for_:
+        for_ = ' for ' + for_
+
+    with lcd(env.build_path):
+        scm_record("Bumped version number" + for_, env.version_file)
+
+
+@task()
 def release():
     """
-    Upload a new release to the PyPI. Requires ``build`` to have been run previously.
+    Upload a new release to the PyPI.
     """
+    with build():
+        version = _readversion()
+        assert version.endswith('dev')
+        release_version = version.replace('dev', '')
+        _check_changelog(release_version)
+        _updateversion(release_version, 'release')
+        scm_tag(release_version)
 
-    version = _readversion()
-    assert version.endswith('dev')
-    release_version = version.replace('dev', '')
-    _check_changelog(release_version)
+        local("cd %(build_path)s && ./bin/python setup.py sdist upload" % env)
 
-    _updateversion(release_version)
-    _tag(release_version)
+        _updateversion(
+            prompt("New development version number?",
+                   default=_increment_version(release_version) + 'dev'), 'dev')
+        scm_pull(env.build_path, env.dev_path)
 
-    #uploaddocs()
-    local("cd %(builddir)s && ./bin/python setup.py sdist upload" % env)
-
-    _updateversion(
-        prompt(
-            "New development version number?",
-            default=_increment_version(release_version) + 'dev'
-        ) + '\n'
-    )
-    local("darcs pull --no-set-default %(builddir)s" % env, capture=False)
 
 def _check_release():
     """
-    Check that the sdist can be at least be installed and imported
+    Check that the tests run and that the source dist can be installed cleanly
+    in a virtualenv
     """
-    local("cd %(builddir)s && ./bin/nosetests" % env)
-    local("test \! -e test_virtualenv")
-    local("virtualenv test_virtualenv")
-    local("./test_virtualenv/bin/easy_install ./%(builddir)s/dist/*.tar.gz" % env)
-    local("./test_virtualenv/bin/python -c'import %(module_name)s'" % env)
-    local("rm -rf test_virtualenv")
+    with lcd(env.build_path):
+        local("./bin/nosetests")
+        try:
+            local("virtualenv test_virtualenv")
+            local("./test_virtualenv/bin/pip install ./dist/*.tar.gz" % env)
+            local("./test_virtualenv/bin/python -c'import %s'" %
+                  env.module_name)
+        finally:
+            local("rm -rf test_virtualenv")
+
 
 def _increment_version(version):
     """
@@ -128,16 +168,6 @@ def _increment_version(version):
         '1.0.1'
     """
     version = map(int, version.split('.'))
-    version = version[:-1] + [version[-1] + 1,]
+    version = version[:-1] + [version[-1] + 1]
     version = '.'.join(map(str, version))
     return version
-
-def _set_darcs_author():
-    if env.get("darcs_author"):
-        return env.get("darcs_author")
-    env.darcs_author = re.search(
-        r"Author: (\S*)$",
-        local("darcs show repo", capture=True),
-        re.M
-    ).group(1)
-    return env.darcs_author
