@@ -318,7 +318,11 @@ def read_migrations(conn, paramstyle, directory, names=None,
             file.close()
 
         ns = {'step': step, 'transaction': transaction}
-        exec migration_code in ns
+        try:
+            exec migration_code in ns
+        except Exception:
+            logger.exception("Could not import migration from %r", path)
+            continue
         migration = migration_class(os.path.basename(filename), transactions,
                                     source)
         if migration_class is PostApplyHookMigration:
