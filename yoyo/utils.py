@@ -1,3 +1,4 @@
+from __future__ import print_function
 import sys
 
 try:
@@ -38,9 +39,9 @@ def prompt(prompt, options):
         if ch == '\n':
             ch = ([o.lower() for o in options if 'A' <= o <= 'Z'] +
                   list(options.lower()))[0]
-        print ch
+        print(ch)
         if ch.lower() not in options.lower():
-            print "Invalid response, please try again!"
+            print("Invalid response, please try again!")
         else:
             break
 

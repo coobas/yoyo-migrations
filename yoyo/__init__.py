@@ -6,6 +6,7 @@ from itertools import count
 from datetime import datetime
 from logging import getLogger
 
+from yoyo.compat import reraise, exec_, ustr
 from yoyo.utils import plural
 
 __version__ = '4.2.0dev'
@@ -94,7 +95,7 @@ class Migration(object):
                 except DatabaseError:
                     logger.exception(
                         'Database error when reversing %s of step', direction)
-                raise exc_info[0], exc_info[1], exc_info[2]
+                reraise(exc_info[0], exc_info[1], exc_info[2])
 
 
 class PostApplyHookMigration(Migration):
@@ -192,13 +193,13 @@ class MigrationStep(StepBase):
         Execute the given statement. If rows are returned, output these in a
         tabulated format.
         """
-        if isinstance(stmt, unicode):
+        if isinstance(stmt, ustr):
             logger.debug(" - executing %r", stmt.encode('ascii', 'replace'))
         else:
             logger.debug(" - executing %r", stmt)
         cursor.execute(stmt)
         if cursor.description:
-            result = [[unicode(value) for value in row]
+            result = [[ustr(value) for value in row]
                       for row in cursor.fetchall()]
             column_names = [desc[0] for desc in cursor.description]
             column_sizes = [len(c) for c in column_names]
@@ -226,7 +227,7 @@ class MigrationStep(StepBase):
             return
         cursor = conn.cursor()
         try:
-            if isinstance(self._apply, (str, unicode)):
+            if isinstance(self._apply, (ustr, str)):
                 self._execute(cursor, self._apply)
             else:
                 self._apply(conn)
@@ -242,7 +243,7 @@ class MigrationStep(StepBase):
             return
         cursor = conn.cursor()
         try:
-            if isinstance(self._rollback, (str, unicode)):
+            if isinstance(self._rollback, (ustr, str)):
                 self._execute(cursor, self._rollback)
             else:
                 self._rollback(conn)
@@ -283,7 +284,7 @@ def read_migrations(conn, paramstyle, directory, names=None,
             Wrap the given apply and rollback code in a transaction, and add it
             to the list of steps. Return the transaction-wrapped step.
             """
-            t = Transaction([MigrationStep(step_id.next(), apply, rollback)],
+            t = Transaction([MigrationStep(next(step_id), apply, rollback)],
                             ignore_errors)
             transactions.append(t)
             return t
@@ -319,7 +320,7 @@ def read_migrations(conn, paramstyle, directory, names=None,
 
         ns = {'step': step, 'transaction': transaction}
         try:
-            exec migration_code in ns
+            exec_(migration_code, globals(), ns)
         except Exception:
             logger.exception("Could not import migration from %r", path)
             continue
