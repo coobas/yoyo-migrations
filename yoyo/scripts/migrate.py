@@ -11,7 +11,7 @@ from getpass import getpass
 
 from yoyo.connections import connect, parse_uri, unparse_uri
 from yoyo.utils import prompt, plural
-from yoyo import read_migrations
+from yoyo import read_migrations, default_migration_table
 from yoyo import logger
 
 verbosity_levels = {
@@ -169,7 +169,7 @@ def make_optparser():
     )
     optparser.add_option(
         "", "--migration-table", dest="migration_table",
-        action="store", default='None',
+        action="store", default=None,
         help="Name of table to use for storing migration metadata"
     )
 
@@ -221,11 +221,20 @@ def main(argv=None):
         except (ValueError, NoSectionError, NoOptionError):
             pass
 
-    if opts.migration_table is None:
+    if opts.migration_table:
+        migration_table = opts.migration_table
+    else:
         try:
             migration_table = config.get('DEFAULT', 'migration_table')
         except (ValueError, NoSectionError, NoOptionError):
-            migration_table = '_yoyo_migration'
+            migration_table = None
+
+    # Earlier versions had a bug where the migration_table could be set to the
+    # string 'None'.
+    if migration_table in (None, 'None'):
+        migration_table = default_migration_table
+
+    config.set('DEFAULT', 'migration_table', migration_table)
 
     if dburi is None:
         optparser.error(
@@ -241,9 +250,6 @@ def main(argv=None):
         scheme, username, _, host, port, database = parse_uri(dburi)
         dburi = unparse_uri((scheme, username, password, host, port, database))
 
-    if opts.migration_table:
-        migration_table = opts.migration_table
-        config.set('DEFAULT', 'migration_table', migration_table)
     # Cache the database this migration set is applied to so that subsequent
     # runs don't need the dburi argument. Don't cache anything in batch mode -
     # we can't prompt to find the user's preference.
@@ -272,7 +278,8 @@ def main(argv=None):
 
     conn, paramstyle = connect(dburi)
 
-    migrations = read_migrations(conn, paramstyle, migrations_dir)
+    migrations = read_migrations(conn, paramstyle, migrations_dir,
+                                 migration_table=migration_table)
 
     if opts.match:
         migrations = migrations.filter(

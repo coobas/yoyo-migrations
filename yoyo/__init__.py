@@ -12,6 +12,8 @@ from yoyo.utils import plural
 __version__ = '4.2.0dev'
 logger = getLogger(__name__)
 
+default_migration_table = '_yoyo_migration'
+
 
 class DatabaseError(Exception):
     pass
@@ -252,13 +254,12 @@ class MigrationStep(StepBase):
 
 
 def read_migrations(conn, paramstyle, directory, names=None,
-                    migration_table="_yoyo_migration"):
+                    migration_table=default_migration_table):
     """
     Return a ``MigrationList`` containing all migrations from ``directory``.
     If ``names`` is given, this only return migrations with names from the
     given list (without file extensions).
     """
-
     migrations = MigrationList(conn, paramstyle, migration_table)
     paths = [os.path.join(directory, path)
              for path in os.listdir(directory) if path.endswith('.py')]
