@@ -16,6 +16,9 @@ Version 4.2.0
 * Migrated from darcs to mercurial. Code is now hosted at
   https://bitbucket.org/ollyc/yoyo
 
+* Bugfix: the migration_table option was not being passed to read_migrations,
+  causing the value to be ignored
+
 Version 4.1.6
 
 * Added windows support (thanks to Peter Shinners)
