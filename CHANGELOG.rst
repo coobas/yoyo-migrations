@@ -1,5 +1,9 @@
 CHANGELOG
 ---------
+Version 4.2.1
+
+* Bugfix for previous release, which omitted critical files
+
 Version 4.2.0
 
 * Removed yoyo.migrate namespace package. Any code that uses the yoyo api
