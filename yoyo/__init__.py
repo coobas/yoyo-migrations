@@ -9,7 +9,7 @@ from logging import getLogger
 from yoyo.compat import reraise, exec_, ustr
 from yoyo.utils import plural
 
-__version__ = '4.2.1dev'
+__version__ = '4.2.1'
 logger = getLogger(__name__)
 
 default_migration_table = '_yoyo_migration'
