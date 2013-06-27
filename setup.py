@@ -2,7 +2,7 @@
 
 import os
 import re
-from setuptools import setup
+from setuptools import setup, find_packages
 
 VERSIONFILE = "yoyo/__init__.py"
 
@@ -29,7 +29,7 @@ setup(
     author='Oliver Cope',
     author_email='oliver@redgecko.org',
     license='BSD',
-    packages=['yoyo'],
+    packages=find_packages(),
     include_package_data=True,
     zip_safe=False,
     extras_require={
