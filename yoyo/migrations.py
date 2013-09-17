@@ -11,6 +11,7 @@ from yoyo.utils import plural
 
 logger = getLogger(__name__)
 default_migration_table = '_yoyo_migration'
+_step_collectors = {}
 
 
 def with_placeholders(conn, paramstyle, sql):
@@ -271,41 +272,6 @@ def read_migrations(conn, paramstyle, directory, names=None,
                 names is not None and filename not in names:
             continue
 
-        step_id = count(0)
-        transactions = []
-
-        def step(apply, rollback=None, ignore_errors=None):
-            """
-            Wrap the given apply and rollback code in a transaction, and add it
-            to the list of steps. Return the transaction-wrapped step.
-            """
-            t = Transaction([MigrationStep(next(step_id), apply, rollback)],
-                            ignore_errors)
-            transactions.append(t)
-            return t
-
-        def transaction(*steps, **kwargs):
-            """
-            Wrap the given list of steps in a single transaction, removing the
-            default transactions around individual steps.
-            """
-            ignore_errors = kwargs.pop('ignore_errors', None)
-            assert kwargs == {}
-
-            transaction = Transaction([], ignore_errors)
-            for oldtransaction in steps:
-                if oldtransaction.ignore_errors is not None:
-                    raise AssertionError("ignore_errors cannot be specified "
-                                         "within a transaction")
-                try:
-                    (step,) = oldtransaction.steps
-                except ValueError:
-                    raise AssertionError("Transactions cannot be nested")
-                transaction.steps.append(step)
-                transactions.remove(oldtransaction)
-            transactions.append(transaction)
-            return transaction
-
         file = open(path, 'r')
         try:
             source = file.read()
@@ -313,14 +279,15 @@ def read_migrations(conn, paramstyle, directory, names=None,
         finally:
             file.close()
 
-        ns = {'step': step, 'transaction': transaction}
+        collector = _step_collectors[file.name] = StepCollector()
+        ns = {'step': collector.step, 'transaction': collector.transaction}
         try:
             exec_(migration_code, ns)
         except Exception:
             logger.exception("Could not import migration from %r", path)
             continue
-        migration = migration_class(os.path.basename(filename), transactions,
-                                    source)
+        migration = migration_class(os.path.basename(filename),
+                                    collector.steps, source)
         if migration_class is PostApplyHookMigration:
             migrations.post_apply.append(migration)
         else:
@@ -449,3 +416,59 @@ def initialize_connection(conn, tablename):
     if DatabaseError not in module.DatabaseError.__bases__:
         module.DatabaseError.__bases__ += (DatabaseError,)
     create_migrations_table(conn, tablename)
+
+
+class StepCollector(object):
+    """
+    Provide the ``step`` and ``transaction`` functions used in migration
+    scripts.
+
+    Each call to step/transaction updates the StepCollector's ``steps`` list.
+    """
+
+    def __init__(self):
+        self.steps = []
+        self.step_id = count(0)
+
+    def step(self, apply, rollback=None, ignore_errors=None):
+        """
+        Wrap the given apply and rollback code in a transaction, and add it
+        to the list of steps.
+        Return the transaction-wrapped step.
+        """
+        t = Transaction([MigrationStep(next(self.step_id), apply, rollback)],
+                        ignore_errors)
+        self.steps.append(t)
+        return t
+
+    def transaction(self, *steps, **kwargs):
+        """
+        Wrap the given list of steps in a single transaction, removing the
+        default transactions around individual steps.
+        """
+        ignore_errors = kwargs.pop('ignore_errors', None)
+        assert kwargs == {}
+
+        transaction = Transaction([], ignore_errors)
+        for oldtransaction in steps:
+            if oldtransaction.ignore_errors is not None:
+                raise AssertionError("ignore_errors cannot be specified "
+                                        "within a transaction")
+            try:
+                (step,) = oldtransaction.steps
+            except ValueError:
+                raise AssertionError("Transactions cannot be nested")
+            transaction.steps.append(step)
+            self.steps.remove(oldtransaction)
+        self.steps.append(transaction)
+        return transaction
+
+
+def step(*args, **kwargs):
+    fi = inspect.getframeinfo(inspect.stack()[1][0])
+    return _step_collectors[fi.filename].step(*args, **kwargs)
+
+
+def transaction(*args, **kwargs):
+    fi = inspect.getframeinfo(inspect.stack()[1][0])
+    return _step_collectors[fi.filename].transaction(*args, **kwargs)
