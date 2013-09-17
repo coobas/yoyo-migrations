@@ -180,3 +180,20 @@ def test_migration_functions_have_namespace_access(tmpdir):
     cursor = conn.cursor()
     cursor.execute("SELECT id FROM foo_test")
     assert cursor.fetchall() == [(1,)]
+
+
+@with_migrations(
+    '''
+    from yoyo import transaction, step
+    step("CREATE TABLE test (id INT)")
+    transaction(step("INSERT INTO test VALUES (1)")),
+    '''
+)
+def test_migrations_can_import_step_and_transaction(tmpdir):
+    conn, paramstyle = connect(dburi)
+    migrations = read_migrations(conn, paramstyle, tmpdir,
+                                 migration_table='another_migration_table')
+    migrations.apply()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id FROM test")
+    assert cursor.fetchall() == [(1,)]
