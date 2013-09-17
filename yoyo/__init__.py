@@ -321,7 +321,7 @@ def read_migrations(conn, paramstyle, directory, names=None,
 
         ns = {'step': step, 'transaction': transaction}
         try:
-            exec_(migration_code, globals(), ns)
+            exec_(migration_code, ns)
         except Exception:
             logger.exception("Could not import migration from %r", path)
             continue

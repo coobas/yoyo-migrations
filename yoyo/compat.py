@@ -16,8 +16,8 @@ else:
 
 
 if PY2:
-    exec('def exec_(code, globals_, locals_):\n '
-         'exec code in globals_, locals_')
+    exec('def exec_(code, globals_):\n '
+         'exec code in globals_')
 else:
-    def exec_(code, globals_, locals_):
-        eval(code, globals_, locals_)
+    def exec_(code, globals_):
+        exec(code, globals_)
