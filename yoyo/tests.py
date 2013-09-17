@@ -156,3 +156,27 @@ def test_specify_migration_table(tmpdir):
     cursor = conn.cursor()
     cursor.execute("SELECT id FROM another_migration_table")
     assert cursor.fetchall() == [(u'0',)]
+
+
+@with_migrations(
+    '''
+    def foo(conn):
+        conn.cursor().execute("CREATE TABLE foo_test (id INT)")
+        conn.cursor().execute("INSERT INTO foo_test VALUES (1)")
+        conn.commit()
+    def bar(conn):
+        foo(conn)
+    step(bar)
+    '''
+)
+def test_migration_functions_have_namespace_access(tmpdir):
+    """
+    Test that functions called via step have access to the script namespace
+    """
+    conn, paramstyle = connect(dburi)
+    migrations = read_migrations(conn, paramstyle, tmpdir,
+                                 migration_table='another_migration_table')
+    migrations.apply()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id FROM foo_test")
+    assert cursor.fetchall() == [(1,)]
