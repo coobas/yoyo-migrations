@@ -1,5 +1,13 @@
 CHANGELOG
 ---------
+Version 4.2.2
+
+* Migration scripts can start with ``from yoyo import step, transaction``.
+  This prevents linters (eg flake8) throwing errors over undefined names.
+
+* Bugfix: functions declared in a migration file can access the script's global
+  namespace
+
 Version 4.2.1
 
 * Bugfix for previous release, which omitted critical files

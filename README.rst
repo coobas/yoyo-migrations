@@ -61,6 +61,7 @@ example::
     #
     # file: migrations/0001.create-foo.py
     #
+    from yoyo import step
     step(
         "CREATE TABLE foo (id INT, bar VARCHAR(20), PRIMARY KEY (id))",
         "DROP TABLE foo",
@@ -83,6 +84,7 @@ regardless::
     #
     # file: migrations/0001.create-foo.py
     #
+    from yoyo import step
     step(
         "CREATE TABLE foo (id INT, bar VARCHAR(20), PRIMARY KEY (id))",
         "DROP TABLE foo",
@@ -95,6 +97,7 @@ their single argument. For example::
     #
     # file: migrations/0002.update-keys.py
     #
+    from yoyo import step
     def do_step(conn):
         cursor = conn.cursor()
         cursor.execute(
@@ -116,6 +119,7 @@ You can run multiple steps within a single transaction by wrapping them in a
   #
   # file: migrations/0001.create-foo.py
   #
+  from yoyo import step, transaction
   transaction(
     step(
       "CREATE TABLE foo (id INT, bar VARCHAR(20), PRIMARY KEY (id))",
