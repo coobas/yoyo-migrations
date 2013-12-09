@@ -29,7 +29,7 @@ def readconfig(path):
 
 
 def saveconfig(config, path):
-    os.umask(077)
+    os.umask(0o77)
     f = open(path, 'w')
     try:
         return config.write(f)
