@@ -5,9 +5,11 @@ import optparse
 import os
 import re
 import sys
-import ConfigParser
+try:
+    from configparser import ConfigParser, NoSectionError, NoOptionError
+except ImportError:
+    from ConfigParser import ConfigParser, NoSectionError, NoOptionError  # noqa
 
-from ConfigParser import NoSectionError, NoOptionError
 from getpass import getpass
 
 from yoyo.connections import connect, parse_uri, unparse_uri
@@ -24,7 +26,7 @@ verbosity_levels = {
 
 
 def readconfig(path):
-    config = ConfigParser.ConfigParser()
+    config = ConfigParser()
     config.read([path])
     return config
 
