@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+from __future__ import print_function
 import logging
 import optparse
 import os
@@ -70,26 +71,26 @@ def prompt_migrations(conn, paramstyle, migrations, direction):
         options = ''.join(o.upper() if o == choice else o.lower()
                           for o in 'ynvdaqjk?')
 
-        print ""
-        print '[%s]' % (mig.migration.id,)
+        print("")
+        print('[%s]' % (mig.migration.id,))
         response = prompt("Shall I %s this migration?" % (direction,), options)
 
         if response == '?':
-            print ""
-            print "y: %s this migration" % (direction,)
-            print "n: don't %s it" % (direction,)
-            print ""
-            print "v: view this migration in full"
-            print ""
-            print "d: %s the selected migrations, skipping any remaining" % \
-                    (direction,)
-            print "a: %s all the remaining migrations" % (direction,)
-            print "q: cancel without making any changes"
-            print ""
-            print "j: skip to next migration"
-            print "k: back up to previous migration"
-            print ""
-            print "?: show this help"
+            print("")
+            print("y: %s this migration" % (direction,))
+            print("n: don't %s it" % (direction,))
+            print("")
+            print("v: view this migration in full")
+            print("")
+            print("d: %s the selected migrations, skipping any remaining" %
+                    (direction,))
+            print("a: %s all the remaining migrations" % (direction,))
+            print("q: cancel without making any changes")
+            print("")
+            print("j: skip to next migration")
+            print("k: back up to previous migration")
+            print("")
+            print("?: show this help")
             continue
 
         if response in 'yn':
@@ -98,7 +99,7 @@ def prompt_migrations(conn, paramstyle, migrations, direction):
             continue
 
         if response == 'v':
-            print mig.migration.source
+            print(mig.migration.source)
             continue
 
         if response == 'j':
