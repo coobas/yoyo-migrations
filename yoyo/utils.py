@@ -35,6 +35,7 @@ def prompt(prompt, options):
 
     while True:
         sys.stdout.write("%s [%s]: " % (prompt, options))
+        sys.stdout.flush()
         ch = getch()
         if ch == '\n':
             ch = ([o.lower() for o in options if 'A' <= o <= 'Z'] +
