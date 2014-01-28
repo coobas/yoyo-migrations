@@ -52,7 +52,7 @@ class Migration(object):
         cursor.execute(
             with_placeholders(conn, paramstyle, "INSERT INTO " +
                               migration_table + " (id, ctime) VALUES (?, ?)"),
-            (self.id, datetime.now())
+            (self.id, datetime.utcnow())
         )
         conn.commit()
         cursor.close()
