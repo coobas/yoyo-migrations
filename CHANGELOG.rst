@@ -1,9 +1,13 @@
 CHANGELOG
 ---------
 
+Version 4.2.4
+
+* Fix for mismanaged 4.2.3 release
+
 Version 4.2.3
 
-* Migrations are now datestamped with a UTC date
+* Migrations are now datestamped with a UTC date (thanks to robi-wan)
 
 * Fixes for installation and use under python 3
 
@@ -85,7 +89,7 @@ Version 4
 Version 3
 
 * Use the console_scripts entry_point in preference to scripts=[] in
-setup.py, this provides better interoperability with buildout
+  setup.py, this provides better interoperability with buildout
 
 Version 2
 
