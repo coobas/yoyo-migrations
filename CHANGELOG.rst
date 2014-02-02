@@ -1,5 +1,12 @@
 CHANGELOG
 ---------
+
+Version 4.2.3
+
+* Migrations are now datestamped with a UTC date
+
+* Fixes for installation and use under python 3
+
 Version 4.2.2
 
 * Migration scripts can start with ``from yoyo import step, transaction``.
