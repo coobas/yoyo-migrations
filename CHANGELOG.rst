@@ -7,7 +7,7 @@ Version 4.2.4
 
 Version 4.2.3
 
-* Migrations are now datestamped with a UTC date (thanks to robi-wan)
+* Migrations are now datestamped with a UTC date (thanks to robi wan)
 
 * Fixes for installation and use under python 3
 
