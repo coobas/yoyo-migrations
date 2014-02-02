@@ -28,8 +28,9 @@ def with_migrations(*migrations):
 
         @wraps(func)
         def decorated(*args, **kwargs):
+            args = args + (tmpdir,)
             try:
-                func(tmpdir, *args, **kwargs)
+                func(*args, **kwargs)
             finally:
                 rmtree(tmpdir)
 
