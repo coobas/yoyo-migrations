@@ -155,7 +155,7 @@ def test_specify_migration_table(tmpdir):
     migrations.apply()
     cursor = conn.cursor()
     cursor.execute("SELECT id FROM another_migration_table")
-    assert cursor.fetchall() == [(u'0',)]
+    assert cursor.fetchall() == [('0',)]
 
 
 @with_migrations(

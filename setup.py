@@ -33,8 +33,8 @@ setup(
     include_package_data=True,
     zip_safe=False,
     extras_require={
-        'mysql': [u'mysql-python'],
-        'postgres': [u'psycopg2'],
+        'mysql': ['mysql-python'],
+        'postgres': ['psycopg2'],
     },
     tests_require=['sqlite3'],
     entry_points={
