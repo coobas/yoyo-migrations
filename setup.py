@@ -5,12 +5,18 @@ import re
 from setuptools import setup, find_packages
 
 VERSIONFILE = "yoyo/__init__.py"
+install_requires = []
 
 
 def get_version():
     with open(VERSIONFILE, 'rb') as f:
         return re.search("^__version__\s*=\s*['\"]([^'\"]*)['\"]",
                            f.read().decode('UTF-8'), re.M).group(1)
+
+try:
+    import argparse  # NOQA
+except ImportError:
+    install_requires.append('argparse')
 
 
 def read(*path):
@@ -32,11 +38,12 @@ setup(
     packages=find_packages(),
     include_package_data=True,
     zip_safe=False,
+    install_requires=install_requires,
     extras_require={
-        'mysql': [u'mysql-python'],
-        'postgres': [u'psycopg2'],
+        'mysql': ['mysql-python'],
+        'postgres': ['psycopg2'],
     },
-    tests_require=['sqlite3'],
+    tests_require=['sqlite3', 'mock'],
     entry_points={
         'console_scripts': [
             'yoyo-migrate=yoyo.scripts.migrate:main'

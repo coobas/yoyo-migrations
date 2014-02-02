@@ -150,7 +150,7 @@ def _check_release():
     in a virtualenv
     """
     with lcd(env.build_path):
-        local("./bin/nosetests")
+        local("tox")
         try:
             local("virtualenv test_virtualenv")
             local("./test_virtualenv/bin/pip install ./dist/*.tar.gz" % env)

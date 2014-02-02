@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 from __future__ import print_function
 import logging
-import optparse
+import argparse
 import os
 import re
 import sys
@@ -129,54 +129,52 @@ def prompt_migrations(conn, paramstyle, migrations, direction):
                               if m.choice == 'y')
 
 
-def make_optparser():
+def make_argparser():
 
-    optparser = optparse.OptionParser(usage="%prog apply|rollback|reapply "
-                                            "<migrations> <database>")
-    optparser.add_option(
-        "-m", "--match", dest="match",
-        help="Select migrations matching PATTERN "
-             "(perl-compatible regular expression)", metavar='PATTERN',
-    )
-    optparser.add_option(
-        "-a", "--all", dest="all", action="store_true",
-        help="Select all migrations, regardless of whether "
-             "they have been previously applied"
-    )
-    optparser.add_option(
-        "-b", "--batch", dest="batch", action="store_true",
-        help="Run in batch mode "
-             "(don't ask before applying/rolling back each migration)"
-    )
-    optparser.add_option(
-        "-v", dest="verbose", action="count",
-        help="Verbose output. "
-             "Use multiple times to increase level of verbosity"
-    )
-    optparser.add_option(
-        "--verbosity", dest="verbosity_level", action="store", type="int",
-        help="Set verbosity level (%d-%d)" % (min(verbosity_levels),
-                                              max(verbosity_levels)),
-    )
-    optparser.add_option(
-        "", "--force", dest="force", action="store_true",
-        help="Force apply/rollback of steps even if previous steps have failed"
-    )
-    optparser.add_option(
-        "-p", "--prompt-password", dest="prompt_password", action="store_true",
-        help="Prompt for the database password"
-    )
-    optparser.add_option(
-        "", "--no-cache", dest="cache", action="store_false", default=True,
-        help="Don't cache database login credentials"
-    )
-    optparser.add_option(
-        "", "--migration-table", dest="migration_table",
-        action="store", default=None,
-        help="Name of table to use for storing migration metadata"
-    )
+    min_verbosity = min(verbosity_levels)
+    max_verbosity = max(verbosity_levels)
 
-    return optparser
+    argparser = argparse.ArgumentParser()
+    argparser.add_argument("command", choices=['apply', 'rollback', 'reapply'])
+    argparser.add_argument("migrations_dir",
+                           help="Directory containing migration scripts")
+    argparser.add_argument("database", nargs="?", default=None,
+                           help="Database, eg 'sqlite:///path/to/sqlite.db' "
+                                "or 'postgresql://user@host/db'")
+
+    argparser.add_argument("-m", "--match",
+                           help="Select migrations matching PATTERN "
+                            "(perl-compatible regular expression)",
+                           metavar='PATTERN')
+    argparser.add_argument("-a", "--all", dest="all", action="store_true",
+                           help="Select all migrations, regardless of whether "
+                                "they have been previously applied")
+    argparser.add_argument("-b", "--batch", dest="batch", action="store_true",
+                           help="Run in batch mode (don't ask before "
+                                "applying/rolling back each migration)")
+    argparser.add_argument("-v", dest="verbose", action="count",
+                           default=min_verbosity,
+                           help="Verbose output. Use multiple times "
+                                "to increase level of verbosity")
+    argparser.add_argument("--verbosity", dest="verbosity_level",
+                           type=int, default=min_verbosity,
+                           help="Set verbosity level (%d-%d)" %
+                                (min_verbosity, max_verbosity))
+    argparser.add_argument("-f", "--force", dest="force", action="store_true",
+                           help="Force apply/rollback of steps even if "
+                                "previous steps have failed")
+    argparser.add_argument("-p", "--prompt-password", dest="prompt_password",
+                           action="store_true",
+                           help="Prompt for the database password")
+    argparser.add_argument("--no-cache", dest="cache", action="store_false",
+                           default=True,
+                           help="Don't cache database login credentials")
+    argparser.add_argument("--migration-table", dest="migration_table",
+                           action="store", default=None,
+                           help="Name of table to use for storing "
+                                "migration metadata")
+
+    return argparser
 
 
 def configure_logging(level):
@@ -188,44 +186,33 @@ def configure_logging(level):
 
 def main(argv=None):
 
-    if argv is None:
-        argv = sys.argv[1:]
+    argparser = make_argparser()
+    args = argparser.parse_args(argv)
 
-    optparser = make_optparser()
-    opts, args = optparser.parse_args(argv)
-
-    if opts.verbosity_level:
-        verbosity_level = opts.verbosity_level
+    if args.verbosity_level:
+        verbosity_level = args.verbosity_level
     else:
-        verbosity_level = opts.verbose
+        verbosity_level = args.verbose
     verbosity_level = min(verbosity_level, max(verbosity_levels))
     verbosity_level = max(verbosity_level, min(verbosity_levels))
     configure_logging(verbosity_level)
 
-    command = dburi = migrations_dir = None
-    try:
-        command, migrations_dir, dburi = args
-        migrations_dir = os.path.normpath(os.path.abspath(migrations_dir))
-    except ValueError:
-        try:
-            command, migrations_dir = args
-        except ValueError:
-            optparser.print_help()
-            return
-        dburi = None
+    command = args.command
+    migrations_dir = os.path.normpath(os.path.abspath(args.migrations_dir))
+    dburi = args.database
 
     config_path = os.path.join(migrations_dir, '.yoyo-migrate')
     config = readconfig(config_path)
 
-    if dburi is None and opts.cache:
+    if dburi is None and args.cache:
         try:
             logger.debug("Looking up connection string for %r", migrations_dir)
             dburi = config.get('DEFAULT', 'dburi')
         except (ValueError, NoSectionError, NoOptionError):
             pass
 
-    if opts.migration_table:
-        migration_table = opts.migration_table
+    if args.migration_table:
+        migration_table = args.migration_table
     else:
         try:
             migration_table = config.get('DEFAULT', 'migration_table')
@@ -240,15 +227,12 @@ def main(argv=None):
     config.set('DEFAULT', 'migration_table', migration_table)
 
     if dburi is None:
-        optparser.error(
+        argparser.error(
             "Please specify command, migrations directory and "
             "database connection string arguments"
         )
 
-    if command not in ['apply', 'rollback', 'reapply']:
-        optparser.error("Invalid command")
-
-    if opts.prompt_password:
+    if args.prompt_password:
         password = getpass('Password for %s: ' % dburi)
         scheme, username, _, host, port, database = parse_uri(dburi)
         dburi = unparse_uri((scheme, username, password, host, port, database))
@@ -256,7 +240,7 @@ def main(argv=None):
     # Cache the database this migration set is applied to so that subsequent
     # runs don't need the dburi argument. Don't cache anything in batch mode -
     # we can't prompt to find the user's preference.
-    if opts.cache and not opts.batch:
+    if args.cache and not args.batch:
         if not config.has_option('DEFAULT', 'dburi'):
             response = prompt(
                 "Save connection string to %s for future migrations?\n"
@@ -284,35 +268,35 @@ def main(argv=None):
     migrations = read_migrations(conn, paramstyle, migrations_dir,
                                  migration_table=migration_table)
 
-    if opts.match:
+    if args.match:
         migrations = migrations.filter(
-            lambda m: re.search(opts.match, m.id) is not None)
+            lambda m: re.search(args.match, m.id) is not None)
 
-    if not opts.all:
+    if not args.all:
         if command in ['apply']:
             migrations = migrations.to_apply()
 
         elif command in ['reapply', 'rollback']:
             migrations = migrations.to_rollback()
 
-    if not opts.batch:
+    if not args.batch:
         migrations = prompt_migrations(conn, paramstyle, migrations, command)
 
-    if not opts.batch and migrations:
+    if not args.batch and migrations:
         if prompt(command.title() +
                   plural(len(migrations), " %d migration", " %d migrations") +
                   " to %s?" % dburi, "Yn") != 'y':
             return 0
 
     if command == 'reapply':
-        migrations.rollback(opts.force)
-        migrations.apply(opts.force)
+        migrations.rollback(args.force)
+        migrations.apply(args.force)
 
     elif command == 'apply':
-        migrations.apply(opts.force)
+        migrations.apply(args.force)
 
     elif command == 'rollback':
-        migrations.rollback(opts.force)
+        migrations.rollback(args.force)
 
 if __name__ == "__main__":
     main(sys.argv[1:])
