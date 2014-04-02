@@ -188,7 +188,8 @@ def unparse_uri(uri_tuple):
     uri += database
     if db_params:
         uri +='?'
+        db_params_str = []
         for k,v in db_params:
-            uri += k + '=' + v
-
+            db_params_str.append(k + '=' + v)
+        uri += '&'.join(db_params_str)
     return uri
