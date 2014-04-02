@@ -83,7 +83,7 @@ def connect_postgres(username, password, host, port, database, db_params):
 
 def connect(uri):
     """
-    Connect to the given DB uri (in the format
+    Connect to the given DB uri in the format
     ``driver://user:pass@host:port/database_name?param=value``, returning a DB-API connection
     object and the paramstyle used by the DB-API module.
     """
