@@ -19,8 +19,27 @@ def connection_for(scheme):
     return decorate
 
 
+@connection_for('odbc')
+def connect_mysql(username, password, host, port, database, db_params):
+    import pyodbc
+    kwargs = db_params
+    if username is not None:
+        kwargs['UID'] = username
+    if password is not None:
+        kwargs['PWD'] = password
+    if host is not None:
+        kwargs['ServerName'] = host
+    if port is not None:
+        kwargs['Database'] = port
+    if database is not None:
+        kwargs['Port'] = port
+    connection_string = ''
+    for k,v in kwargs:
+        connection_string += k + '=' + v + ';'
+    return pyodbc.connect(connection_string), pyodbc.paramstyle
+
 @connection_for('mysql')
-def connect_mysql(username, password, host, port, database):
+def connect_mysql(username, password, host, port, database, db_params):
     import MySQLdb
 
     kwargs = {}
@@ -38,7 +57,7 @@ def connect_mysql(username, password, host, port, database):
 
 
 @connection_for('sqlite')
-def connect_sqlite(username, password, host, port, database):
+def connect_sqlite(username, password, host, port, database, db_params):
     import sqlite3
     return sqlite3.connect(database), sqlite3.paramstyle
 
@@ -46,7 +65,7 @@ def connect_sqlite(username, password, host, port, database):
 @connection_for('postgres')
 @connection_for('postgresql')
 @connection_for('psql')
-def connect_postgres(username, password, host, port, database):
+def connect_postgres(username, password, host, port, database, db_params):
     import psycopg2
 
     connargs = []
@@ -65,17 +84,17 @@ def connect_postgres(username, password, host, port, database):
 def connect(uri):
     """
     Connect to the given DB uri (in the format
-    ``driver://user:pass@host/database_name``), returning a DB-API connection
+    ``driver://user:pass@host:port/database_name?param=value``, returning a DB-API connection
     object and the paramstyle used by the DB-API module.
     """
 
-    scheme, username, password, host, port, database = parse_uri(uri)
+    scheme, username, password, host, port, database, db_params = parse_uri(uri)
     try:
         connection_func = _schemes[scheme.lower()]
     except KeyError:
         raise BadConnectionURI('Unrecognised database connection scheme %r' %
                                scheme)
-    return connection_func(username, password, host, port, database)
+    return connection_func(username, password, host, port, database, db_params)
 
 
 def parse_uri(uri):
@@ -83,9 +102,11 @@ def parse_uri(uri):
     Examples::
 
         >>> parse_uri('postgres://fred:bassett@dbserver:5432/fredsdatabase')
-        ('postgres', 'fred', 'bassett', 'dbserver', 5432, 'fredsdatabase')
+        ('postgres', 'fred', 'bassett', 'dbserver', 5432, 'fredsdatabase', None)
         >>> parse_uri('mysql:///jimsdatabase')
-        ('mysql', None, None, None, None, 'jimsdatabase')
+        ('mysql', None, None, None, None, 'jimsdatabase', None, None)
+        >>> parse_uri('odbc://user:password@dbserver/database?DSN=dsn')
+        ('mysql', None, None, None, None, 'jimsdatabase', {'DSN':'dsn'})
     """
     scheme = username = password = host = port = database = None
 
@@ -121,9 +142,19 @@ def parse_uri(uri):
         except ValueError:
             host = netloc
 
-    database = uri
+    try:
+        database, db_params = uri.split('?', 1)
+        db_params_str = db_params.split('&')
+        db_params = {}
+        for arg in db_params_str:
+            arg_name, arg_value = arg.split('=', 1)
+            db_params[arg_name] = arg_value
 
-    return scheme, username, password, host, port, database
+    except ValueError:
+        databse = uri
+        db_params = None
+
+    return scheme, username, password, host, port, database, db_params
 
 
 def unparse_uri(uri_tuple):
@@ -142,7 +173,7 @@ def unparse_uri(uri_tuple):
         'mysql://jim@localhost/jimsdatabase'
     """
 
-    scheme, username, password, host, port, database = uri_tuple
+    scheme, username, password, host, port, database, db_params = uri_tuple
     uri = scheme + "://"
     if username:
         uri += username
@@ -155,5 +186,9 @@ def unparse_uri(uri_tuple):
         uri += ':%s' % (port,)
     uri += '/'
     uri += database
+    if db_params:
+        uri +='?'
+        for k,v in db_params:
+            uri += k + '=' + v
 
     return uri

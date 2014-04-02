@@ -234,8 +234,8 @@ def main(argv=None):
 
     if args.prompt_password:
         password = getpass('Password for %s: ' % dburi)
-        scheme, username, _, host, port, database = parse_uri(dburi)
-        dburi = unparse_uri((scheme, username, password, host, port, database))
+        scheme, username, _, host, port, database, db_params = parse_uri(dburi)
+        dburi = unparse_uri((scheme, username, password, host, port, database, db_params))
 
     # Cache the database this migration set is applied to so that subsequent
     # runs don't need the dburi argument. Don't cache anything in batch mode -
