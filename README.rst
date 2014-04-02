@@ -1,7 +1,7 @@
 Yoyo database migrations
 ========================
 
-Yoyo is a database schema migration tool using plain SQL and python's builtin 
+Yoyo is a database schema migration tool using plain SQL and python's builtin
 DB-API.
 
 What does yoyo-migrations do?
@@ -25,7 +25,7 @@ Install from the PyPI with the command::
 Database support
 ----------------
 
-PostgreSQL, MySQL and SQLite databases are supported.
+PostgreSQL, MySQL, ODBC and SQLite databases are supported.
 
 
 Usage
@@ -105,7 +105,7 @@ their single argument. For example::
             " (osname, hostname, release, version, arch)"
             " VALUES (%s, %s, %s, %s, %s %s)",
             os.uname()
-        ) 
+        )
 
     step(do_step)
 
@@ -157,7 +157,7 @@ Connection string caching
 
 The first time you run ``yoyo-migrate`` on a new set of migrations, you will be
 asked if you want to cache the database connection string in a file
-called ``.yoyo-migrate`` in the migrations directory.  
+called ``.yoyo-migrate`` in the migrations directory.
 
 This cache is local to the migrations directory, so subsequent runs
 on the same migration set do not need the database connection string to be
