@@ -33,9 +33,9 @@ def connect_odbc(username, password, host, port, database, db_params):
     if host is not None:
         kwargs['ServerName'] = host
     if port is not None:
-        kwargs['Database'] = port
-    if database is not None:
         kwargs['Port'] = port
+    if database is not None:
+        kwargs['Database'] = port
     connection_string = ''
     for k, v in kwargs:
         connection_string += k + '=' + v + ';'
