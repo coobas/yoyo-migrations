@@ -111,7 +111,7 @@ def parse_uri(uri):
         >>> parse_uri('mysql:///jimsdatabase')
         ('mysql', None, None, None, None, 'jimsdatabase', None, None)
         >>> parse_uri('odbc://user:password@dbserver/database?DSN=dsn')
-        ('mysql', None, None, None, None, 'jimsdatabase', {'DSN':'dsn'})
+        ('odbc', 'user', 'password', 'dbserver', None, 'database', {'DSN':'dsn'})
     """
     scheme = username = password = host = port = database = None
 
