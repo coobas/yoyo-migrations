@@ -42,10 +42,9 @@ setup(
     extras_require={
         'mysql': ['mysql-python'],
         'postgres': ['psycopg2'],
-        'pyodbc': ['pyodbc'],
-        'sqlite3': ['db-sqlite3']
+        'pyodbc': ['pyodbc']
     },
-    tests_require=['db-sqlite3', 'mock'],
+    tests_require=[ 'mock'],
     entry_points={
         'console_scripts': [
             'yoyo-migrate=yoyo.scripts.migrate:main'

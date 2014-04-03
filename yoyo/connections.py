@@ -13,15 +13,18 @@ def connection_for(scheme):
     take standard connection arguments and return a dbapi connection object and
     the module used to connect.
     """
+
     def decorate(func):
         _schemes[scheme] = func
         return func
+
     return decorate
 
 
 @connection_for('odbc')
-def connect_mysql(username, password, host, port, database, db_params):
+def connect_odbc(username, password, host, port, database, db_params):
     import pyodbc
+
     kwargs = db_params
     if username is not None:
         kwargs['UID'] = username
@@ -34,9 +37,10 @@ def connect_mysql(username, password, host, port, database, db_params):
     if database is not None:
         kwargs['Port'] = port
     connection_string = ''
-    for k,v in kwargs:
+    for k, v in kwargs:
         connection_string += k + '=' + v + ';'
     return pyodbc.connect(connection_string), pyodbc.paramstyle
+
 
 @connection_for('mysql')
 def connect_mysql(username, password, host, port, database, db_params):
@@ -59,6 +63,7 @@ def connect_mysql(username, password, host, port, database, db_params):
 @connection_for('sqlite')
 def connect_sqlite(username, password, host, port, database, db_params):
     import sqlite3
+
     return sqlite3.connect(database), sqlite3.paramstyle
 
 
@@ -151,7 +156,7 @@ def parse_uri(uri):
             db_params[arg_name] = arg_value
 
     except ValueError:
-        databse = uri
+        database = uri
         db_params = None
 
     return scheme, username, password, host, port, database, db_params
@@ -187,9 +192,9 @@ def unparse_uri(uri_tuple):
     uri += '/'
     uri += database
     if db_params:
-        uri +='?'
+        uri += '?'
         db_params_str = []
-        for k,v in db_params:
+        for k, v in db_params.items():
             db_params_str.append(k + '=' + v)
         uri += '&'.join(db_params_str)
     return uri
