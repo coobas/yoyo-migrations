@@ -1,4 +1,3 @@
-from functools import wraps
 from tempfile import mkdtemp
 from shutil import rmtree
 import os.path
@@ -20,13 +19,12 @@ def with_migrations(*migrations):
         return re.sub(r'(^|[\r\n]){0}'.format(re.escape(initial_indent)),
                       r'\1', s)
 
-    def decorator(func):
+    def add_migrations_dir(func):
         tmpdir = mkdtemp()
         for ix, code in enumerate(migrations):
             with open(os.path.join(tmpdir, '{0}.py'.format(ix)), 'w') as f:
                 f.write(unindent(code).strip())
 
-        @wraps(func)
         def decorated(*args, **kwargs):
             args = args + (tmpdir,)
             try:
@@ -35,4 +33,5 @@ def with_migrations(*migrations):
                 rmtree(tmpdir)
 
         return decorated
-    return decorator
+
+    return add_migrations_dir
