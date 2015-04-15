@@ -423,15 +423,9 @@ def create_migrations_table(conn, tablename):
 
 def initialize_connection(conn, tablename):
     """
-    Initialize the DBAPI connection for use.
-
-    - Registers the connection's DatabaseError class in ``yoyo.exceptions``
-
-    - Creates the migrations table if not already existing
-
+    Initialize the connection for use by creating the migrations table if
+    it does not already exist.
     """
-    module = inspect.getmodule(type(conn))
-    exceptions.register(module.DatabaseError)
     create_migrations_table(conn, tablename)
 
 
