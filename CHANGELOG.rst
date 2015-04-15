@@ -1,6 +1,11 @@
 CHANGELOG
 ---------
 
+Version 4.2.5
+
+* Fix for pyscopg2 driver versions >=2.6
+* Faster loading of migration scripts
+
 Version 4.2.4
 
 * Fix for mismanaged 4.2.3 release
