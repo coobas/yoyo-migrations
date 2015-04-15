@@ -83,13 +83,13 @@ class Migration(object):
             try:
                 getattr(step, direction)(conn, paramstyle, force)
                 executed_steps.append(step)
-            except exceptions.DatabaseError:
+            except tuple(exceptions.DatabaseErrors):
                 conn.rollback()
                 exc_info = sys.exc_info()
                 try:
                     for step in reversed(executed_steps):
                         getattr(step, reverse)(conn, paramstyle)
-                except exceptions.DatabaseError:
+                except tuple(exceptions.DatabaseErrors):
                     logger.exception(
                         'Database error when reversing %s of step', direction)
                 reraise(exc_info[0], exc_info[1], exc_info[2])
@@ -148,7 +148,7 @@ class Transaction(StepBase):
         for step in self.steps:
             try:
                 step.apply(conn, paramstyle, force)
-            except exceptions.DatabaseError:
+            except tuple(exceptions.DatabaseErrors):
                 conn.rollback()
                 if force or self.ignore_errors in ('apply', 'all'):
                     logger.exception("Ignored error in step %d", step.id)
@@ -160,7 +160,7 @@ class Transaction(StepBase):
         for step in reversed(self.steps):
             try:
                 step.rollback(conn, paramstyle, force)
-            except exceptions.DatabaseError:
+            except tuple(exceptions.DatabaseErrors):
                 conn.rollback()
                 if force or self.ignore_errors in ('rollback', 'all'):
                     logger.exception("Ignored error in step %d", step.id)
@@ -394,7 +394,7 @@ def create_migrations_table(conn, tablename):
                                      ctime TIMESTAMP)
                 """ % (tablename,))
                 conn.commit()
-            except exceptions.DatabaseError:
+            except tuple(exceptions.DatabaseErrors):
                 pass
         finally:
             cursor.close()
@@ -406,15 +406,13 @@ def initialize_connection(conn, tablename):
     """
     Initialize the DBAPI connection for use.
 
-    - Installs ``yoyo.excpetions.DatabaseError`` as a base class for the
-      connection's own DatabaseError
+    - Registers the connection's DatabaseError class in ``yoyo.exceptions``
 
     - Creates the migrations table if not already existing
 
     """
     module = inspect.getmodule(type(conn))
-    if DatabaseError not in module.DatabaseError.__bases__:
-        module.DatabaseError.__bases__ += (DatabaseError,)
+    exceptions.register(module.DatabaseError)
     create_migrations_table(conn, tablename)
 
 

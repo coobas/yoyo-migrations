@@ -1,6 +1,6 @@
 from yoyo.connections import connect
 from yoyo import read_migrations
-from yoyo import DatabaseError
+from yoyo import exceptions
 
 from yoyo.tests import with_migrations, dburi
 
@@ -19,7 +19,7 @@ def test_transaction_is_not_committed_on_error(tmpdir):
     migrations = read_migrations(conn, paramstyle, tmpdir)
     try:
         migrations.apply()
-    except DatabaseError:
+    except tuple(exceptions.DatabaseErrors):
         # Expected
         pass
     else:
