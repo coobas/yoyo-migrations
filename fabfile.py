@@ -130,8 +130,8 @@ def release():
     """
     with build():
         version = _readversion()
-        assert version.endswith('dev')
-        release_version = version.replace('dev', '')
+        assert version.endswith('.dev0')
+        release_version = version.replace('.dev0', '')
         _check_changelog(release_version)
         _updateversion(release_version, 'release')
         scm_tag(release_version)
@@ -140,7 +140,8 @@ def release():
 
         _updateversion(
             prompt("New development version number?",
-                   default=_increment_version(release_version) + 'dev'), 'dev')
+                   default=_increment_version(release_version) + '.dev0'),
+            '.dev0')
         scm_pull(env.build_path, env.dev_path)
 
 
