@@ -6,7 +6,7 @@ import sys
 import inspect
 
 from yoyo.compat import reraise, exec_, ustr
-from yoyo.exceptions import DatabaseError
+from yoyo import exceptions
 from yoyo.utils import plural
 
 logger = getLogger(__name__)
@@ -83,13 +83,13 @@ class Migration(object):
             try:
                 getattr(step, direction)(conn, paramstyle, force)
                 executed_steps.append(step)
-            except DatabaseError:
+            except exceptions.DatabaseError:
                 conn.rollback()
                 exc_info = sys.exc_info()
                 try:
                     for step in reversed(executed_steps):
                         getattr(step, reverse)(conn, paramstyle)
-                except DatabaseError:
+                except exceptions.DatabaseError:
                     logger.exception(
                         'Database error when reversing %s of step', direction)
                 reraise(exc_info[0], exc_info[1], exc_info[2])
@@ -148,7 +148,7 @@ class Transaction(StepBase):
         for step in self.steps:
             try:
                 step.apply(conn, paramstyle, force)
-            except DatabaseError:
+            except exceptions.DatabaseError:
                 conn.rollback()
                 if force or self.ignore_errors in ('apply', 'all'):
                     logger.exception("Ignored error in step %d", step.id)
@@ -160,7 +160,7 @@ class Transaction(StepBase):
         for step in reversed(self.steps):
             try:
                 step.rollback(conn, paramstyle, force)
-            except DatabaseError:
+            except exceptions.DatabaseError:
                 conn.rollback()
                 if force or self.ignore_errors in ('rollback', 'all'):
                     logger.exception("Ignored error in step %d", step.id)
@@ -394,7 +394,7 @@ def create_migrations_table(conn, tablename):
                                      ctime TIMESTAMP)
                 """ % (tablename,))
                 conn.commit()
-            except DatabaseError:
+            except exceptions.DatabaseError:
                 pass
         finally:
             cursor.close()
