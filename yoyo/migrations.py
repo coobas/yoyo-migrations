@@ -27,10 +27,33 @@ def with_placeholders(conn, paramstyle, sql):
 
 class Migration(object):
 
-    def __init__(self, id, steps, source):
+    def __init__(self, id, path):
         self.id = id
-        self.steps = steps
+        self.path = path
+        self.steps = None
+        self.source = None
+
+    @property
+    def loaded(self):
+        return self.steps is not None
+
+    def load(self):
+        if self.loaded:
+            return
+        with open(self.path, 'r') as f:
+            self.source = source = f.read()
+            migration_code = compile(source, f.name, 'exec')
+
+        collector = _step_collectors[f.name] = StepCollector()
+        ns = {'step': collector.step,
+              'transaction': collector.transaction}
+        try:
+            exec_(migration_code, ns)
+        except Exception:
+            logger.exception("Could not import migration from %r", self.path)
+            raise exceptions.BadMigration(self.path)
         self.source = source
+        self.steps = collector.steps
 
     def isapplied(self, conn, paramstyle, migration_table):
         cursor = conn.cursor()
@@ -46,6 +69,7 @@ class Migration(object):
 
     def apply(self, conn, paramstyle, migration_table, force=False):
         logger.info("Applying %s", self.id)
+        self.load()
         Migration._process_steps(self.steps, conn, paramstyle, 'apply',
                                  force=force)
         cursor = conn.cursor()
@@ -59,6 +83,7 @@ class Migration(object):
 
     def rollback(self, conn, paramstyle, migration_table, force=False):
         logger.info("Rolling back %s", self.id)
+        self.load()
         Migration._process_steps(reversed(self.steps), conn, paramstyle,
                                  'rollback', force=force)
         cursor = conn.cursor()
@@ -272,22 +297,8 @@ def read_migrations(conn, paramstyle, directory, names=None,
                 names is not None and filename not in names:
             continue
 
-        file = open(path, 'r')
-        try:
-            source = file.read()
-            migration_code = compile(source, file.name, 'exec')
-        finally:
-            file.close()
-
-        collector = _step_collectors[file.name] = StepCollector()
-        ns = {'step': collector.step, 'transaction': collector.transaction}
-        try:
-            exec_(migration_code, ns)
-        except Exception:
-            logger.exception("Could not import migration from %r", path)
-            continue
-        migration = migration_class(os.path.basename(filename),
-                                    collector.steps, source)
+        migration = migration_class(
+            os.path.splitext(os.path.basename(path))[0], path)
         if migration_class is PostApplyHookMigration:
             migrations.post_apply.append(migration)
         else:
@@ -363,13 +374,21 @@ class MigrationList(list):
         if not self:
             return
         for m in self + self.post_apply:
-            m.apply(self.conn, self.paramstyle, self.migration_table, force)
+            try:
+                m.apply(
+                    self.conn, self.paramstyle, self.migration_table, force)
+            except exceptions.BadMigration:
+                continue
 
     def rollback(self, force=False):
         if not self:
             return
         for m in self + self.post_apply:
-            m.rollback(self.conn, self.paramstyle, self.migration_table, force)
+            try:
+                m.rollback(
+                    self.conn, self.paramstyle, self.migration_table, force)
+            except exceptions.BadMigration:
+                continue
 
     def __getslice__(self, i, j):
         return self.__class__(
