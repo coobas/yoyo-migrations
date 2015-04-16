@@ -170,8 +170,8 @@ def test_migrations_can_import_step_and_transaction(tmpdir):
 class TestTopologicalSort(object):
 
     def get_mock_migrations(self):
-        return [Mock(path='m1', depends=set()), Mock(path='m2', depends=set()),
-                Mock(path='m3', depends=set()), Mock(path='m4', depends=set())]
+        return [Mock(id='m1', depends=set()), Mock(id='m2', depends=set()),
+                Mock(id='m3', depends=set()), Mock(id='m4', depends=set())]
 
     def test_it_keeps_stable_order(self):
         m1, m2, m3, m4 = self.get_mock_migrations()

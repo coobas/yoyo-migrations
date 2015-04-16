@@ -28,15 +28,24 @@ def with_placeholders(conn, paramstyle, sql):
 
 class Migration(object):
 
+    __all_migrations = {}
+
     def __init__(self, id, path):
         self.id = id
         self.path = path
         self.steps = None
         self.source = None
+        self._depends = None
+        self.__all_migrations[id] = self
 
     @property
     def loaded(self):
         return self.steps is not None
+
+    @property
+    def depends(self):
+        self.load()
+        return self._depends
 
     def load(self):
         if self.loaded:
@@ -53,6 +62,14 @@ class Migration(object):
         except Exception:
             logger.exception("Could not import migration from %r", self.path)
             raise exceptions.BadMigration(self.path)
+        depends = ns.get('__depends__', [])
+        if isinstance(depends, (ustr, bytes)):
+            depends = [depends]
+        self._depends = {self.__all_migrations.get(id, None)
+                         for id in depends}
+        if None in self._depends:
+            raise exceptions.BadMigration(
+                "Could not resolve dependencies in {}".format(self.path))
         self.source = source
         self.steps = collector.steps
 
@@ -281,7 +298,7 @@ def read_migrations(conn, paramstyle, directory, names=None,
     If ``names`` is given, this only return migrations with names from the
     given list (without file extensions).
     """
-    migrations = MigrationList(conn, paramstyle, migration_table)
+    migrations = []
     paths = [os.path.join(directory, path)
              for path in os.listdir(directory) if path.endswith('.py')]
 
@@ -305,7 +322,7 @@ def read_migrations(conn, paramstyle, directory, names=None,
         else:
             migrations.append(migration)
 
-    return migrations
+    return MigrationList(conn, paramstyle, migration_table, items=migrations)
 
 
 class MigrationList(list):
@@ -333,10 +350,9 @@ class MigrationList(list):
             self.conn,
             self.paramstyle,
             self.migration_table,
-            [m
-             for m in self
-             if not m.isapplied(self.conn, self.paramstyle,
-                                self.migration_table)],
+            topological_sort(m for m in self
+                             if not m.isapplied(self.conn, self.paramstyle,
+                                                self.migration_table)),
             self.post_apply
         )
 
@@ -351,10 +367,11 @@ class MigrationList(list):
             self.conn,
             self.paramstyle,
             self.migration_table,
-            list(reversed([m
-                           for m in self
-                           if m.isapplied(self.conn, self.paramstyle,
-                                          self.migration_table)])),
+            reversed(topological_sort(
+                m for m in self
+                if m.isapplied(self.conn,
+                               self.paramstyle,
+                               self.migration_table))),
             self.post_apply
         )
 
@@ -491,6 +508,8 @@ def topological_sort(migration_list):
     # The sorted list, initially empty
     L = list()
 
+    # Make a copy of migration_list. It's probably an iterator.
+    migration_list = list(migration_list)
     valid_migrations = set(migration_list)
 
     # Track graph edges in two parallel data structures.
@@ -533,7 +552,7 @@ def topological_sort(migration_list):
     if any(forward_edges.values()):
         raise exceptions.BadMigration(
             "Circular dependencies among these migrations {}".format(
-                ', '.join(m.path
+                ', '.join(m.id
                           for m in forward_edges
                           for n in {m} | set(forward_edges[m]))))
 
