@@ -1,8 +1,12 @@
+import pytest
+from mock import Mock
+
 from yoyo.connections import connect
 from yoyo import read_migrations
 from yoyo import exceptions
 
 from yoyo.tests import with_migrations, dburi
+from yoyo.migrations import topological_sort
 
 
 @with_migrations(
@@ -161,3 +165,37 @@ def test_migrations_can_import_step_and_transaction(tmpdir):
     cursor = conn.cursor()
     cursor.execute("SELECT id FROM test")
     assert cursor.fetchall() == [(1,)]
+
+
+class TestTopologicalSort(object):
+
+    def get_mock_migrations(self):
+        return [Mock(path='m1', depends=set()), Mock(path='m2', depends=set()),
+                Mock(path='m3', depends=set()), Mock(path='m4', depends=set())]
+
+    def test_it_keeps_stable_order(self):
+        m1, m2, m3, m4 = self.get_mock_migrations()
+        assert list(topological_sort([m1, m2, m3, m4])) == [m1, m2, m3, m4]
+        assert list(topological_sort([m4, m3, m2, m1])) == [m4, m3, m2, m1]
+
+    def test_it_sorts_topologically(self):
+        m1, m2, m3, m4 = self.get_mock_migrations()
+        m3.depends.add(m4)
+        assert list(topological_sort([m1, m2, m3, m4])) == [m4, m3, m1, m2]
+
+    def test_it_brings_depended_upon_migrations_to_the_front(self):
+        m1, m2, m3, m4 = self.get_mock_migrations()
+        m1.depends.add(m4)
+        print(list(m.id for m in topological_sort([m1, m2, m3, m4])))
+        assert list(topological_sort([m1, m2, m3, m4])) == [m4, m1, m2, m3]
+
+    def test_it_discards_missing_dependencies(self):
+        m1, m2, m3, m4 = self.get_mock_migrations()
+        m3.depends.add(Mock())
+        assert list(topological_sort([m1, m2, m3, m4])) == [m1, m2, m3, m4]
+
+    def test_it_catches_cycles(self):
+        m1, m2, m3, m4 = self.get_mock_migrations()
+        m3.depends.add(m3)
+        with pytest.raises(exceptions.BadMigration):
+            list(topological_sort([m1, m2, m3, m4]))

@@ -1,5 +1,6 @@
+from collections import defaultdict, OrderedDict
 from datetime import datetime
-from itertools import count
+from itertools import chain, count
 from logging import getLogger
 import os
 import sys
@@ -483,3 +484,59 @@ def step(*args, **kwargs):
 def transaction(*args, **kwargs):
     fi = inspect.getframeinfo(inspect.stack()[1][0])
     return _step_collectors[fi.filename].transaction(*args, **kwargs)
+
+
+def topological_sort(migration_list):
+
+    # The sorted list, initially empty
+    L = list()
+
+    valid_migrations = set(migration_list)
+
+    # Track graph edges in two parallel data structures.
+    # Use OrderedDict so that we can traverse edges in order
+    # and keep the sort stable
+    forward_edges = defaultdict(OrderedDict)
+    backward_edges = defaultdict(OrderedDict)
+
+    for m in migration_list:
+        for n in m.depends:
+            if n not in valid_migrations:
+                continue
+            forward_edges[n][m] = 1
+            backward_edges[m][n] = 1
+
+    # Only toposort the migrations forming part of the dependency graph
+    to_toposort = set(chain(forward_edges, backward_edges))
+
+    # Starting migrations: those with no dependencies
+    # This is a reversed list so that popping/pushing from the end maintains
+    # the desired order
+    S = list(reversed([m for m in to_toposort
+                       if not any(n in valid_migrations for n in m.depends)]))
+
+    while S:
+        n = S.pop()
+        L.append(n)
+
+        # for each node M with an edge E from N to M
+        for m in forward_edges[n]:
+
+            # remove edge E from the graph
+            del forward_edges[n][m]
+            del backward_edges[m][n]
+
+            # If M has no other incoming edges, it qualifies as a starting node
+            if not backward_edges[m]:
+                S.append(m)
+
+    if any(forward_edges.values()):
+        raise exceptions.BadMigration(
+            "Circular dependencies among these migrations {}".format(
+                ', '.join(m.path
+                          for m in forward_edges
+                          for n in {m} | set(forward_edges[m]))))
+
+    # Return the toposorted migrations followed by the remainder of migrations
+    # in their original order
+    return L + [m for m in migration_list if m not in to_toposort]
