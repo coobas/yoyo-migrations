@@ -5,6 +5,9 @@ Version 4.2.5
 
 * Fix for pyscopg2 driver versions >=2.6
 * Faster loading of migration scripts
+* Dependencies between migrations can be added via the
+  ``__depends__`` attribute
+* Dropped support for python 2.6
 
 Version 4.2.4
 
