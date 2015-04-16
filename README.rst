@@ -67,8 +67,23 @@ example::
         "DROP TABLE foo",
     )
 
+Migrations may also declare dependencies on previous migrations via the
+``__depends__`` attribute::
+
+    #
+    # file: migrations/0002.modify-foo.py
+    #
+    __depends__ = ['0001.create-foo']
+
+    step(
+        "CREATE TABLE foo (id INT, bar VARCHAR(20), PRIMARY KEY (id))",
+        "DROP TABLE foo",
+    )
+
+
 The filename of each file (without the .py extension) is used as the identifier
-for each migration. Migrations are applied in filename order, so it's useful to
+for each migration. In the absence of a ``__depends__`` attribute, migrations
+are applied in filename order, so it's useful to
 name your files using a date (eg '20090115-xyz.py') or some other incrementing
 number.
 
