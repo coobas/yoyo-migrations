@@ -72,9 +72,7 @@ def build():
     scm_clone_repo(env.dev_path, env.build_path)
     try:
         with lcd(env.build_path):
-            local("python bootstrap.py")
-            local("./bin/buildout")
-            local("./bin/python setup.py sdist")
+            local("python setup.py sdist")
             _check_release()
             yield
     finally:
@@ -136,7 +134,7 @@ def release():
         _updateversion(release_version, 'release')
         scm_tag(release_version)
 
-        local("cd %(build_path)s && ./bin/python setup.py sdist upload" % env)
+        local("cd %(build_path)s && python setup.py sdist upload" % env)
 
         _updateversion(
             prompt("New development version number?",
