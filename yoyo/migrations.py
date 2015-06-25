@@ -59,9 +59,10 @@ class Migration(object):
               'transaction': collector.transaction}
         try:
             exec_(migration_code, ns)
-        except Exception:
-            logger.exception("Could not import migration from %r", self.path)
-            raise exceptions.BadMigration(self.path)
+        except Exception as e:
+            logger.exception("Could not import migration from %r: %r",
+                             self.path, e)
+            raise exceptions.BadMigration(self.path, e)
         depends = ns.get('__depends__', [])
         if isinstance(depends, (ustr, bytes)):
             depends = [depends]
