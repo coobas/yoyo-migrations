@@ -66,7 +66,7 @@ def connect_odbc(driver, username, password, host, port, database, db_params):
 @connection_for('mysql')
 def connect_mysql(driver, username, password, host, port, database, db_params):
 
-    kwargs = {}
+    kwargs = db_params
     if username is not None:
         kwargs['user'] = username
     if password is not None:
