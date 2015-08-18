@@ -1,7 +1,14 @@
 CHANGELOG
 ---------
 
+Version 5.0.0
+~~~~~~~~~~~~~
+
+**This version introduces backwards incompatible changes**. Please read this
+file carefully before upgrading.
+
 Version 4.2.5
+~~~~~~~~~~~~~
 
 * Fix for pyscopg2 driver versions >=2.6
 * Faster loading of migration scripts
