@@ -18,13 +18,10 @@ import argparse
 import os
 import re
 import sys
-try:
-    from configparser import ConfigParser, NoSectionError, NoOptionError
-except ImportError:
-    from ConfigParser import ConfigParser, NoSectionError, NoOptionError  # noqa
 
 from getpass import getpass
 
+from yoyo.compat import ConfigParser, NoSectionError, NoOptionError
 from yoyo.connections import connect, parse_uri, unparse_uri
 from yoyo.utils import prompt, plural
 from yoyo import read_migrations, default_migration_table
