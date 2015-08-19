@@ -21,7 +21,7 @@ import sys
 
 from getpass import getpass
 
-from yoyo.compat import SafeConfigParser, NoSectionError, NoOptionError
+from yoyo.compat import SafeConfigParser, NoOptionError
 from yoyo.connections import connect, parse_uri, unparse_uri
 from yoyo.utils import prompt, plural
 from yoyo import read_migrations, default_migration_table
@@ -164,6 +164,12 @@ def parse_args(argv=None):
     # Read the config file and set the argparser defaults to config file values
     config = readconfig(global_args.config or find_config())
     defaults_from_config = dict(config.items('DEFAULT'))
+    try:
+        defaults_from_config['batch_mode'] = config.getboolean('DEFAULT',
+                                                               'batch_mode')
+    except NoOptionError:
+        pass
+
     argparser.set_defaults(**defaults_from_config)
     for subp in subparsers.choices.values():
         subp.set_defaults(**defaults_from_config)
