@@ -20,7 +20,7 @@ import os
 import sys
 import inspect
 
-from yoyo.compat import reraise, exec_, ustr
+from yoyo.compat import reraise, exec_, ustr, stdout
 from yoyo import exceptions
 from yoyo.utils import plural
 
@@ -243,7 +243,7 @@ class MigrationStep(StepBase):
         self._rollback = rollback
         self._apply = apply
 
-    def _execute(self, cursor, stmt, out=sys.stdout):
+    def _execute(self, cursor, stmt, out=stdout):
         """
         Execute the given statement. If rows are returned, output these in a
         tabulated format.
@@ -268,7 +268,7 @@ class MigrationStep(StepBase):
             out.write('+'.join('-' * (size + 2) for size in column_sizes)
                       + "\n")
             for row in result:
-                out.write((format % tuple(row)).encode('utf8') + "\n")
+                out.write(format % tuple(row))
             out.write(plural(len(result), '(%d row)', '(%d rows)') + "\n")
 
     def apply(self, conn, paramstyle, force=False):

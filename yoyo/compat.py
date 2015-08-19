@@ -12,13 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import codecs
+import locale
 import sys
 
 
 PY2 = sys.version_info[0] == 2
 
 if PY2:
-    ustr = unicode
+    ustr = unicode  # noqa
 else:
     ustr = str
 
@@ -35,3 +37,16 @@ if PY2:
 else:
     def exec_(code, globals_):
         exec(code, globals_)
+
+
+if PY2:
+    # In python2 sys.stdout is a byte stream.
+    # Convert it to a unicode stream using the environment's preferred encoding
+    if sys.stdout.isatty():
+        encoding = sys.stdout.encoding
+    else:
+        encoding = locale.getpreferredencoding()
+    stdout = codecs.getwriter(encoding)(sys.stdout)
+
+else:
+    stdout = sys.stdout
