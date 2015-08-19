@@ -21,7 +21,7 @@ import sys
 
 from getpass import getpass
 
-from yoyo.compat import ConfigParser, NoSectionError, NoOptionError
+from yoyo.compat import SafeConfigParser, NoSectionError, NoOptionError
 from yoyo.connections import connect, parse_uri, unparse_uri
 from yoyo.utils import prompt, plural
 from yoyo import read_migrations, default_migration_table
@@ -43,7 +43,7 @@ class InvalidArgument(Exception):
 
 
 def readconfig(path):
-    config = ConfigParser()
+    config = SafeConfigParser()
     config.read([path])
     return config
 

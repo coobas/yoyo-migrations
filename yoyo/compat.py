@@ -16,9 +16,9 @@ import codecs
 import locale
 import sys
 try:
-    from configparser import ConfigParser, NoSectionError, NoOptionError
+    from configparser import SafeConfigParser, NoSectionError, NoOptionError
 except ImportError:
-    from ConfigParser import ConfigParser, NoSectionError, NoOptionError  # noqa
+    from ConfigParser import SafeConfigParser, NoSectionError, NoOptionError  # noqa
 
 
 PY2 = sys.version_info[0] == 2
