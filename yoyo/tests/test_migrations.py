@@ -200,7 +200,6 @@ class TestTopologicalSort(object):
     def test_it_brings_depended_upon_migrations_to_the_front(self):
         m1, m2, m3, m4 = self.get_mock_migrations()
         m1.depends.add(m4)
-        print(list(m.id for m in topological_sort([m1, m2, m3, m4])))
         assert list(topological_sort([m1, m2, m3, m4])) == [m4, m1, m2, m3]
 
     def test_it_discards_missing_dependencies(self):
