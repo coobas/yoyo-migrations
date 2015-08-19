@@ -23,3 +23,9 @@ class BadMigration(Exception):
     """
     The migration file could not be compiled
     """
+
+
+class MigrationConflict(Exception):
+    """
+    The migration id conflicts with another migration
+    """

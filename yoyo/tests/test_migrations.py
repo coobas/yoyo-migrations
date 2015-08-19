@@ -20,7 +20,7 @@ from yoyo import read_migrations
 from yoyo import exceptions
 
 from yoyo.tests import with_migrations, dburi
-from yoyo.migrations import topological_sort
+from yoyo.migrations import topological_sort, MigrationList
 
 
 @with_migrations(
@@ -212,3 +212,33 @@ class TestTopologicalSort(object):
         m3.depends.add(m3)
         with pytest.raises(exceptions.BadMigration):
             list(topological_sort([m1, m2, m3, m4]))
+
+
+class TestMigrationList(object):
+
+    def test_cannot_create_with_duplicate_ids(self):
+        with pytest.raises(exceptions.MigrationConflict):
+            MigrationList(Mock(), None, None, [Mock(id=1), Mock(id=1)])
+
+    def test_can_append_new_id(self):
+        m = MigrationList(Mock(), None, None, [Mock(id=n) for n in range(10)])
+        m.append(Mock(id=10))
+
+    def test_cannot_append_duplicate_id(self):
+        m = MigrationList(Mock(), None, None, [Mock(id=n) for n in range(10)])
+        with pytest.raises(exceptions.MigrationConflict):
+            m.append(Mock(id=1))
+
+    def test_deletion_allows_reinsertion(self):
+        m = MigrationList(Mock(), None, None, [Mock(id=n) for n in range(10)])
+        del m[0]
+        m.append(Mock(id=0))
+
+    def test_can_overwrite_slice_with_same_ids(self):
+        m = MigrationList(Mock(), None, None, [Mock(id=n) for n in range(10)])
+        m[1:3] = [Mock(id=2), Mock(id=1)]
+
+    def test_cannot_overwrite_slice_with_conflicting_ids(self):
+        m = MigrationList(Mock(), None, None, [Mock(id=n) for n in range(10)])
+        with pytest.raises(exceptions.MigrationConflict):
+            m[1:3] = [Mock(id=4)]

@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from itertools import chain
 from tempfile import mkdtemp
 from shutil import rmtree
 import os.path
@@ -20,7 +21,7 @@ import re
 dburi = "sqlite:///:memory:"
 
 
-def with_migrations(*migrations):
+def with_migrations(*migrations, **kwmigrations):
     """
     Decorator taking a list of migrations. Creates a temporary directory writes
     each migration to a file (named '0.py', '1.py', '2.py' etc), calls the
@@ -35,8 +36,8 @@ def with_migrations(*migrations):
 
     def add_migrations_dir(func):
         tmpdir = mkdtemp()
-        for ix, code in enumerate(migrations):
-            with open(os.path.join(tmpdir, '{0}.py'.format(ix)), 'w') as f:
+        for id, code in chain(enumerate(migrations), kwmigrations.items()):
+            with open(os.path.join(tmpdir, '{!s}.py'.format(id)), 'w') as f:
                 f.write(unindent(code).strip())
 
         def decorated(*args, **kwargs):
