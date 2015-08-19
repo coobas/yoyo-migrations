@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from collections import defaultdict, OrderedDict
+from collections import defaultdict, OrderedDict, MutableSequence
 from copy import copy
 from datetime import datetime
 from itertools import chain, count
@@ -341,7 +341,7 @@ def read_migrations(conn, paramstyle, directory, names=None,
     return MigrationList(conn, paramstyle, migration_table, items=migrations)
 
 
-class MigrationList(list):
+class MigrationList(MutableSequence):
     """
     A list of database migrations.
 
@@ -351,12 +351,27 @@ class MigrationList(list):
 
     def __init__(self, conn, paramstyle, migration_table, items=None,
                  post_apply=None):
-        super(MigrationList, self).__init__(items if items else [])
+        self.items = list(items) if items else []
         self.conn = conn
         self.paramstyle = paramstyle
         self.migration_table = migration_table
         self.post_apply = post_apply if post_apply else []
         initialize_connection(self.conn, migration_table)
+
+    def __getitem__(self, n):
+        return self.items.__getitem__(n)
+
+    def __setitem__(self, n, ob):
+        return self.items.__setitem__(n, ob)
+
+    def __len__(self):
+        return len(self.items)
+
+    def __delitem__(self, item):
+        self.items.__delitem__(item)
+
+    def insert(self, pos, ob):
+        return self.items.insert(pos, ob)
 
     def __add__(self, other):
         ob = copy(self)
