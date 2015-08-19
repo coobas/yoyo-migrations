@@ -15,6 +15,8 @@
 from __future__ import print_function
 import logging
 import argparse
+import functools
+import operator
 import os
 import re
 import sys
@@ -202,11 +204,15 @@ def get_migrations(args):
         scheme, username, _, host, port, database, db_params = parse_uri(dburi)
         dburi = unparse_uri((scheme, username, password, host, port, database, db_params))
 
+    sources = sources.split()
 
     conn, paramstyle = connect(dburi)
 
-    migrations = read_migrations(conn, paramstyle, sources,
-                                 migration_table=migration_table)
+    migrations = [
+        read_migrations(conn, paramstyle, d, migration_table=migration_table)
+        for d in sources]
+
+    migrations = functools.reduce(operator.add, migrations[1:], migrations[0])
 
     if args.match:
         migrations = migrations.filter(

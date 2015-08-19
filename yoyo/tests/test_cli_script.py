@@ -97,6 +97,17 @@ class TestYoyoScript(TestInteractiveScript):
             assert migrations.rollback.call_count == 1
             assert migrations.apply.call_count == 1
 
+    @with_migrations('step("CREATE TABLE test1 (id INT)")')
+    @with_migrations('step("CREATE TABLE test2 (id INT)")')
+    def test_it_applies_from_multiple_sources(self, t1, t2):
+            with patch('yoyo.scripts.migrate.apply') as apply:
+                main(['-b', 'apply', "{} {}".format(t1, t2), dburi])
+                call_posargs, call_kwargs = apply.call_args
+                _, migrations = call_posargs
+                # XXX: should fail = duplicate migration ids ('0.py')
+                assert [m.path for m in migrations] == \
+                        [os.path.join(t1, '0.py'), os.path.join(t2, '0.py')]
+
 
 class TestArgParsing(TestInteractiveScript):
 

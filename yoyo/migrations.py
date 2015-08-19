@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from collections import defaultdict, OrderedDict
+from copy import copy
 from datetime import datetime
 from itertools import chain, count
 from logging import getLogger
@@ -356,6 +357,11 @@ class MigrationList(list):
         self.migration_table = migration_table
         self.post_apply = post_apply if post_apply else []
         initialize_connection(self.conn, migration_table)
+
+    def __add__(self, other):
+        ob = copy(self)
+        ob.extend(other)
+        return ob
 
     def to_apply(self):
         """
