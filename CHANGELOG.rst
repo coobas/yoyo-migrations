@@ -7,6 +7,10 @@ Version 5.0.0
 **This version introduces backwards incompatible changes**. Please read this
 file carefully before upgrading.
 
+* The configuration file is now stored per-project, not per-migrations source
+  directory. This makes it possible to share a migrations source directory
+  across multiple projects.
+
 Version 4.2.5
 ~~~~~~~~~~~~~
 
