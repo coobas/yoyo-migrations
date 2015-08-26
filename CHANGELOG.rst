@@ -11,6 +11,9 @@ file carefully before upgrading.
   directory. This makes it possible to share a migrations source directory
   across multiple projects.
 
+* Improved url parsing
+* Allow database uris containing usernames with the symbol '@'
+
 Version 4.2.5
 ~~~~~~~~~~~~~
 
