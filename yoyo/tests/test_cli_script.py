@@ -18,7 +18,7 @@ import os
 import os.path
 import sys
 
-from mock import patch, call
+from mock import patch, call, Mock
 
 from yoyo.compat import SafeConfigParser
 from yoyo.tests import with_migrations, dburi
@@ -63,6 +63,17 @@ class TestYoyoScript(TestInteractiveScript):
         assert os.path.exists('.yoyorc')
         with open('.yoyorc') as f:
             assert 'database = {0}'.format(dburi) in f.read()
+
+    @with_migrations()
+    def test_it_prompts_password(self, tmpdir):
+        dburi = 'sqlite://user@/:memory'
+        with patch('yoyo.scripts.migrate.getpass',
+                   return_value='fish') as getpass, \
+                patch('yoyo.scripts.migrate.connect',
+                      return_value=(Mock(), Mock())) as connect:
+            main(['apply', tmpdir, dburi, '--prompt-password'])
+            assert getpass.call_count == 1
+            assert connect.call_args == call('sqlite://user:fish@/:memory')
 
     @with_migrations()
     def test_it_prompts_migrations(self, tmpdir):
