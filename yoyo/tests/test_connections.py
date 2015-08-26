@@ -22,17 +22,25 @@ class TestParseURI:
 
     def test_it_parses_all_fields(self):
         parsed = parse_uri('protocol://scott:tiger@server:666/db?k=1')
-        assert parsed == ('protocol', 'scott', 'tiger', 'server', 666,
-                          'db', {'k': '1'})
+        assert tuple(parsed) == ('protocol', 'scott', 'tiger', 'server', 666,
+                                 'db', {'k': '1'})
 
-    @pytest.mark.xfail
     def test_it_parses_escaped_username(self):
         parsed = parse_uri('protocol://scott%40example.org:tiger@localhost/db')
-        assert parsed[1] == 'scott@example.org'
+        assert parsed.username == 'scott@example.org'
 
     def test_it_requires_scheme(self):
         with pytest.raises(BadConnectionURI):
             parse_uri('//scott:tiger@localhost/db')
+
+    def test_it_roundtrips(self):
+        cases = ['proto://scott%40example.org:tiger@localhost/db',
+                 'proto://localhost/db?a=1+2',
+                 'proto://localhost/db?a=a%3D1',
+                 ]
+        for case in cases:
+            parsed = parse_uri(case)
+            assert parsed.uri == case
 
 
 def test_connections():

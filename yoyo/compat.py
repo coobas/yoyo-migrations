@@ -20,6 +20,13 @@ try:
 except ImportError:
     from ConfigParser import SafeConfigParser, NoSectionError, NoOptionError  # noqa
 
+try:
+    from urllib.parse import (urlsplit, urlunsplit, urlencode, parse_qsl,
+                              quote, unquote)
+except ImportError:
+    from urlparse import urlsplit, urlunsplit, parse_qsl  # noqa
+    from urllib import urlencode, quote, unquote  # noqa
+
 
 PY2 = sys.version_info[0] == 2
 

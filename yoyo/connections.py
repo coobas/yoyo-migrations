@@ -14,10 +14,12 @@
 
 from __future__ import absolute_import
 
+from collections import namedtuple
 from functools import wraps
 from importlib import import_module
 
 from . import exceptions
+from .compat import urlsplit, urlunsplit, parse_qsl, urlencode, quote, unquote
 
 _schemes = {}
 
@@ -29,6 +31,37 @@ drivers = {
     'mysql': 'MySQLdb',
     'sqlite': 'sqlite3',
 }
+
+
+_DatabaseURI = namedtuple('_DatabaseURI',
+                          'scheme username password hostname port database '
+                          'args')
+
+
+class DatabaseURI(_DatabaseURI):
+
+    @property
+    def netloc(self):
+        hostname = self.hostname or ''
+        if self.port:
+            hostpart = '{}:{}'.format(hostname, self.port)
+        else:
+            hostpart = hostname
+
+        if self.username:
+            return '{}:{}@{}'.format(quote(self.username),
+                                     quote(self.password),
+                                     hostpart)
+        else:
+            return hostpart
+
+    @property
+    def uri(self):
+        return urlunsplit((self.scheme,
+                           self.netloc,
+                           self.database,
+                           urlencode(self.args),
+                           ''))
 
 
 class BadConnectionURI(Exception):
@@ -129,7 +162,7 @@ def connect(uri):
     return connection_func(username, password, host, port, database, params)
 
 
-def parse_uri(uri):
+def parse_uri(s):
     """
     Examples::
 
@@ -140,88 +173,19 @@ def parse_uri(uri):
         >>> parse_uri('odbc://user:password@server/database?DSN=dsn')
         ('odbc', 'user', 'password', 'server', None, 'database', {'DSN':'dsn'})
     """
-    scheme = username = password = host = port = database = None
+    result = urlsplit(s)
 
-    try:
-        scheme, uri = uri.split('://', 1)
-    except ValueError:
-        raise BadConnectionURI("No scheme specified in connection URI %r" %
-                               uri)
+    if not result.scheme:
+        raise BadConnectionURI("No scheme specified in connection URI %r" % s)
 
-    try:
-        netloc, uri = uri.split('/', 1)
-    except ValueError:
-        netloc = ''
-
-    try:
-        auth, netloc = netloc.split('@', 1)
-    except ValueError:
-        auth = ''
-
-    if auth:
-        try:
-            username, password = auth.split(':', 1)
-        except ValueError:
-            username = auth
-
-    if netloc:
-        try:
-            host, port = netloc.split(':')
-            try:
-                port = int(port)
-            except ValueError:
-                raise BadConnectionURI('Port %r is not numeric' % port)
-        except ValueError:
-            host = netloc
-
-    try:
-        database, db_params = uri.split('?', 1)
-        db_params_str = db_params.split('&')
-        db_params = {}
-        for arg in db_params_str:
-            arg_name, arg_value = arg.split('=', 1)
-            db_params[arg_name] = arg_value
-
-    except ValueError:
-        database = uri
-        db_params = None
-
-    return scheme, username, password, host, port, database, db_params
-
-
-def unparse_uri(uri_tuple):
-    """
-    Examples::
-
-        >>> unparse_uri(('postgres', 'fred', 'bassett', 'dbserver', 5432,
-        ...              'fredsdatabase'))
-        'postgres://fred:bassett@dbserver:5432/fredsdatabase'
-
-        >>> unparse_uri(('postgres', 'pgsql', None, None, None, 'template1'))
-        'postgres://pgsql@/template1'
-
-        >>> unparse_uri(('mysql', 'jim', None, 'localhost', None,
-        ...              'jimsdatabase'))
-        'mysql://jim@localhost/jimsdatabase'
-    """
-
-    scheme, username, password, host, port, database, db_params = uri_tuple
-    uri = scheme + "://"
-    if username:
-        uri += username
-        if password:
-            uri += ':' + str(password)
-        uri += '@'
-    if host:
-        uri += host
-    if port:
-        uri += ':%s' % (port,)
-    uri += '/'
-    uri += database
-    if db_params:
-        uri += '?'
-        db_params_str = []
-        for k, v in db_params.items():
-            db_params_str.append(k + '=' + v)
-        uri += '&'.join(db_params_str)
-    return uri
+    return DatabaseURI(scheme=result.scheme,
+                       username=(unquote(result.username)
+                                 if result.username is not None
+                                 else None),
+                       password=(unquote(result.password)
+                                 if result.password is not None
+                                 else None),
+                       hostname=result.hostname,
+                       port=result.port,
+                       database=result.path.lstrip('/'),
+                       args=dict(parse_qsl(result.query)))

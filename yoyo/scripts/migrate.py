@@ -24,7 +24,7 @@ import sys
 from getpass import getpass
 
 from yoyo.compat import SafeConfigParser, NoOptionError
-from yoyo.connections import connect, parse_uri, unparse_uri
+from yoyo.connections import connect, parse_uri
 from yoyo.utils import prompt, plural
 from yoyo import read_migrations, default_migration_table
 from yoyo import logger
@@ -201,8 +201,8 @@ def get_migrations(args):
 
     if args.prompt_password:
         password = getpass('Password for %s: ' % dburi)
-        scheme, username, _, host, port, database, db_params = parse_uri(dburi)
-        dburi = unparse_uri((scheme, username, password, host, port, database, db_params))
+        parsed = parse_uri(dburi)
+        dburi = parsed._replace(password=password).uri
 
     sources = sources.split()
 
