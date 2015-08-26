@@ -34,6 +34,13 @@ verbosity_levels = {
     3: logging.DEBUG
 }
 
+min_verbosity = min(verbosity_levels)
+max_verbosity = max(verbosity_levels)
+
+
+class InvalidArgument(Exception):
+    pass
+
 
 def readconfig(path):
     config = ConfigParser()
@@ -139,84 +146,40 @@ def prompt_migrations(conn, paramstyle, migrations, direction):
                               if m.choice == 'y')
 
 
-def make_argparser():
-
-    min_verbosity = min(verbosity_levels)
-    max_verbosity = max(verbosity_levels)
-
-    argparser = argparse.ArgumentParser()
-    argparser.add_argument("command", choices=['apply', 'rollback', 'reapply'])
-    argparser.add_argument("migrations_dir",
-                           help="Directory containing migration scripts")
-    argparser.add_argument("database", nargs="?", default=None,
-                           help="Database, eg 'sqlite:///path/to/sqlite.db' "
-                                "or 'postgresql://user@host/db'")
-
-    argparser.add_argument("-m", "--match",
-                           help="Select migrations matching PATTERN "
-                            "(perl-compatible regular expression)",
-                           metavar='PATTERN')
-    argparser.add_argument("-a", "--all", dest="all", action="store_true",
-                           help="Select all migrations, regardless of whether "
-                                "they have been previously applied")
-    argparser.add_argument("-b", "--batch", dest="batch", action="store_true",
-                           help="Run in batch mode (don't ask before "
-                                "applying/rolling back each migration)")
-    argparser.add_argument("-v", dest="verbose", action="count",
-                           default=min_verbosity,
-                           help="Verbose output. Use multiple times "
-                                "to increase level of verbosity")
-    argparser.add_argument("--verbosity", dest="verbosity_level",
-                           type=int, default=min_verbosity,
-                           help="Set verbosity level (%d-%d)" %
-                                (min_verbosity, max_verbosity))
-    argparser.add_argument("-f", "--force", dest="force", action="store_true",
-                           help="Force apply/rollback of steps even if "
-                                "previous steps have failed")
-    argparser.add_argument("-p", "--prompt-password", dest="prompt_password",
-                           action="store_true",
-                           help="Prompt for the database password")
-    argparser.add_argument("--no-cache", dest="cache", action="store_false",
-                           default=True,
-                           help="Don't cache database login credentials")
-    argparser.add_argument("--migration-table", dest="migration_table",
-                           action="store", default=None,
-                           help="Name of table to use for storing "
-                                "migration metadata")
-
-    return argparser
-
-
-def configure_logging(level):
+def parse_args(argv=None):
     """
-    Configure the python logging module with the requested loglevel
+    Parse the command line args
+
+    :return: tuple of (argparser, parsed_args)
     """
-    logging.basicConfig(level=verbosity_levels[level])
+    globalparser, argparser, subparsers = make_argparser()
 
+    # Initial parse to extract global arguments
+    global_args, _ = globalparser.parse_known_args(argv)
 
-def main(argv=None):
-
-    argparser = make_argparser()
+    # Now parse for real
     args = argparser.parse_args(argv)
 
-    if args.verbosity_level:
-        verbosity_level = args.verbosity_level
-    else:
-        verbosity_level = args.verbose
-    verbosity_level = min(verbosity_level, max(verbosity_levels))
-    verbosity_level = max(verbosity_level, min(verbosity_levels))
-    configure_logging(verbosity_level)
+    # Update the args namespace with the previously parsed global args
+    # result. This ensures that global args (eg '-v) are recognized regardless
+    # of whether they were placed before or after the subparser command.
+    # If we do not do this then the sub_parser copy of the argument takes
+    # precedence, and overwrites any global args set before the command name.
+    args.__dict__.update(global_args.__dict__)
 
-    command = args.command
-    migrations_dir = os.path.normpath(os.path.abspath(args.migrations_dir))
+    return argparser, args
+
+
+def get_migrations(args):
+    sources = os.path.normpath(os.path.abspath(args.sources))
     dburi = args.database
 
-    config_path = os.path.join(migrations_dir, '.yoyo-migrate')
+    config_path = os.path.join(sources, '.yoyo-migrate')
     config = readconfig(config_path)
 
     if dburi is None and args.cache:
         try:
-            logger.debug("Looking up connection string for %r", migrations_dir)
+            logger.debug("Looking up connection string for %r", sources)
             dburi = config.get('DEFAULT', 'dburi')
         except (ValueError, NoSectionError, NoOptionError):
             pass
@@ -236,11 +199,9 @@ def main(argv=None):
 
     config.set('DEFAULT', 'migration_table', migration_table)
 
-    if dburi is None:
-        argparser.error(
-            "Please specify command, migrations directory and "
-            "database connection string arguments"
-        )
+    if sources is None or dburi is None:
+        raise InvalidArgument("Please specify command, migrations directory "
+                              "and database connection arguments")
 
     if args.prompt_password:
         password = getpass('Password for %s: ' % dburi)
@@ -275,7 +236,7 @@ def main(argv=None):
 
     conn, paramstyle = connect(dburi)
 
-    migrations = read_migrations(conn, paramstyle, migrations_dir,
+    migrations = read_migrations(conn, paramstyle, sources,
                                  migration_table=migration_table)
 
     if args.match:
@@ -283,30 +244,148 @@ def main(argv=None):
             lambda m: re.search(args.match, m.id) is not None)
 
     if not args.all:
-        if command in ['apply']:
+        if apply in args.funcs:
             migrations = migrations.to_apply()
 
-        elif command in ['reapply', 'rollback']:
+        elif {rollback, reapply} & set(args.funcs):
             migrations = migrations.to_rollback()
 
     if not args.batch:
-        migrations = prompt_migrations(conn, paramstyle, migrations, command)
+        migrations = prompt_migrations(conn, paramstyle, migrations,
+                                       args.command_name)
 
     if not args.batch and migrations:
-        if prompt(command.title() +
+        if prompt(args.command_name.title() +
                   plural(len(migrations), " %d migration", " %d migrations") +
                   " to %s?" % dburi, "Yn") != 'y':
-            return 0
+            return migrations.replace([])
+    return migrations
 
-    if command == 'reapply':
-        migrations.rollback(args.force)
-        migrations.apply(args.force)
 
-    elif command == 'apply':
-        migrations.apply(args.force)
+def apply(args, migrations):
+    migrations.apply(args.force)
 
-    elif command == 'rollback':
-        migrations.rollback(args.force)
+
+def reapply(args, migrations):
+    migrations.rollback(args.force)
+    migrations.apply(args.force)
+
+
+def rollback(args, migrations):
+    migrations.rollback(args.force)
+
+
+def make_argparser():
+    """
+    Return a top-level ArgumentParser parser object,
+    plus a list of sub_parsers
+    """
+    global_args = argparse.ArgumentParser(add_help=False)
+    global_args.add_argument("--config", "-c", default=None,
+                             help="Path to config file")
+    global_args.add_argument("-v",
+                             dest="verbosity",
+                             action="count",
+                             default=min_verbosity,
+                             help="Verbose output. Use multiple times "
+                             "to increase level of verbosity")
+    global_args.add_argument("-b",
+                             "--batch",
+                             dest="batch",
+                             action="store_true",
+                             help="Run in batch mode"
+                             ". Turns off all user prompts")
+
+    migration_args = argparse.ArgumentParser(add_help=False)
+    migration_args.add_argument('sources',
+                                nargs="?",
+                                help="Source directory of migration scripts")
+
+    migration_args.add_argument("database",
+                                nargs="?",
+                                default=None,
+                                help="Database, eg 'sqlite:///path/to/sqlite.db' "
+                                "or 'postgresql://user@host/db'")
+
+    migration_args.add_argument("-m", "--match",
+                                help="Select migrations matching PATTERN (regular expression)",
+                                metavar='PATTERN')
+
+    migration_args.add_argument("-a",
+                                "--all",
+                                dest="all",
+                                action="store_true",
+                                help="Select all migrations, regardless of whether "
+                                "they have been previously applied")
+
+    migration_args.add_argument("-f", "--force", dest="force", action="store_true",
+                                help="Force apply/rollback of steps even if "
+                                "previous steps have failed")
+
+    migration_args.add_argument("-p", "--prompt-password", dest="prompt_password",
+                                action="store_true",
+                                help="Prompt for the database password")
+
+    migration_args.add_argument("--no-cache", dest="cache", action="store_false",
+                                default=True,
+                                help="Don't cache database login credentials")
+
+    migration_args.add_argument("--migration-table", dest="migration_table",
+                                action="store", default=None,
+                                help="Name of table to use for storing "
+                                "migration metadata")
+
+    argparser = argparse.ArgumentParser(prog='yoyo-migrate',
+                                        parents=[global_args])
+
+    subparsers = argparser.add_subparsers(help='Commands help')
+    parser_apply = subparsers.add_parser('apply',
+                                         help="Apply migrations",
+                                         parents=[global_args, migration_args])
+    parser_apply.set_defaults(funcs=[get_migrations, apply],
+                              command_name='apply')
+
+    parser_rollback = subparsers.add_parser('rollback',
+                                            parents=[global_args,
+                                                     migration_args],
+                                            help="Rollback migrations")
+    parser_rollback.set_defaults(funcs=[get_migrations, rollback],
+                                 command_name='rollback')
+
+    parser_reapply = subparsers.add_parser('reapply',
+                                           parents=[global_args,
+                                                    migration_args],
+                                           help="Reapply migrations")
+    parser_reapply.set_defaults(funcs=[get_migrations, reapply],
+                                command_name='reapply')
+
+    return global_args, argparser, subparsers
+
+
+def configure_logging(level):
+    """
+    Configure the python logging module with the requested loglevel
+    """
+    logging.basicConfig(level=verbosity_levels[level])
+
+
+def main(argv=None):
+    argparser, args = parse_args(argv)
+
+    verbosity = args.verbosity
+    verbosity = min(max_verbosity, max(min_verbosity, verbosity))
+    configure_logging(verbosity)
+
+    command_args = (args,)
+    for f in args.funcs:
+        try:
+            result = f(*command_args)
+        except InvalidArgument as e:
+            argparser.error(e.args[0])
+
+        if result is not None:
+            command_args += (result,)
+
 
 if __name__ == "__main__":
     main(sys.argv[1:])
