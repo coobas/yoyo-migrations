@@ -15,6 +15,7 @@
 from __future__ import absolute_import
 
 from functools import wraps
+from importlib import import_module
 
 from . import exceptions
 
@@ -47,7 +48,7 @@ def connection_for(scheme):
 
         @wraps(func)
         def with_driver(*args, **kwargs):
-            driver = __import__(drivers[scheme], globals(), locals())
+            driver = import_module(drivers[scheme])
             exceptions.register(driver.DatabaseError)
             return func(driver, *args, **kwargs)
         _schemes[scheme] = with_driver
