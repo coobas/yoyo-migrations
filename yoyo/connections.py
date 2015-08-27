@@ -60,21 +60,14 @@ def connection_for(scheme):
 @connection_for('odbc')
 def connect_odbc(driver, username, password, host, port, database, db_params):
 
-    kwargs = db_params
-    if username is not None:
-        kwargs['UID'] = username
-    if password is not None:
-        kwargs['PWD'] = password
-    if host is not None:
-        kwargs['ServerName'] = host
-    if port is not None:
-        kwargs['Port'] = port
-    if database is not None:
-        kwargs['Database'] = database
-    connection_string = ''
-    for k, v in kwargs:
-        connection_string += k + '=' + v + ';'
-    return driver.connect(connection_string), driver.paramstyle
+    args = [('UID', username),
+            ('PWD', password),
+            ('ServerName', host),
+            ('Port', port),
+            ('Database', database)]
+    args.extend(db_params.items())
+    s = ';'.join('{}={}'.format(k, v) for k, v in args if v is not None)
+    return driver.connect(s), driver.paramstyle
 
 
 @connection_for('mysql')
