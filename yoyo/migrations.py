@@ -333,29 +333,6 @@ class MigrationList(MutableSequence):
                               self.post_apply)
 
 
-def create_migrations_table(conn, tablename):
-    """
-    Create a database table to track migrations
-    """
-    try:
-        cursor = conn.cursor()
-        try:
-            try:
-                cursor.execute("""
-                    CREATE TABLE %s (id VARCHAR(255) NOT NULL PRIMARY KEY,
-                                     ctime TIMESTAMP)
-                """ % (tablename,))
-                conn.commit()
-            except tuple(exceptions.DatabaseErrors):
-                pass
-        finally:
-            cursor.close()
-    finally:
-        conn.rollback()
-
-
-
-
 class StepCollector(object):
     """
     Provide the ``step`` and ``transaction`` functions used in migration
