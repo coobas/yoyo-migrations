@@ -25,7 +25,7 @@ from getpass import getpass
 
 from yoyo.compat import SafeConfigParser, NoOptionError
 from yoyo.connections import get_backend, parse_uri
-from yoyo.utils import prompt, plural
+from yoyo.utils import prompt, plural, confirm
 from yoyo import read_migrations, default_migration_table
 from yoyo import logger
 
@@ -39,6 +39,7 @@ verbosity_levels = {
 min_verbosity = min(verbosity_levels)
 max_verbosity = max(verbosity_levels)
 
+LEGACY_CONFIG_FILENAME = '.yoyo-migrate'
 CONFIG_FILENAME = '.yoyorc'
 
 
@@ -365,13 +366,77 @@ def prompt_save_config(config, path):
                       "yn")
 
     if response == 'y':
-        saveconfig(config, CONFIG_FILENAME)
+        saveconfig(config, path)
+
+
+def upgrade_legacy_config(args, config, sources):
+
+    for dir in reversed(sources):
+        path = os.path.join(dir, LEGACY_CONFIG_FILENAME)
+        if not os.path.isfile(path):
+            continue
+
+        legacy_config = readconfig(path)
+
+        def transfer_setting(oldname, newname,
+                             transform=None, section='DEFAULT'):
+            try:
+                config.get(section, newname)
+            except NoOptionError:
+                try:
+                    value = legacy_config.get(section, oldname)
+                except NoOptionError:
+                    pass
+                else:
+                    if transform:
+                        value = transform(value)
+                    config.set(section, newname, value)
+
+        transfer_setting('dburi', 'database')
+        transfer_setting('migration_table', 'migration_table',
+                         lambda v: (default_migration_table
+                                    if v == 'None'
+                                    else v))
+
+        config_path = args.config or CONFIG_FILENAME
+        if not args.batch_mode:
+            if confirm("Move legacy configuration in {!r} to {!r}?"
+                       .format(path, config_path)):
+                saveconfig(config, config_path)
+            try:
+                if confirm("Delete legacy configuration file {!r}"
+                           .format(path)):
+                    os.unlink(path)
+            except OSError:
+                logger.warn("Could not remove %r. Manually remove this file "
+                            "to avoid future warnings", path)
+        else:
+            logger.warn("Found legacy configuration in %r. Run "
+                        "yoyo-migrate in interactive mode to update your "
+                        "configuration files", path)
+
+        try:
+            args.database = (
+                    args.database or legacy_config.get('DEFAULT', 'dburi'))
+        except NoOptionError:
+            pass
+        try:
+            args.migration_table = (
+                args.migration_table or
+                legacy_config.get('DEFAULT', 'migration_table'))
+        except NoOptionError:
+            pass
 
 
 def main(argv=None):
     config, argparser, args = parse_args(argv)
     config_is_empty = (config.sections() == [] and
                        config.items('DEFAULT') == [])
+
+    sources = getattr(args, 'sources', None)
+    if sources:
+        if upgrade_legacy_config(args, config, sources.split()):
+            return main(argv)
 
     verbosity = args.verbosity
     verbosity = min(max_verbosity, max(min_verbosity, verbosity))

@@ -12,8 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import unicode_literals
+
 from shutil import rmtree
 from tempfile import mkdtemp
+import io
 import os
 import os.path
 import sys
@@ -22,12 +25,15 @@ from mock import patch, call, Mock
 
 from yoyo.compat import SafeConfigParser
 from yoyo.tests import with_migrations, dburi
-from yoyo.scripts.migrate import main, parse_args
+from yoyo.scripts.migrate import main, parse_args, LEGACY_CONFIG_FILENAME
 
 
 class TestInteractiveScript(object):
 
     def setup(self):
+        self.confirm_patch = patch('yoyo.scripts.migrate.confirm',
+                                   return_value=False)
+        self.confirm = self.confirm_patch.start()
         self.prompt_patch = patch('yoyo.scripts.migrate.prompt',
                                   return_value='n')
         self.prompt = self.prompt_patch.start()
@@ -37,6 +43,7 @@ class TestInteractiveScript(object):
 
     def teardown(self):
         self.prompt_patch.stop()
+        self.confirm_patch.stop()
         os.chdir(self.saved_cwd)
         rmtree(self.tmpdir)
 
@@ -114,6 +121,42 @@ class TestYoyoScript(TestInteractiveScript):
                 _, _, migrations = call_posargs
                 assert [m.path for m in migrations] == \
                         [os.path.join(t1, 'm1.py'), os.path.join(t2, 'm2.py')]
+
+    @with_migrations()
+    def test_it_offers_to_upgrade(self, tmpdir):
+        legacy_config_path = os.path.join(tmpdir, LEGACY_CONFIG_FILENAME)
+        with io.open(legacy_config_path, 'w', encoding='utf-8') as f:
+            f.write('[DEFAULT]\n')
+            f.write('migration_table=_yoyo_migration\n')
+            f.write('dburi=sqlite:///\n')
+
+        with patch('yoyo.scripts.migrate.confirm',
+                   return_value=True) as confirm:
+            main(['apply', tmpdir])
+            prompts = [args[0].lower()
+                       for args, kwargs in confirm.call_args_list]
+            assert prompts[0].startswith('move legacy configuration')
+            assert prompts[1].startswith('delete legacy configuration')
+            assert not os.path.exists(legacy_config_path)
+
+        with open('.yoyorc', 'r') as f:
+            config = f.read()
+            assert 'database = sqlite:///\n' in config
+            assert 'migration_table = _yoyo_migration\n' in config
+
+    @with_migrations()
+    def test_it_upgrades_migration_table_None(self, tmpdir):
+        legacy_config_path = os.path.join(tmpdir, LEGACY_CONFIG_FILENAME)
+        with io.open(legacy_config_path, 'w', encoding='utf-8') as f:
+            f.write('[DEFAULT]\n')
+            f.write('migration_table=None\n')
+            f.write('dburi=sqlite:///\n')
+        with patch('yoyo.scripts.migrate.confirm', return_value=True):
+            main(['apply', tmpdir])
+
+        with open('.yoyorc', 'r') as f:
+            config = f.read()
+        assert 'migration_table = _yoyo_migration\n' in config
 
 
 class TestArgParsing(TestInteractiveScript):

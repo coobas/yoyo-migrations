@@ -63,6 +63,17 @@ def prompt(prompt, options):
     return ch.lower()
 
 
+def confirm(s, default=None):
+    options = 'yn'
+    if default:
+        default = default.lower()
+        if default == 'y':
+            options = 'Yn'
+        elif default == 'n':
+            options = 'yN'
+    return prompt(s, options)
+
+
 def plural(quantity, one, plural):
     """
     >>> plural(1, '%d dead frog', '%d dead frogs')
