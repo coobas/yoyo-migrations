@@ -23,7 +23,12 @@ import sys
 
 from getpass import getpass
 
-from yoyo.compat import SafeConfigParser, NoOptionError
+from yoyo.compat import NoOptionError
+from yoyo.config import (CONFIG_FILENAME,
+                         find_config,
+                         read_config,
+                         save_config,
+                         update_argparser_defaults)
 from yoyo.connections import get_backend, parse_uri
 from yoyo.utils import prompt, plural, confirm
 from yoyo import read_migrations, default_migration_table
@@ -40,28 +45,10 @@ min_verbosity = min(verbosity_levels)
 max_verbosity = max(verbosity_levels)
 
 LEGACY_CONFIG_FILENAME = '.yoyo-migrate'
-CONFIG_FILENAME = '.yoyorc'
 
 
 class InvalidArgument(Exception):
     pass
-
-
-def readconfig(path):
-    if path is None:
-        return SafeConfigParser()
-    config = SafeConfigParser()
-    config.read([path])
-    return config
-
-
-def saveconfig(config, path):
-    os.umask(0o77)
-    f = open(path, 'w')
-    try:
-        return config.write(f)
-    finally:
-        f.close()
 
 
 class prompted_migration(object):
@@ -171,8 +158,10 @@ def parse_args(argv=None):
     global_args, _ = globalparser.parse_known_args(argv)
 
     # Read the config file and create a dictionary of defaults for argparser
-    config = readconfig(global_args.config or
-                        find_config() if global_args.use_config_file else None)
+    config = read_config(global_args.config or
+                         find_config()
+                         if global_args.use_config_file
+                         else None)
 
     defaults = {}
     for argname, getter in config_args.items():
@@ -180,18 +169,6 @@ def parse_args(argv=None):
             defaults[argname] = getattr(config, getter)('DEFAULT', argname)
         except NoOptionError:
             pass
-
-    def update_argparser_defaults(parser, defaults):
-        """
-        Update an ArgumentParser's defaults.
-
-        Unlike ArgumentParser.set_defaults this will only set defaults for
-        arguments the parser has configured.
-        """
-        ns, _ = parser.parse_known_args([])
-        parser.set_defaults(**{k: v
-                               for k, v in defaults.items()
-                               if k in ns.__dict__})
 
     # Set the argparser defaults to values read from the config file
     update_argparser_defaults(globalparser, defaults)
@@ -366,16 +343,6 @@ def configure_logging(level):
     logging.basicConfig(level=verbosity_levels[level])
 
 
-def find_config():
-    """Find the closest config file in the cwd or a parent directory"""
-    d = os.getcwd()
-    while d != os.path.dirname(d):
-        path = os.path.join(d, CONFIG_FILENAME)
-        if os.path.isfile(path):
-            return path
-        d = os.path.dirname(d)
-    return None
-
 
 def prompt_save_config(config, path):
     # Offer to save the current configuration for future runs
@@ -391,7 +358,7 @@ def prompt_save_config(config, path):
                       "yn")
 
     if response == 'y':
-        saveconfig(config, path)
+        save_config(config, path)
 
 
 def upgrade_legacy_config(args, config, sources):
@@ -401,7 +368,7 @@ def upgrade_legacy_config(args, config, sources):
         if not os.path.isfile(path):
             continue
 
-        legacy_config = readconfig(path)
+        legacy_config = read_config(path)
 
         def transfer_setting(oldname, newname,
                              transform=None, section='DEFAULT'):
@@ -427,7 +394,7 @@ def upgrade_legacy_config(args, config, sources):
         if not args.batch_mode:
             if confirm("Move legacy configuration in {!r} to {!r}?"
                        .format(path, config_path)):
-                saveconfig(config, config_path)
+                save_config(config, config_path)
             try:
                 if confirm("Delete legacy configuration file {!r}"
                            .format(path)):
