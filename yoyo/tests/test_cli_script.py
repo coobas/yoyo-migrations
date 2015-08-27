@@ -21,7 +21,7 @@ import os
 import os.path
 import sys
 
-from mock import patch, call, Mock
+from mock import patch, call
 
 from yoyo.compat import SafeConfigParser
 from yoyo.tests import with_migrations, dburi
