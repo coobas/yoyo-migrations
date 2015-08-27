@@ -25,17 +25,15 @@ from mock import patch, call
 
 from yoyo.compat import SafeConfigParser
 from yoyo.tests import with_migrations, dburi
-from yoyo.scripts.migrate import main, parse_args, LEGACY_CONFIG_FILENAME
+from yoyo.scripts.main import main, parse_args, LEGACY_CONFIG_FILENAME
 
 
 class TestInteractiveScript(object):
 
     def setup(self):
-        self.confirm_patch = patch('yoyo.scripts.migrate.confirm',
-                                   return_value=False)
+        self.confirm_patch = patch('yoyo.utils.confirm', return_value=False)
         self.confirm = self.confirm_patch.start()
-        self.prompt_patch = patch('yoyo.scripts.migrate.prompt',
-                                  return_value='n')
+        self.prompt_patch = patch('yoyo.utils.prompt', return_value='n')
         self.prompt = self.prompt_patch.start()
         self.tmpdir = mkdtemp()
         self.saved_cwd = os.getcwd()
@@ -64,7 +62,7 @@ class TestYoyoScript(TestInteractiveScript):
 
     @with_migrations()
     def test_it_sets_verbosity_level(self, tmpdir):
-        with patch('yoyo.scripts.migrate.configure_logging') as m:
+        with patch('yoyo.scripts.main.configure_logging') as m:
             main(['apply', tmpdir, dburi])
             assert m.call_args == call(0)
             main(['-vvv', 'apply', tmpdir, dburi])
@@ -73,11 +71,11 @@ class TestYoyoScript(TestInteractiveScript):
     @with_migrations()
     def test_it_prompts_to_create_config_file(self, tmpdir):
         main(['apply', tmpdir, dburi])
-        assert 'save migration config' in self.prompt.call_args[0][0].lower()
+        assert 'save migration config' in self.confirm.call_args[0][0].lower()
 
     @with_migrations()
     def test_it_creates_config_file(self, tmpdir):
-        self.prompt.return_value = 'y'
+        self.confirm.return_value = True
         main(['apply', tmpdir, dburi])
         assert os.path.exists('.yoyorc')
         with open('.yoyorc') as f:
@@ -158,14 +156,13 @@ class TestYoyoScript(TestInteractiveScript):
             f.write('migration_table=_yoyo_migration\n')
             f.write('dburi=sqlite:///\n')
 
-        with patch('yoyo.scripts.migrate.confirm',
-                   return_value=True) as confirm:
-            main(['apply', tmpdir])
-            prompts = [args[0].lower()
-                       for args, kwargs in confirm.call_args_list]
-            assert prompts[0].startswith('move legacy configuration')
-            assert prompts[1].startswith('delete legacy configuration')
-            assert not os.path.exists(legacy_config_path)
+        self.confirm.return_value = True
+        main(['apply', tmpdir])
+        prompts = [args[0].lower()
+                    for args, kwargs in self.confirm.call_args_list]
+        assert prompts[0].startswith('move legacy configuration')
+        assert prompts[1].startswith('delete legacy configuration')
+        assert not os.path.exists(legacy_config_path)
 
         with open('.yoyorc', 'r') as f:
             config = f.read()
@@ -179,8 +176,8 @@ class TestYoyoScript(TestInteractiveScript):
             f.write('[DEFAULT]\n')
             f.write('migration_table=None\n')
             f.write('dburi=sqlite:///\n')
-        with patch('yoyo.scripts.migrate.confirm', return_value=True):
-            main(['apply', tmpdir])
+        self.confirm.return_value = True
+        main(['apply', tmpdir])
 
         with open('.yoyorc', 'r') as f:
             config = f.read()
