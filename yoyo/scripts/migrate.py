@@ -37,12 +37,16 @@ verbosity_levels = {
 min_verbosity = min(verbosity_levels)
 max_verbosity = max(verbosity_levels)
 
+CONFIG_FILENAME = '.yoyorc'
+
 
 class InvalidArgument(Exception):
     pass
 
 
 def readconfig(path):
+    if path is None:
+        return SafeConfigParser()
     config = SafeConfigParser()
     config.read([path])
     return config
@@ -148,14 +152,21 @@ def prompt_migrations(conn, paramstyle, migrations, direction):
 
 def parse_args(argv=None):
     """
-    Parse the command line args
+    Parse the config file and command line args.
 
     :return: tuple of (argparser, parsed_args)
     """
     globalparser, argparser, subparsers = make_argparser()
 
-    # Initial parse to extract global arguments
+    # Initial parse to extract --config and any global arguments
     global_args, _ = globalparser.parse_known_args(argv)
+
+    # Read the config file and set the argparser defaults to config file values
+    config = readconfig(global_args.config or find_config())
+    defaults_from_config = dict(config.items('DEFAULT'))
+    argparser.set_defaults(**defaults_from_config)
+    for subp in subparsers.choices.values():
+        subp.set_defaults(**defaults_from_config)
 
     # Now parse for real
     args = argparser.parse_args(argv)
@@ -167,37 +178,14 @@ def parse_args(argv=None):
     # precedence, and overwrites any global args set before the command name.
     args.__dict__.update(global_args.__dict__)
 
-    return argparser, args
+    return config, argparser, args
 
 
 def get_migrations(args):
-    sources = os.path.normpath(os.path.abspath(args.sources))
+
+    sources = args.sources
     dburi = args.database
-
-    config_path = os.path.join(sources, '.yoyo-migrate')
-    config = readconfig(config_path)
-
-    if dburi is None and args.cache:
-        try:
-            logger.debug("Looking up connection string for %r", sources)
-            dburi = config.get('DEFAULT', 'dburi')
-        except (ValueError, NoSectionError, NoOptionError):
-            pass
-
-    if args.migration_table:
-        migration_table = args.migration_table
-    else:
-        try:
-            migration_table = config.get('DEFAULT', 'migration_table')
-        except (ValueError, NoSectionError, NoOptionError):
-            migration_table = None
-
-    # Earlier versions had a bug where the migration_table could be set to the
-    # string 'None'.
-    if migration_table in (None, 'None'):
-        migration_table = default_migration_table
-
-    config.set('DEFAULT', 'migration_table', migration_table)
+    migration_table = args.migration_table
 
     if sources is None or dburi is None:
         raise InvalidArgument("Please specify command, migrations directory "
@@ -208,31 +196,6 @@ def get_migrations(args):
         scheme, username, _, host, port, database, db_params = parse_uri(dburi)
         dburi = unparse_uri((scheme, username, password, host, port, database, db_params))
 
-    # Cache the database this migration set is applied to so that subsequent
-    # runs don't need the dburi argument. Don't cache anything in batch mode -
-    # we can't prompt to find the user's preference.
-    if args.cache and not args.batch:
-        if not config.has_option('DEFAULT', 'dburi'):
-            response = prompt(
-                "Save connection string to %s for future migrations?\n"
-                "This is saved in plain text and "
-                "contains your database password." % (config_path,),
-                "yn"
-            )
-            if response == 'y':
-                config.set('DEFAULT', 'dburi', dburi)
-
-        elif config.get('DEFAULT', 'dburi') != dburi:
-            response = prompt(
-                "Specified connection string differs from that saved in %s. "
-                "Update saved connection string?" % (config_path,),
-                "yn"
-            )
-            if response == 'y':
-                config.set('DEFAULT', 'dburi', dburi)
-
-        config.set('DEFAULT', 'migration_table', migration_table)
-        saveconfig(config, config_path)
 
     conn, paramstyle = connect(dburi)
 
@@ -250,11 +213,11 @@ def get_migrations(args):
         elif {rollback, reapply} & set(args.funcs):
             migrations = migrations.to_rollback()
 
-    if not args.batch:
+    if not args.batch_mode:
         migrations = prompt_migrations(conn, paramstyle, migrations,
                                        args.command_name)
 
-    if not args.batch and migrations:
+    if not args.batch_mode and migrations:
         if prompt(args.command_name.title() +
                   plural(len(migrations), " %d migration", " %d migrations") +
                   " to %s?" % dburi, "Yn") != 'y':
@@ -291,7 +254,7 @@ def make_argparser():
                              "to increase level of verbosity")
     global_args.add_argument("-b",
                              "--batch",
-                             dest="batch",
+                             dest="batch_mode",
                              action="store_true",
                              help="Run in batch mode"
                              ". Turns off all user prompts")
@@ -331,7 +294,8 @@ def make_argparser():
                                 help="Don't cache database login credentials")
 
     migration_args.add_argument("--migration-table", dest="migration_table",
-                                action="store", default=None,
+                                action="store",
+                                default=default_migration_table,
                                 help="Name of table to use for storing "
                                 "migration metadata")
 
@@ -369,8 +333,38 @@ def configure_logging(level):
     logging.basicConfig(level=verbosity_levels[level])
 
 
+def find_config():
+    """Find the closest config file in the cwd or a parent directory"""
+    d = os.getcwd()
+    while d != os.path.dirname(d):
+        path = os.path.join(d, CONFIG_FILENAME)
+        if os.path.isfile(path):
+            return path
+        d = os.path.dirname(d)
+    return None
+
+
+def prompt_save_config(config, path):
+    # Offer to save the current configuration for future runs
+    # Don't cache anything in batch mode (because we can't prompt to find the
+    # user's preference).
+
+    response = prompt("Save migration configuration to {}?\n"
+                      "This is saved in plain text and "
+                      "contains your database password.\n\n"
+                      "Answering 'y' means you do not have to specify "
+                      "the migration source or database connection "
+                      "for future runs".format(path),
+                      "yn")
+
+    if response == 'y':
+        saveconfig(config, CONFIG_FILENAME)
+
+
 def main(argv=None):
-    argparser, args = parse_args(argv)
+    config, argparser, args = parse_args(argv)
+    config_is_empty = (config.sections() == [] and
+                       config.items('DEFAULT') == [])
 
     verbosity = args.verbosity
     verbosity = min(max_verbosity, max(min_verbosity, verbosity))
@@ -385,6 +379,14 @@ def main(argv=None):
 
         if result is not None:
             command_args += (result,)
+
+    if config_is_empty and args.cache and not args.batch_mode:
+        config.set('DEFAULT', 'sources', args.sources)
+        config.set('DEFAULT', 'database', args.database)
+        config.set('DEFAULT', 'migration_table', args.migration_table)
+        config.set('DEFAULT', 'batch_mode', 'off' if args.batch_mode else 'on')
+
+        prompt_save_config(config, args.config or CONFIG_FILENAME)
 
 
 if __name__ == "__main__":

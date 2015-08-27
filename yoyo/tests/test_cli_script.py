@@ -12,23 +12,36 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from shutil import rmtree
+from tempfile import mkdtemp
+import os
 import os.path
+import sys
 
 from mock import patch, call
 
+from yoyo.compat import SafeConfigParser
 from yoyo.tests import with_migrations, dburi
-from yoyo.scripts.migrate import main
+from yoyo.scripts.migrate import main, parse_args
 
 
-class TestYoyoScript(object):
+class TestInteractiveScript(object):
 
     def setup(self):
         self.prompt_patch = patch('yoyo.scripts.migrate.prompt',
                                   return_value='n')
         self.prompt = self.prompt_patch.start()
+        self.tmpdir = mkdtemp()
+        self.saved_cwd = os.getcwd()
+        os.chdir(self.tmpdir)
 
     def teardown(self):
         self.prompt_patch.stop()
+        os.chdir(self.saved_cwd)
+        rmtree(self.tmpdir)
+
+
+class TestYoyoScript(TestInteractiveScript):
 
     @with_migrations()
     def test_it_sets_verbosity_level(self, tmpdir):
@@ -41,15 +54,15 @@ class TestYoyoScript(object):
     @with_migrations()
     def test_it_prompts_to_cache_connection_params(self, tmpdir):
         main(['apply', tmpdir, dburi])
-        assert 'save connection string' in self.prompt.call_args[0][0].lower()
+        assert 'save migration config' in self.prompt.call_args[0][0].lower()
 
     @with_migrations()
     def test_it_caches_connection_params(self, tmpdir):
         self.prompt.return_value = 'y'
         main(['apply', tmpdir, dburi])
-        assert os.path.exists(os.path.join(tmpdir, '.yoyo-migrate'))
-        with open(os.path.join(tmpdir, '.yoyo-migrate')) as f:
-            assert 'dburi = {0}'.format(dburi) in f.read()
+        assert os.path.exists('.yoyorc')
+        with open('.yoyorc') as f:
+            assert 'database = {0}'.format(dburi) in f.read()
 
     @with_migrations()
     def test_it_prompts_migrations(self, tmpdir):
@@ -83,3 +96,42 @@ class TestYoyoScript(object):
             migrations = read_migrations().to_rollback()
             assert migrations.rollback.call_count == 1
             assert migrations.apply.call_count == 1
+
+
+class TestArgParsing(TestInteractiveScript):
+
+    def writeconfig(self, **defaults):
+        cp = SafeConfigParser()
+        for item in defaults:
+            cp.set('DEFAULT', item, defaults[item])
+
+        if sys.version_info < (3, 0):
+            with open('.yoyorc', 'w') as f:
+                cp.write(f)
+        else:
+            with open('.yoyorc', 'w', encoding='UTF-8') as f:
+                cp.write(f)
+
+    def test_it_uses_config_file_defaults(self):
+        self.writeconfig(sources='/tmp/migrations',
+                         database='postgresql:///foo')
+        _, _, args = parse_args(['apply'])
+        assert args.database == 'postgresql:///foo'
+        assert args.sources == '/tmp/migrations'
+
+    def test_cli_args_take_precendence(self):
+        self.writeconfig(sources='A')
+        _, _, args = parse_args(['apply', 'B', 'C'])
+        assert args.sources == 'B'
+
+    def test_global_args_can_appear_before_command(self):
+        _, _, args = parse_args(['apply', 'X', 'Y'])
+        assert args.verbosity == 0
+        _, _, args = parse_args(['-v', 'apply', 'X', 'Y'])
+        assert args.verbosity == 1
+
+    def test_global_args_can_appear_after_command(self):
+        _, _, args = parse_args(['apply', 'X', 'Y'])
+        assert args.verbosity == 0
+        _, _, args = parse_args(['apply', '-v', 'X', 'Y'])
+        assert args.verbosity == 1
