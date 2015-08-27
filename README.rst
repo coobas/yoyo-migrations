@@ -38,19 +38,19 @@ Examples:
 Read all migrations from directory ``migrations`` and apply them to a
 PostgreSQL database::
 
-   yoyo-migrate apply ./migrations/ postgres://user:password@localhost/database
+   yoyo-migrate apply ./migrations postgres://user:password@localhost/database
 
 Rollback migrations previously applied to a MySQL database::
 
-   yoyo-migrate rollback ./migrations/ mysql://user:password@localhost/database
+   yoyo-migrate rollback ./migrations mysql://user:password@localhost/database
 
 Reapply (ie rollback then apply again) migrations to a SQLite database at
 location ``/home/sheila/important-data.db``::
 
-    yoyo-migrate reapply ./migrations/ sqlite:////home/sheila/important-data.db
+    yoyo-migrate reapply ./migrations sqlite:////home/sheila/important-data.db
 
 By default, yoyo-migrations starts in an interactive mode, prompting you for
-each migration file before applying it, making it easy to choose which
+each migration file before applying it, making it easy to preview which
 migrations to apply and rollback.
 
 The migrations directory should contain a series of migration scripts. Each
@@ -167,24 +167,23 @@ The ``-p`` or ``--prompt-password`` flag causes yoyo-migrate to prompt
 for a password, ignoring any password specified in the connection string. This
 password will not be available to other users via the system's process list.
 
-Connection string caching
--------------------------
+Configuration file
+------------------
 
-The first time you run ``yoyo-migrate`` on a new set of migrations, you will be
-asked if you want to cache the database connection string in a file
-called ``.yoyo-migrate`` in the migrations directory.
+``yoyo-migrate`` looks for a configuration file called ``.yoyorc``, in
+the current working directory or any ancestor directory.
 
-This cache is local to the migrations directory, so subsequent runs
-on the same migration set do not need the database connection string to be
-specified.
+If no configuration file is found ``yoyo-migrate`` will prompt you to
+create one, popuplated with the current command line args.
 
-This saves typing, avoids your database username and password showing in
+Using a configuration file saves typing,
+avoids your database username and password showing in
 process listings and lessens the risk of accidentally running ``yoyo-migrate``
 on the wrong database (ie by re-running an earlier ``yoyo-migrate`` entry in
 your command history when you have moved to a different directory).
 
-If you do not want this cache file to be used, add the ``--no-cache`` parameter
-to the command line options.
+If you do not want this config file to be used, add the ``--no-config``
+parameter to the command line options.
 
 Using yoyo from python code
 ---------------------------
@@ -192,11 +191,11 @@ Using yoyo from python code
 The following example shows how to apply migrations from inside python code::
 
     from yoyo import read_migrations
-    from yoyo.connections import connect
+    from yoyo.connections import get_backend
 
-    conn, paramstyle = connect('postgres://myuser@localhost/mydatabase')
-    migrations = read_migrations(conn, paramstyle, 'path/to/migrations'))
-    migrations.to_apply().apply()
-    conn.commit()
+    backend = get_backend('postgres://myuser@localhost/mydatabase')
+    migrations = read_migrations('path/to/migrations')
+    backend.apply_migrations(migrations)
+    backend.commit()
 
 .. :vim:sw=4:et
