@@ -12,8 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from yoyo.migrations import (read_migrations, initialize_connection,  # noqa
-                             default_migration_table, logger,
-                             step, transaction)
+from yoyo.migrations import (read_migrations,  # noqa
+                             default_migration_table,
+                             logger,
+                             step,
+                             transaction,
+                             )
+
+from yoyo.connections import get_backend  # noqa
 
 __version__ = '5.0.0.dev0'

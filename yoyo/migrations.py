@@ -14,7 +14,6 @@
 
 from collections import defaultdict, OrderedDict, Counter, MutableSequence
 from copy import copy
-from datetime import datetime
 from itertools import chain, count
 from logging import getLogger
 import os
@@ -25,20 +24,9 @@ from yoyo.compat import reraise, exec_, ustr, stdout
 from yoyo import exceptions
 from yoyo.utils import plural
 
-logger = getLogger(__name__)
+logger = getLogger('yoyo.migrations')
 default_migration_table = '_yoyo_migration'
 _step_collectors = {}
-
-
-def with_placeholders(conn, paramstyle, sql):
-    placeholder_gen = {
-        'qmark': '?',
-        'format': '%s',
-        'pyformat': '%s',
-    }.get(paramstyle)
-    if placeholder_gen is None:
-        raise ValueError("Unsupported parameter format %s" % paramstyle)
-    return sql.replace('?', placeholder_gen)
 
 
 class Migration(object):
@@ -89,65 +77,27 @@ class Migration(object):
         self.source = source
         self.steps = collector.steps
 
-    def isapplied(self, conn, paramstyle, migration_table):
-        cursor = conn.cursor()
-        try:
-            cursor.execute(
-                with_placeholders(conn, paramstyle, "SELECT COUNT(1) FROM " +
-                                  migration_table + " WHERE id=?"),
-                (self.id,)
-            )
-            return cursor.fetchone()[0] > 0
-        finally:
-            cursor.close()
+    def process_steps(self, backend, direction, force=False):
 
-    def apply(self, conn, paramstyle, migration_table, force=False):
-        logger.info("Applying %s", self.id)
         self.load()
-        Migration._process_steps(self.steps, conn, paramstyle, 'apply',
-                                 force=force)
-        cursor = conn.cursor()
-        cursor.execute(
-            with_placeholders(conn, paramstyle, "INSERT INTO " +
-                              migration_table + " (id, ctime) VALUES (?, ?)"),
-            (self.id, datetime.utcnow())
-        )
-        conn.commit()
-        cursor.close()
+        reverse = {'rollback': 'apply',
+                   'apply': 'rollback'}[direction]
 
-    def rollback(self, conn, paramstyle, migration_table, force=False):
-        logger.info("Rolling back %s", self.id)
-        self.load()
-        Migration._process_steps(reversed(self.steps), conn, paramstyle,
-                                 'rollback', force=force)
-        cursor = conn.cursor()
-        cursor.execute(
-            with_placeholders(conn, paramstyle, "DELETE FROM " +
-                              migration_table + " WHERE id=?"),
-            (self.id,)
-        )
-        conn.commit()
-        cursor.close()
-
-    @staticmethod
-    def _process_steps(steps, conn, paramstyle, direction, force=False):
-
-        reverse = {
-            'rollback': 'apply',
-            'apply': 'rollback',
-        }[direction]
+        steps = self.steps
+        if direction == 'rollback':
+            steps = reversed(steps)
 
         executed_steps = []
         for step in steps:
             try:
-                getattr(step, direction)(conn, paramstyle, force)
+                getattr(step, direction)(backend, force)
                 executed_steps.append(step)
             except tuple(exceptions.DatabaseErrors):
-                conn.rollback()
+                backend.connection.rollback()
                 exc_info = sys.exc_info()
                 try:
                     for step in reversed(executed_steps):
-                        getattr(step, reverse)(conn, paramstyle)
+                        getattr(step, reverse)(backend)
                 except tuple(exceptions.DatabaseErrors):
                     logger.exception(
                         'Database error when reversing %s of step', direction)
@@ -161,33 +111,13 @@ class PostApplyHookMigration(Migration):
     migrations are applied script is called.
     """
 
-    def apply(self, conn, paramstyle, migration_table, force=False):
-        logger.info("Applying %s", self.id)
-        self.__class__._process_steps(
-            self.steps,
-            conn,
-            paramstyle,
-            'apply',
-            force=True
-        )
-
-    def rollback(self, conn, paramstyle, migration_table, force=False):
-        logger.info("Rolling back %s", self.id)
-        self.__class__._process_steps(
-            reversed(self.steps),
-            conn,
-            paramstyle,
-            'rollback',
-            force=True
-        )
-
 
 class StepBase(object):
 
-    def apply(self, conn, paramstyle, force=False):
+    def apply(self, backend, force=False):
         raise NotImplementedError()
 
-    def rollback(self, conn, paramstyle, force=False):
+    def rollback(self, backend, force=False):
         raise NotImplementedError()
 
 
@@ -202,30 +132,30 @@ class Transaction(StepBase):
         self.steps = steps
         self.ignore_errors = ignore_errors
 
-    def apply(self, conn, paramstyle, force=False):
+    def apply(self, backend, force=False):
 
         for step in self.steps:
             try:
-                step.apply(conn, paramstyle, force)
+                step.apply(backend, force)
             except tuple(exceptions.DatabaseErrors):
-                conn.rollback()
+                backend.rollback()
                 if force or self.ignore_errors in ('apply', 'all'):
                     logger.exception("Ignored error in step %d", step.id)
                     return
                 raise
-        conn.commit()
+        backend.commit()
 
-    def rollback(self, conn, paramstyle, force=False):
+    def rollback(self, backend, force=False):
         for step in reversed(self.steps):
             try:
-                step.rollback(conn, paramstyle, force)
+                step.rollback(backend, force)
             except tuple(exceptions.DatabaseErrors):
-                conn.rollback()
+                backend.rollback()
                 if force or self.ignore_errors in ('rollback', 'all'):
                     logger.exception("Ignored error in step %d", step.id)
                     return
                 raise
-        conn.commit()
+        backend.commit()
 
 
 class MigrationStep(StepBase):
@@ -272,7 +202,7 @@ class MigrationStep(StepBase):
                 out.write(format % tuple(row))
             out.write(plural(len(result), '(%d row)', '(%d rows)') + "\n")
 
-    def apply(self, conn, paramstyle, force=False):
+    def apply(self, backend, force=False):
         """
         Apply the step.
 
@@ -281,38 +211,35 @@ class MigrationStep(StepBase):
         logger.info(" - applying step %d", self.id)
         if not self._apply:
             return
-        cursor = conn.cursor()
-        try:
-            if isinstance(self._apply, (ustr, str)):
+        if isinstance(self._apply, (ustr, str)):
+            cursor = backend.cursor()
+            try:
                 self._execute(cursor, self._apply)
-            else:
-                self._apply(conn)
-        finally:
-            cursor.close()
+            finally:
+                cursor.close()
+        else:
+            self._apply(backend.connection)
 
-    def rollback(self, conn, paramstyle, force=False):
+    def rollback(self, backend, force=False):
         """
         Rollback the step.
         """
         logger.info(" - rolling back step %d", self.id)
         if self._rollback is None:
             return
-        cursor = conn.cursor()
-        try:
-            if isinstance(self._rollback, (ustr, str)):
-                self._execute(cursor, self._rollback)
-            else:
-                self._rollback(conn)
-        finally:
-            cursor.close()
+        if isinstance(self._rollback, (ustr, str)):
+            cursor = backend.cursor()
+            try:
+                    self._execute(cursor, self._rollback)
+            finally:
+                cursor.close()
+        else:
+            self._rollback(backend.connection)
 
 
-def read_migrations(conn, paramstyle, directory, names=None,
-                    migration_table=default_migration_table):
+def read_migrations(directory, migration_table=default_migration_table):
     """
     Return a ``MigrationList`` containing all migrations from ``directory``.
-    If ``names`` is given, this only return migrations with names from the
-    given list (without file extensions).
     """
     migrations = []
     paths = [os.path.join(directory, path)
@@ -327,10 +254,6 @@ def read_migrations(conn, paramstyle, directory, names=None,
         else:
             migration_class = Migration
 
-        if migration_class is Migration and \
-                names is not None and filename not in names:
-            continue
-
         migration = migration_class(
             os.path.splitext(os.path.basename(path))[0], path)
         if migration_class is PostApplyHookMigration:
@@ -338,25 +261,18 @@ def read_migrations(conn, paramstyle, directory, names=None,
         else:
             migrations.append(migration)
 
-    return MigrationList(conn, paramstyle, migration_table, items=migrations)
+    return MigrationList(migrations)
 
 
 class MigrationList(MutableSequence):
     """
     A list of database migrations.
-
-    Use ``to_apply`` or ``to_rollback`` to retrieve subset lists of migrations
-    that can be applied/rolled back.
     """
 
-    def __init__(self, conn, paramstyle, migration_table, items=None,
-                 post_apply=None):
+    def __init__(self, items=None, post_apply=None):
         self.items = list(items) if items else []
-        self.conn = conn
-        self.paramstyle = paramstyle
-        self.migration_table = migration_table
         self.post_apply = post_apply if post_apply else []
-        initialize_connection(self.conn, migration_table)
+        # initialize_connection(self.conn, migration_table)
         self.keys = set(item.id for item in items)
         self.check_conflicts()
 
@@ -405,80 +321,16 @@ class MigrationList(MutableSequence):
         ob.extend(other)
         return ob
 
-    def to_apply(self):
-        """
-        Return a list of the subset of migrations not already applied.
-        """
-        return self.__class__(
-            self.conn,
-            self.paramstyle,
-            self.migration_table,
-            topological_sort(m for m in self
-                             if not m.isapplied(self.conn, self.paramstyle,
-                                                self.migration_table)),
-            self.post_apply
-        )
-
-    def to_rollback(self):
-        """
-        Return a list of the subset of migrations already applied, which may be
-        rolled back.
-
-        The order of migrations will be reversed.
-        """
-        return self.__class__(
-            self.conn,
-            self.paramstyle,
-            self.migration_table,
-            reversed(topological_sort(
-                m for m in self
-                if m.isapplied(self.conn,
-                               self.paramstyle,
-                               self.migration_table))),
-            self.post_apply
-        )
-
     def filter(self, predicate):
-        return self.__class__(
-            self.conn,
-            self.paramstyle,
-            self.migration_table,
-            [m for m in self if predicate(m)],
-            self.post_apply
-        )
+        return self.__class__([m for m in self if predicate(m)],
+                              self.post_apply)
 
     def replace(self, newmigrations):
-        return self.__class__(self.conn, self.paramstyle, self.migration_table,
-                              newmigrations, self.post_apply)
-
-    def apply(self, force=False):
-        if not self:
-            return
-        for m in self + self.post_apply:
-            try:
-                m.apply(
-                    self.conn, self.paramstyle, self.migration_table, force)
-            except exceptions.BadMigration:
-                continue
-
-    def rollback(self, force=False):
-        if not self:
-            return
-        for m in self + self.post_apply:
-            try:
-                m.rollback(
-                    self.conn, self.paramstyle, self.migration_table, force)
-            except exceptions.BadMigration:
-                continue
+        return self.__class__(newmigrations, self.post_apply)
 
     def __getslice__(self, i, j):
-        return self.__class__(
-            self.conn,
-            self.paramstyle,
-            self.migration_table,
-            super(MigrationList, self).__getslice__(i, j),
-            self.post_apply
-        )
+        return self.__class__(super(MigrationList, self).__getslice__(i, j),
+                              self.post_apply)
 
 
 def create_migrations_table(conn, tablename):
@@ -502,12 +354,6 @@ def create_migrations_table(conn, tablename):
         conn.rollback()
 
 
-def initialize_connection(conn, tablename):
-    """
-    Initialize the connection for use by creating the migrations table if
-    it does not already exist.
-    """
-    create_migrations_table(conn, tablename)
 
 
 class StepCollector(object):

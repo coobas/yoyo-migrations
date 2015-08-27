@@ -12,10 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from mock import call, Mock
+from mock import patch, call, Mock
 import pytest
 
 from yoyo.connections import parse_uri, BadConnectionURI
+
+
+class MockDatabaseError(Exception):
+    pass
 
 
 class TestParseURI:
@@ -43,25 +47,27 @@ class TestParseURI:
             assert parsed.uri == case
 
 
-def test_connections():
+@patch('yoyo.backends.import_module',
+       return_value=Mock(DatabaseError=MockDatabaseError))
+def test_connections(import_module):
 
-    from yoyo import connections
+    from yoyo import backends
     u = parse_uri('odbc://scott:tiger@db.example.org:42/northwind?foo=bar')
     cases = [
-        (connections.connect_odbc,
+        (backends.ODBCBackend, 'pyodbc',
          call('UID=scott;PWD=tiger;ServerName=db.example.org;'
               'Port=42;Database=northwind;foo=bar')),
-        (connections.connect_mysql, call(user='scott', passwd='tiger',
-                                         host='db.example.org', port=42,
-                                         db='northwind', foo='bar')),
-        (connections.connect_sqlite, call('northwind')),
-        (connections.connect_postgres,
+        (backends.MySQLBackend, 'MySQLdb',
+         call(user='scott', passwd='tiger', host='db.example.org', port=42,
+              db='northwind', foo='bar')),
+        (backends.SQLiteBackend, 'sqlite3', call('northwind')),
+        (backends.PostgresqlBackend, 'psycopg2',
          call('user=scott password=tiger port=42 '
               'host=db.example.org dbname=northwind')),
 
     ]
 
-    for cls, connect_args in cases:
-        driver = Mock()
-        cls(driver, *u[1:])
-        assert driver.connect.call_args == connect_args
+    for cls, driver_module, connect_args in cases:
+        cls(u, '_yoyo_migration')
+        assert import_module.call_args == call(driver_module)
+        assert import_module().connect.call_args == connect_args

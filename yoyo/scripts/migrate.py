@@ -24,7 +24,7 @@ import sys
 from getpass import getpass
 
 from yoyo.compat import SafeConfigParser, NoOptionError
-from yoyo.connections import connect, parse_uri
+from yoyo.connections import get_backend, parse_uri
 from yoyo.utils import prompt, plural
 from yoyo import read_migrations, default_migration_table
 from yoyo import logger
@@ -71,7 +71,7 @@ class prompted_migration(object):
         self.choice = default
 
 
-def prompt_migrations(conn, paramstyle, migrations, direction):
+def prompt_migrations(backend, migrations, direction):
     """
     Iterate through the list of migrations and prompt the user to
     apply/rollback each. Return a list of user selected migrations.
@@ -87,8 +87,7 @@ def prompt_migrations(conn, paramstyle, migrations, direction):
 
         choice = mig.choice
         if choice is None:
-            isapplied = mig.migration.isapplied(conn, paramstyle,
-                                                migrations.migration_table)
+            isapplied = backend.isapplied(mig.migration)
             if direction == 'apply':
                 choice = 'n' if isapplied else 'y'
             else:
@@ -205,13 +204,8 @@ def get_migrations(args):
         dburi = parsed._replace(password=password).uri
 
     sources = sources.split()
-
-    conn, paramstyle = connect(dburi)
-
-    migrations = [
-        read_migrations(conn, paramstyle, d, migration_table=migration_table)
-        for d in sources]
-
+    backend = get_backend(dburi, migration_table)
+    migrations = [read_migrations(directory) for directory in sources]
     migrations = functools.reduce(operator.add, migrations[1:], migrations[0])
 
     if args.match:
@@ -220,34 +214,35 @@ def get_migrations(args):
 
     if not args.all:
         if apply in args.funcs:
-            migrations = migrations.to_apply()
+            migrations = backend.to_apply(migrations)
 
         elif {rollback, reapply} & set(args.funcs):
-            migrations = migrations.to_rollback()
+            migrations = backend.to_rollback(migrations)
 
     if not args.batch_mode:
-        migrations = prompt_migrations(conn, paramstyle, migrations,
+        migrations = prompt_migrations(backend,
+                                       migrations,
                                        args.command_name)
 
     if not args.batch_mode and migrations:
         if prompt(args.command_name.title() +
                   plural(len(migrations), " %d migration", " %d migrations") +
                   " to %s?" % dburi, "Yn") != 'y':
-            return migrations.replace([])
-    return migrations
+            return backend, migrations.replace([])
+    return backend, migrations
 
 
-def apply(args, migrations):
-    migrations.apply(args.force)
+def apply(args, backend, migrations):
+    backend.apply_migrations(migrations, args.force)
 
 
-def reapply(args, migrations):
-    migrations.rollback(args.force)
-    migrations.apply(args.force)
+def reapply(args, backend, migrations):
+    backend.rollback_migrations(migrations, args.force)
+    backend.apply_migrations(migrations, args.force)
 
 
-def rollback(args, migrations):
-    migrations.rollback(args.force)
+def rollback(args, backend, migrations):
+    backend.rollback_migrations(migrations, args.force)
 
 
 def make_argparser():
@@ -384,13 +379,14 @@ def main(argv=None):
 
     command_args = (args,)
     for f in args.funcs:
+        print(f)
         try:
             result = f(*command_args)
         except InvalidArgument as e:
             argparser.error(e.args[0])
 
         if result is not None:
-            command_args += (result,)
+            command_args += result
 
     if config_is_empty and args.cache and not args.batch_mode:
         config.set('DEFAULT', 'sources', args.sources)

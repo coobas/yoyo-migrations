@@ -15,7 +15,7 @@
 import pytest
 from mock import Mock
 
-from yoyo.connections import connect
+from yoyo.connections import get_backend
 from yoyo import read_migrations
 from yoyo import exceptions
 
@@ -33,16 +33,16 @@ transaction(
     """
 )
 def test_transaction_is_not_committed_on_error(tmpdir):
-    conn, paramstyle = connect(dburi)
-    migrations = read_migrations(conn, paramstyle, tmpdir)
+    backend = get_backend(dburi)
+    migrations = read_migrations(tmpdir)
     try:
-        migrations.apply()
+        backend.apply_migrations(migrations)
     except tuple(exceptions.DatabaseErrors):
         # Expected
         pass
     else:
         raise AssertionError("Expected a DatabaseError")
-    cursor = conn.cursor()
+    cursor = backend.cursor()
     cursor.execute("SELECT count(1) FROM test")
     assert cursor.fetchone() == (0,)
 
@@ -55,13 +55,13 @@ step("UPDATE test SET id=2 WHERE id=1", "UPDATE test SET id=1 WHERE id=2")
     '''
 )
 def test_rollbacks_happen_in_reverse(tmpdir):
-    conn, paramstyle = connect(dburi)
-    migrations = read_migrations(conn, paramstyle, tmpdir)
-    migrations.apply()
-    cursor = conn.cursor()
+    backend = get_backend(dburi)
+    migrations = read_migrations(tmpdir)
+    backend.apply_migrations(migrations)
+    cursor = backend.cursor()
     cursor.execute("SELECT * FROM test")
     assert cursor.fetchall() == [(2,)]
-    migrations.rollback()
+    backend.rollback_migrations(migrations)
     cursor.execute("SELECT * FROM test")
     assert cursor.fetchall() == []
 
@@ -75,10 +75,10 @@ def test_rollbacks_happen_in_reverse(tmpdir):
     '''
 )
 def test_execution_continues_with_ignore_errors(tmpdir):
-    conn, paramstyle = connect(dburi)
-    migrations = read_migrations(conn, paramstyle, tmpdir)
-    migrations.apply()
-    cursor = conn.cursor()
+    backend = get_backend(dburi)
+    migrations = read_migrations(tmpdir)
+    backend.apply_migrations(migrations)
+    cursor = backend.cursor()
     cursor.execute("SELECT * FROM test")
     assert cursor.fetchall() == [(1,), (2,)]
 
@@ -95,10 +95,10 @@ def test_execution_continues_with_ignore_errors(tmpdir):
     '''
 )
 def test_execution_continues_with_ignore_errors_in_transaction(tmpdir):
-    conn, paramstyle = connect(dburi)
-    migrations = read_migrations(conn, paramstyle, tmpdir)
-    migrations.apply()
-    cursor = conn.cursor()
+    backend = get_backend(dburi)
+    migrations = read_migrations(tmpdir)
+    backend.apply_migrations(migrations)
+    cursor = backend.cursor()
     cursor.execute("SELECT * FROM test")
     assert cursor.fetchall() == [(2,)]
 
@@ -112,14 +112,14 @@ def test_execution_continues_with_ignore_errors_in_transaction(tmpdir):
     '''
 )
 def test_rollbackignores_errors(tmpdir):
-    conn, paramstyle = connect(dburi)
-    migrations = read_migrations(conn, paramstyle, tmpdir)
-    migrations.apply()
-    cursor = conn.cursor()
+    backend = get_backend(dburi)
+    migrations = read_migrations(tmpdir)
+    backend.apply_migrations(migrations)
+    cursor = backend.cursor()
     cursor.execute("SELECT * FROM test")
     assert cursor.fetchall() == [(2,)]
 
-    migrations.rollback()
+    backend.rollback_migrations(migrations)
     cursor.execute("SELECT * FROM test")
     assert cursor.fetchall() == []
 
@@ -131,11 +131,10 @@ def test_rollbackignores_errors(tmpdir):
     '''
 )
 def test_specify_migration_table(tmpdir):
-    conn, paramstyle = connect(dburi)
-    migrations = read_migrations(conn, paramstyle, tmpdir,
-                                 migration_table='another_migration_table')
-    migrations.apply()
-    cursor = conn.cursor()
+    backend = get_backend(dburi, migration_table='another_migration_table')
+    migrations = read_migrations(tmpdir)
+    backend.apply_migrations(migrations)
+    cursor = backend.cursor()
     cursor.execute("SELECT id FROM another_migration_table")
     assert cursor.fetchall() == [('0',)]
 
@@ -155,11 +154,11 @@ def test_migration_functions_have_namespace_access(tmpdir):
     """
     Test that functions called via step have access to the script namespace
     """
-    conn, paramstyle = connect(dburi)
-    migrations = read_migrations(conn, paramstyle, tmpdir,
+    backend = get_backend(dburi)
+    migrations = read_migrations(tmpdir,
                                  migration_table='another_migration_table')
-    migrations.apply()
-    cursor = conn.cursor()
+    backend.apply_migrations(migrations)
+    cursor = backend.cursor()
     cursor.execute("SELECT id FROM foo_test")
     assert cursor.fetchall() == [(1,)]
 
@@ -172,11 +171,11 @@ def test_migration_functions_have_namespace_access(tmpdir):
     '''
 )
 def test_migrations_can_import_step_and_transaction(tmpdir):
-    conn, paramstyle = connect(dburi)
-    migrations = read_migrations(conn, paramstyle, tmpdir,
+    backend = get_backend(dburi)
+    migrations = read_migrations(tmpdir,
                                  migration_table='another_migration_table')
-    migrations.apply()
-    cursor = conn.cursor()
+    backend.apply_migrations(migrations)
+    cursor = backend.cursor()
     cursor.execute("SELECT id FROM test")
     assert cursor.fetchall() == [(1,)]
 
@@ -218,27 +217,27 @@ class TestMigrationList(object):
 
     def test_cannot_create_with_duplicate_ids(self):
         with pytest.raises(exceptions.MigrationConflict):
-            MigrationList(Mock(), None, None, [Mock(id=1), Mock(id=1)])
+            MigrationList([Mock(id=1), Mock(id=1)])
 
     def test_can_append_new_id(self):
-        m = MigrationList(Mock(), None, None, [Mock(id=n) for n in range(10)])
+        m = MigrationList([Mock(id=n) for n in range(10)])
         m.append(Mock(id=10))
 
     def test_cannot_append_duplicate_id(self):
-        m = MigrationList(Mock(), None, None, [Mock(id=n) for n in range(10)])
+        m = MigrationList([Mock(id=n) for n in range(10)])
         with pytest.raises(exceptions.MigrationConflict):
             m.append(Mock(id=1))
 
     def test_deletion_allows_reinsertion(self):
-        m = MigrationList(Mock(), None, None, [Mock(id=n) for n in range(10)])
+        m = MigrationList([Mock(id=n) for n in range(10)])
         del m[0]
         m.append(Mock(id=0))
 
     def test_can_overwrite_slice_with_same_ids(self):
-        m = MigrationList(Mock(), None, None, [Mock(id=n) for n in range(10)])
+        m = MigrationList([Mock(id=n) for n in range(10)])
         m[1:3] = [Mock(id=2), Mock(id=1)]
 
     def test_cannot_overwrite_slice_with_conflicting_ids(self):
-        m = MigrationList(Mock(), None, None, [Mock(id=n) for n in range(10)])
+        m = MigrationList([Mock(id=n) for n in range(10)])
         with pytest.raises(exceptions.MigrationConflict):
             m[1:3] = [Mock(id=4)]

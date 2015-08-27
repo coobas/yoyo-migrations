@@ -69,44 +69,41 @@ class TestYoyoScript(TestInteractiveScript):
         dburi = 'sqlite://user@/:memory'
         with patch('yoyo.scripts.migrate.getpass',
                    return_value='fish') as getpass, \
-                patch('yoyo.scripts.migrate.connect',
-                      return_value=(Mock(), Mock())) as connect:
+                patch('yoyo.scripts.migrate.get_backend') as get_backend:
             main(['apply', tmpdir, dburi, '--prompt-password'])
             assert getpass.call_count == 1
-            assert connect.call_args == call('sqlite://user:fish@/:memory')
+            assert get_backend.call_args == call('sqlite://user:fish@/:memory',
+                                                 '_yoyo_migration')
 
     @with_migrations()
     def test_it_prompts_migrations(self, tmpdir):
-        with patch('yoyo.scripts.migrate.read_migrations') as read_migrations:
-            with patch('yoyo.scripts.migrate.prompt_migrations') \
-                    as prompt_migrations:
-                main(['apply', tmpdir, dburi])
-                migrations = read_migrations().to_apply()
-                assert migrations in prompt_migrations.call_args[0]
+        with patch('yoyo.scripts.migrate.prompt_migrations') \
+                as prompt_migrations, \
+                patch('yoyo.scripts.migrate.get_backend') as get_backend:
+            main(['apply', tmpdir, dburi])
+            migrations = get_backend().to_apply()
+            assert migrations in prompt_migrations.call_args[0]
 
     @with_migrations()
     def test_it_applies_migrations(self, tmpdir):
-        with patch('yoyo.scripts.migrate.read_migrations') as read_migrations:
+        with patch('yoyo.scripts.migrate.get_backend') as get_backend:
             main(['-b', 'apply', tmpdir, dburi])
-            migrations = read_migrations().to_apply()
-            assert migrations.rollback.call_count == 0
-            assert migrations.apply.call_count == 1
+            assert get_backend().rollback_migrations.call_count == 0
+            assert get_backend().apply_migrations.call_count == 1
 
     @with_migrations()
     def test_it_rollsback_migrations(self, tmpdir):
-        with patch('yoyo.scripts.migrate.read_migrations') as read_migrations:
+        with patch('yoyo.scripts.migrate.get_backend') as get_backend:
             main(['-b', 'rollback', tmpdir, dburi])
-            migrations = read_migrations().to_rollback()
-            assert migrations.rollback.call_count == 1
-            assert migrations.apply.call_count == 0
+            assert get_backend().rollback_migrations.call_count == 1
+            assert get_backend().apply_migrations.call_count == 0
 
     @with_migrations()
     def test_it_reapplies_migrations(self, tmpdir):
-        with patch('yoyo.scripts.migrate.read_migrations') as read_migrations:
+        with patch('yoyo.scripts.migrate.get_backend') as get_backend:
             main(['-b', 'reapply', tmpdir, dburi])
-            migrations = read_migrations().to_rollback()
-            assert migrations.rollback.call_count == 1
-            assert migrations.apply.call_count == 1
+            assert get_backend().rollback_migrations.call_count == 1
+            assert get_backend().apply_migrations.call_count == 1
 
     @with_migrations(m1='step("CREATE TABLE test1 (id INT)")')
     @with_migrations(m2='step("CREATE TABLE test2 (id INT)")')
@@ -114,7 +111,7 @@ class TestYoyoScript(TestInteractiveScript):
             with patch('yoyo.scripts.migrate.apply') as apply:
                 main(['-b', 'apply', "{} {}".format(t1, t2), dburi])
                 call_posargs, call_kwargs = apply.call_args
-                _, migrations = call_posargs
+                _, _, migrations = call_posargs
                 assert [m.path for m in migrations] == \
                         [os.path.join(t1, 'm1.py'), os.path.join(t2, 'm2.py')]
 
