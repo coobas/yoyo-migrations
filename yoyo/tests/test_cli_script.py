@@ -144,7 +144,7 @@ class TestYoyoScript(TestInteractiveScript):
             with patch('yoyo.scripts.migrate.apply') as apply:
                 main(['-b', 'apply', "{} {}".format(t1, t2), dburi])
                 call_posargs, call_kwargs = apply.call_args
-                _, _, migrations = call_posargs
+                _, _, _, migrations = call_posargs
                 assert [m.path for m in migrations] == \
                         [os.path.join(t1, 'm1.py'), os.path.join(t2, 'm2.py')]
 

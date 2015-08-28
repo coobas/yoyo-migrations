@@ -84,16 +84,16 @@ def install_argparsers(global_parser, subparsers):
                                 command_name='reapply')
 
 
-def apply(args, backend, migrations):
+def apply(args, config, backend, migrations):
     backend.apply_migrations(migrations, args.force)
 
 
-def reapply(args, backend, migrations):
+def reapply(args, config, backend, migrations):
     backend.rollback_migrations(migrations, args.force)
     backend.apply_migrations(migrations, args.force)
 
 
-def rollback(args, backend, migrations):
+def rollback(args, config, backend, migrations):
     backend.rollback_migrations(migrations, args.force)
 
 
@@ -185,7 +185,7 @@ def prompt_migrations(backend, migrations, direction):
                               if m.choice == 'y')
 
 
-def get_migrations(args):
+def get_migrations(args, config):
 
     sources = args.sources
     dburi = args.database

@@ -228,7 +228,7 @@ def main(argv=None):
     verbosity = min(max_verbosity, max(min_verbosity, verbosity))
     configure_logging(verbosity)
 
-    command_args = (args,)
+    command_args = (args, config)
     for f in args.funcs:
         try:
             result = f(*command_args)
