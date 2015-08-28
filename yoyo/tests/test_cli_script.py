@@ -100,9 +100,9 @@ class TestYoyoScript(TestInteractiveScript):
     @with_migrations()
     def test_it_prompts_password(self, tmpdir):
         dburi = 'sqlite://user@/:memory'
-        with patch('yoyo.scripts.migrate.getpass',
+        with patch('yoyo.scripts.main.getpass',
                    return_value='fish') as getpass, \
-                patch('yoyo.scripts.migrate.get_backend') as get_backend:
+                patch('yoyo.connections.get_backend') as get_backend:
             main(['apply', tmpdir, dburi, '--prompt-password'])
             assert getpass.call_count == 1
             assert get_backend.call_args == call('sqlite://user:fish@/:memory',
@@ -141,10 +141,11 @@ class TestYoyoScript(TestInteractiveScript):
     @with_migrations(m1='step("CREATE TABLE test1 (id INT)")')
     @with_migrations(m2='step("CREATE TABLE test2 (id INT)")')
     def test_it_applies_from_multiple_sources(self, t1, t2):
-            with patch('yoyo.scripts.migrate.apply') as apply:
+            with patch('yoyo.backends.DatabaseBackend.apply_migrations') \
+                    as apply:
                 main(['-b', 'apply', "{} {}".format(t1, t2), dburi])
                 call_posargs, call_kwargs = apply.call_args
-                _, _, _, migrations = call_posargs
+                migrations, _ = call_posargs
                 assert [m.path for m in migrations] == \
                         [os.path.join(t1, 'm1.py'), os.path.join(t2, 'm2.py')]
 

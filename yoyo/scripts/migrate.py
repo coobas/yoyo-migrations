@@ -12,15 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from getpass import getpass
 import functools
 import operator
 import argparse
 import re
 
 from yoyo import read_migrations, default_migration_table
-from yoyo.scripts.main import InvalidArgument
-from yoyo.connections import get_backend, parse_uri
+from yoyo.scripts.main import InvalidArgument, get_backend
 from yoyo import utils
 
 
@@ -65,35 +63,75 @@ def install_argparsers(global_parser, subparsers):
         'apply',
         help="Apply migrations",
         parents=[global_parser, migration_parser])
-
-    parser_apply.set_defaults(funcs=[get_migrations, apply],
-                              command_name='apply')
+    parser_apply.set_defaults(func=apply, command_name='apply')
 
     parser_rollback = subparsers.add_parser(
         'rollback',
         parents=[global_parser, migration_parser],
         help="Rollback migrations")
-    parser_rollback.set_defaults(funcs=[get_migrations, rollback],
-                                 command_name='rollback')
+    parser_rollback.set_defaults(func=rollback, command_name='rollback')
 
     parser_reapply = subparsers.add_parser(
         'reapply',
         parents=[global_parser, migration_parser],
         help="Reapply migrations")
-    parser_reapply.set_defaults(funcs=[get_migrations, reapply],
-                                command_name='reapply')
+    parser_reapply.set_defaults(func=reapply, command_name='reapply')
 
 
-def apply(args, config, backend, migrations):
+def get_migrations(args, backend):
+
+    sources = args.sources
+    dburi = args.database
+
+    if sources is None:
+        raise InvalidArgument("Please specify the migration source directory")
+
+    sources = sources.split()
+    migrations = [read_migrations(directory) for directory in sources]
+    migrations = functools.reduce(operator.add, migrations[1:], migrations[0])
+
+    if args.match:
+        migrations = migrations.filter(
+            lambda m: re.search(args.match, m.id) is not None)
+
+    if not args.all:
+        if args.func is apply:
+            migrations = backend.to_apply(migrations)
+
+        elif args.func in {rollback, reapply}:
+            migrations = backend.to_rollback(migrations)
+
+    if not args.batch_mode:
+        migrations = prompt_migrations(backend,
+                                       migrations,
+                                       args.command_name)
+
+    if not args.batch_mode and migrations:
+        prompt = '{} {} to {}'.format(
+            args.command_name.title(),
+            utils.plural(len(migrations), " %d migration", " %d migrations"),
+            dburi)
+        if not utils.confirm(prompt, default='y'):
+            return migrations.replace([])
+    return migrations
+
+
+def apply(args, config):
+    backend = get_backend(args)
+    migrations = get_migrations(args, backend)
     backend.apply_migrations(migrations, args.force)
 
 
-def reapply(args, config, backend, migrations):
+def reapply(args, config):
+    backend = get_backend(args)
+    migrations = get_migrations(args, backend)
     backend.rollback_migrations(migrations, args.force)
     backend.apply_migrations(migrations, args.force)
 
 
-def rollback(args, config, backend, migrations):
+def rollback(args, config):
+    backend = get_backend(args)
+    migrations = get_migrations(args, backend)
     backend.rollback_migrations(migrations, args.force)
 
 
@@ -183,49 +221,3 @@ def prompt_migrations(backend, migrations, direction):
     return migrations.replace(m.migration
                               for m in migrations
                               if m.choice == 'y')
-
-
-def get_migrations(args, config):
-
-    sources = args.sources
-    dburi = args.database
-    migration_table = args.migration_table
-
-    if sources is None or dburi is None:
-        raise InvalidArgument("Please specify command, migrations directory "
-                              "and database connection arguments")
-
-    if args.prompt_password:
-        password = getpass('Password for %s: ' % dburi)
-        parsed = parse_uri(dburi)
-        dburi = parsed._replace(password=password).uri
-
-    sources = sources.split()
-    backend = get_backend(dburi, migration_table)
-    migrations = [read_migrations(directory) for directory in sources]
-    migrations = functools.reduce(operator.add, migrations[1:], migrations[0])
-
-    if args.match:
-        migrations = migrations.filter(
-            lambda m: re.search(args.match, m.id) is not None)
-
-    if not args.all:
-        if apply in args.funcs:
-            migrations = backend.to_apply(migrations)
-
-        elif {rollback, reapply} & set(args.funcs):
-            migrations = backend.to_rollback(migrations)
-
-    if not args.batch_mode:
-        migrations = prompt_migrations(backend,
-                                       migrations,
-                                       args.command_name)
-
-    if not args.batch_mode and migrations:
-        prompt = '{} {} to {}'.format(
-            args.command_name.title(),
-            utils.plural(len(migrations), " %d migration", " %d migrations"),
-            dburi)
-        if not utils.confirm(prompt, default='y'):
-            return backend, migrations.replace([])
-    return backend, migrations

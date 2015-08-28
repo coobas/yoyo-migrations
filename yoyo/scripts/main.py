@@ -13,9 +13,9 @@
 # limitations under the License.
 
 from __future__ import print_function
-from copy import copy
-import logging
+from getpass import getpass
 import argparse
+import logging
 import os
 import sys
 
@@ -25,6 +25,7 @@ from yoyo.config import (CONFIG_FILENAME,
                          read_config,
                          save_config,
                          update_argparser_defaults)
+from yoyo import connections
 from yoyo import utils
 from yoyo import default_migration_table
 from yoyo import logger
@@ -214,6 +215,21 @@ def upgrade_legacy_config(args, config, sources):
             pass
 
 
+def get_backend(args):
+    dburi = args.database
+    migration_table = args.migration_table
+
+    if dburi is None:
+        raise InvalidArgument("Please specify a database uri")
+
+    if args.prompt_password:
+        password = getpass('Password for %s: ' % dburi)
+        parsed = connections.parse_uri(dburi)
+        dburi = parsed._replace(password=password).uri
+
+    return connections.get_backend(dburi, migration_table)
+
+
 def main(argv=None):
     config, argparser, args = parse_args(argv)
     config_is_empty = (config.sections() == [] and
@@ -228,15 +244,10 @@ def main(argv=None):
     verbosity = min(max_verbosity, max(min_verbosity, verbosity))
     configure_logging(verbosity)
 
-    command_args = (args, config)
-    for f in args.funcs:
-        try:
-            result = f(*command_args)
-        except InvalidArgument as e:
-            argparser.error(e.args[0])
-
-        if result is not None:
-            command_args += result
+    try:
+        args.func(args, config)
+    except InvalidArgument as e:
+        argparser.error(e.args[0])
 
     if config_is_empty and args.use_config_file and not args.batch_mode:
         config.set('DEFAULT', 'sources', args.sources)
