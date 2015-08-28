@@ -28,10 +28,10 @@ def update_argparser_defaults(parser, defaults):
     Unlike ArgumentParser.set_defaults this will only set defaults for
     arguments the parser has configured.
     """
-    ns, _ = parser.parse_known_args([])
+    known_args = {action.dest for action in parser._actions}
     parser.set_defaults(**{k: v
                             for k, v in defaults.items()
-                            if k in ns.__dict__})
+                            if k in known_args})
 
 
 def read_config(path):
