@@ -230,7 +230,6 @@ def main(argv=None):
 
     command_args = (args,)
     for f in args.funcs:
-        print(f)
         try:
             result = f(*command_args)
         except InvalidArgument as e:
