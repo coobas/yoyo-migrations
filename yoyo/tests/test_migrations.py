@@ -155,8 +155,7 @@ def test_migration_functions_have_namespace_access(tmpdir):
     Test that functions called via step have access to the script namespace
     """
     backend = get_backend(dburi)
-    migrations = read_migrations(tmpdir,
-                                 migration_table='another_migration_table')
+    migrations = read_migrations(tmpdir)
     backend.apply_migrations(migrations)
     cursor = backend.cursor()
     cursor.execute("SELECT id FROM foo_test")
@@ -172,8 +171,7 @@ def test_migration_functions_have_namespace_access(tmpdir):
 )
 def test_migrations_can_import_step_and_transaction(tmpdir):
     backend = get_backend(dburi)
-    migrations = read_migrations(tmpdir,
-                                 migration_table='another_migration_table')
+    migrations = read_migrations(tmpdir)
     backend.apply_migrations(migrations)
     cursor = backend.cursor()
     cursor.execute("SELECT id FROM test")

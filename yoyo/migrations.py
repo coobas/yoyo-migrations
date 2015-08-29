@@ -237,7 +237,7 @@ class MigrationStep(StepBase):
             self._rollback(backend.connection)
 
 
-def read_migrations(directory, migration_table=default_migration_table):
+def read_migrations(*directories):
     """
     Return a ``MigrationList`` containing all migrations from ``directory``.
     """
