@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import functools
-import operator
 import argparse
 import re
 
@@ -87,8 +85,7 @@ def get_migrations(args, backend):
         raise InvalidArgument("Please specify the migration source directory")
 
     sources = sources.split()
-    migrations = [read_migrations(directory) for directory in sources]
-    migrations = functools.reduce(operator.add, migrations[1:], migrations[0])
+    migrations = read_migrations(*sources)
 
     if args.match:
         migrations = migrations.filter(

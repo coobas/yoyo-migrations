@@ -242,24 +242,25 @@ def read_migrations(*directories):
     Return a ``MigrationList`` containing all migrations from ``directory``.
     """
     migrations = []
-    paths = [os.path.join(directory, path)
-             for path in os.listdir(directory) if path.endswith('.py')]
+    for directory in directories:
+        paths = [os.path.join(directory, path)
+                for path in os.listdir(directory) if path.endswith('.py')]
 
-    for path in sorted(paths):
+        for path in sorted(paths):
 
-        filename = os.path.splitext(os.path.basename(path))[0]
+            filename = os.path.splitext(os.path.basename(path))[0]
 
-        if filename.startswith('post-apply'):
-            migration_class = PostApplyHookMigration
-        else:
-            migration_class = Migration
+            if filename.startswith('post-apply'):
+                migration_class = PostApplyHookMigration
+            else:
+                migration_class = Migration
 
-        migration = migration_class(
-            os.path.splitext(os.path.basename(path))[0], path)
-        if migration_class is PostApplyHookMigration:
-            migrations.post_apply.append(migration)
-        else:
-            migrations.append(migration)
+            migration = migration_class(
+                os.path.splitext(os.path.basename(path))[0], path)
+            if migration_class is PostApplyHookMigration:
+                migrations.post_apply.append(migration)
+            else:
+                migrations.append(migration)
 
     return MigrationList(migrations)
 
@@ -272,7 +273,6 @@ class MigrationList(MutableSequence):
     def __init__(self, items=None, post_apply=None):
         self.items = list(items) if items else []
         self.post_apply = post_apply if post_apply else []
-        # initialize_connection(self.conn, migration_table)
         self.keys = set(item.id for item in items)
         self.check_conflicts()
 
