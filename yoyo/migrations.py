@@ -41,6 +41,11 @@ class Migration(object):
         self._depends = None
         self.__all_migrations[id] = self
 
+    def __repr__(self):
+        return '<{} {!r} from {}>'.format(self.__class__.__name__,
+                                        self.id,
+                                        self.path)
+
     @property
     def loaded(self):
         return self.steps is not None
@@ -275,6 +280,9 @@ class MigrationList(MutableSequence):
         self.post_apply = post_apply if post_apply else []
         self.keys = set(item.id for item in items)
         self.check_conflicts()
+
+    def __repr__(self):
+        return '{}({})'.format(self.__class__.__name__, repr(self.items))
 
     def check_conflicts(self):
         c = Counter()
