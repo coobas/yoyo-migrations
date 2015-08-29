@@ -284,6 +284,8 @@ class MigrationList(MutableSequence):
                 raise exceptions.MigrationConflict(item.id)
 
     def __getitem__(self, n):
+        if isinstance(n, slice):
+            return self.__class__(self.items.__getitem__(n))
         return self.items.__getitem__(n)
 
     def __setitem__(self, n, ob):
