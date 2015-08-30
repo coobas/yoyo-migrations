@@ -46,6 +46,12 @@ class TestParseURI:
             parsed = parse_uri(case)
             assert parsed.uri == case
 
+    def test_it_returns_relative_paths_for_sqlite(self):
+        assert parse_uri('sqlite:///foo/bar.db').database == 'foo/bar.db'
+
+    def test_it_returns_absolute_paths_for_sqlite(self):
+        assert parse_uri('sqlite:////foo/bar.db').database == '/foo/bar.db'
+
 
 @patch('yoyo.backends.import_module',
        return_value=Mock(DatabaseError=MockDatabaseError))

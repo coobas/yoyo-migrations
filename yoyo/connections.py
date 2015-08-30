@@ -110,5 +110,5 @@ def parse_uri(s):
                                  else None),
                        hostname=result.hostname,
                        port=result.port,
-                       database=result.path.lstrip('/'),
+                       database=result.path[1:] if result.path else None,
                        args=dict(parse_qsl(result.query)))
