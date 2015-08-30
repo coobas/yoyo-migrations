@@ -193,19 +193,19 @@ def prompt_migrations(backend, migrations, direction):
             self.migration = migration
             self.choice = default
 
-    migrations = migrations.replace(prompted_migration(m) for m in migrations)
+    to_prompt = [prompted_migration(m) for m in migrations]
 
     position = 0
-    while position < len(migrations):
-        mig = migrations[position]
+    while position < len(to_prompt):
+        mig = to_prompt[position]
 
         choice = mig.choice
         if choice is None:
-            isapplied = backend.isapplied(mig.migration)
+            is_applied = backend.is_applied(mig.migration)
             if direction == 'apply':
-                choice = 'n' if isapplied else 'y'
+                choice = 'n' if is_applied else 'y'
             else:
-                choice = 'y' if isapplied else 'n'
+                choice = 'y' if is_applied else 'n'
         options = ''.join(o.upper() if o == choice else o.lower()
                           for o in 'ynvdaqjk?')
 
@@ -242,7 +242,7 @@ def prompt_migrations(backend, migrations, direction):
             continue
 
         if response == 'j':
-            position = min(len(migrations), position + 1)
+            position = min(len(to_prompt), position + 1)
             continue
 
         if response == 'k':
@@ -252,15 +252,15 @@ def prompt_migrations(backend, migrations, direction):
             break
 
         if response == 'a':
-            for mig in migrations[position:]:
+            for mig in to_prompt[position:]:
                 mig.choice = 'y'
             break
 
         if response == 'q':
-            for mig in migrations:
+            for mig in to_prompt:
                 mig.choice = 'n'
             break
 
     return migrations.replace(m.migration
-                              for m in migrations
+                              for m in to_prompt
                               if m.choice == 'y')
