@@ -264,7 +264,6 @@ class TestAncestorsDescendants(object):
         assert ancestors(self.m4, self.migrations) == {self.m5}
         assert ancestors(self.m5, self.migrations) == set()
 
-
     def test_descendants(self):
 
         assert descendants(self.m1, self.migrations) == set()

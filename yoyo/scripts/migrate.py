@@ -15,7 +15,6 @@
 import argparse
 import re
 
-from yoyo.migrations import MigrationList
 from yoyo import (read_migrations,
                   default_migration_table,
                   ancestors,

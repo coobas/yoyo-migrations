@@ -43,7 +43,6 @@ max_verbosity = max(verbosity_levels)
 LEGACY_CONFIG_FILENAME = '.yoyo-migrate'
 
 
-
 class InvalidArgument(Exception):
     pass
 

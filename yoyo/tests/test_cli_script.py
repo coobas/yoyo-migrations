@@ -23,7 +23,7 @@ import sys
 
 from mock import patch, call
 
-from yoyo import read_migrations, get_backend
+from yoyo import read_migrations
 from yoyo.compat import SafeConfigParser
 from yoyo.tests import with_migrations, dburi
 from yoyo.scripts.main import main, parse_args, LEGACY_CONFIG_FILENAME
@@ -220,6 +220,7 @@ class TestMarkCommand(TestInteractiveScript):
                      m2='step("CREATE TABLE test2 (id INT)")',
                      m3='step("CREATE TABLE test3 (id INT)")')
     def test_it_prompts_only_unapplied(self, tmpdir):
+        from yoyo.connections import get_backend
         migrations = read_migrations(tmpdir)
         backend = get_backend(self.dburi)
         backend.apply_migrations(migrations[:1])
@@ -236,7 +237,7 @@ class TestMarkCommand(TestInteractiveScript):
                      m2='__depends__=["m1"]; step("INSERT INTO t VALUES (2)")',
                      m3='step("INSERT INTO t VALUES (2)")')
     def test_it_marks_at_selected_version(self, tmpdir):
-
+        from yoyo.connections import get_backend
         self.confirm.return_value = True
         migrations = read_migrations(tmpdir)
         backend = get_backend(self.dburi)

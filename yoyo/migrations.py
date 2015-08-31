@@ -441,6 +441,8 @@ def descendants(migration, population):
             break
     descendants.remove(migration)
     return descendants
+
+
 def topological_sort(migration_list):
 
     # The sorted list, initially empty
