@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from collections import defaultdict, OrderedDict, Counter, MutableSequence
+from collections import (defaultdict, OrderedDict, Counter, MutableSequence,
+                         Iterable)
 from copy import copy
 from itertools import chain, count
 from logging import getLogger
@@ -367,6 +368,8 @@ class StepCollector(object):
         Wrap the given list of steps in a single transaction, removing the
         default transactions around individual steps.
         """
+        steps = chain(*(s if isinstance(s, Iterable) else [s] for s in steps))
+
         ignore_errors = kwargs.pop('ignore_errors', None)
         assert kwargs == {}
 

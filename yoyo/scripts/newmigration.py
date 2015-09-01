@@ -48,9 +48,9 @@ migration_template = dedent('''\
 
     __depends__ = {{{depends}}}
 
-    transaction(
+    steps = transaction([
         step("")
-    )
+    ])
     ''')
 
 
