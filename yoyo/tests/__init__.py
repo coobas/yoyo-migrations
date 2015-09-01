@@ -14,9 +14,9 @@
 
 from itertools import chain
 from tempfile import mkdtemp
+from textwrap import dedent
 from shutil import rmtree
 import os.path
-import re
 
 dburi = "sqlite:///:memory:"
 
@@ -28,17 +28,11 @@ def with_migrations(*migrations, **kwmigrations):
     decorated function with the directory name as the first argument, and
     cleans up the temporary directory on exit.
     """
-
-    def unindent(s):
-        initial_indent = re.search(r'^([ \t]*)\S', s, re.M).group(1)
-        return re.sub(r'(^|[\r\n]){0}'.format(re.escape(initial_indent)),
-                      r'\1', s)
-
     def add_migrations_dir(func):
         tmpdir = mkdtemp()
         for id, code in chain(enumerate(migrations), kwmigrations.items()):
             with open(os.path.join(tmpdir, '{!s}.py'.format(id)), 'w') as f:
-                f.write(unindent(code).strip())
+                f.write(dedent(code).strip())
 
         def decorated(*args, **kwargs):
             args = args + (tmpdir,)
