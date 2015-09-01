@@ -20,6 +20,7 @@ from yoyo import (read_migrations,
                   ancestors,
                   descendants,
                   )
+from yoyo.migrations import MigrationList
 from yoyo.scripts.main import InvalidArgument, get_backend
 from yoyo import utils
 
@@ -153,26 +154,26 @@ def get_migrations(args, backend):
 
 
 def apply(args, config):
-    backend = get_backend(args)
+    backend = get_backend(args, config)
     migrations = get_migrations(args, backend)
     backend.apply_migrations(migrations, args.force)
 
 
 def reapply(args, config):
-    backend = get_backend(args)
+    backend = get_backend(args, config)
     migrations = get_migrations(args, backend)
     backend.rollback_migrations(migrations, args.force)
     backend.apply_migrations(migrations, args.force)
 
 
 def rollback(args, config):
-    backend = get_backend(args)
+    backend = get_backend(args, config)
     migrations = get_migrations(args, backend)
     backend.rollback_migrations(migrations, args.force)
 
 
 def mark(args, config):
-    backend = get_backend(args)
+    backend = get_backend(args, config)
     migrations = get_migrations(args, backend)
     backend.mark_migrations(migrations)
 

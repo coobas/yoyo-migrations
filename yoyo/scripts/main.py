@@ -128,8 +128,9 @@ def make_argparser():
 
     subparsers = argparser.add_subparsers(help='Commands help')
 
-    from . import migrate
+    from . import migrate, newmigration
     migrate.install_argparsers(global_parser, subparsers)
+    newmigration.install_argparsers(global_parser, subparsers)
 
     return global_parser, argparser, subparsers
 
@@ -214,17 +215,27 @@ def upgrade_legacy_config(args, config, sources):
             pass
 
 
-def get_backend(args):
-    dburi = args.database
-    migration_table = args.migration_table
+def get_backend(args, config):
+    try:
+        dburi = args.database
+    except AttributeError:
+        dburi = config.get('DEFAULT', 'database')
+
+    try:
+        migration_table = args.migration_table
+    except AttributeError:
+        migration_table = config.get('DEFAULT', 'migration_table')
 
     if dburi is None:
         raise InvalidArgument("Please specify a database uri")
 
-    if args.prompt_password:
-        password = getpass('Password for %s: ' % dburi)
-        parsed = connections.parse_uri(dburi)
-        dburi = parsed._replace(password=password).uri
+    try:
+        if args.prompt_password:
+            password = getpass('Password for %s: ' % dburi)
+            parsed = connections.parse_uri(dburi)
+            dburi = parsed._replace(password=password).uri
+    except AttributeError:
+        pass
 
     return connections.get_backend(dburi, migration_table)
 

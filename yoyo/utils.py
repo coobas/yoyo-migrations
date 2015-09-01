@@ -13,7 +13,11 @@
 # limitations under the License.
 
 from __future__ import print_function
+import os
 import sys
+
+from yoyo.compat import NoOptionError
+from yoyo.config import CONFIG_EDITOR_KEY
 
 try:
     import termios
@@ -84,3 +88,18 @@ def plural(quantity, one, plural):
     if quantity == 1:
         return one.replace('%d', '%d' % quantity)
     return plural.replace('%d', '%d' % quantity)
+
+
+def get_editor(config):
+    """
+    Return the user's preferred visual editor
+    """
+    try:
+        return config.get('DEFAULT', CONFIG_EDITOR_KEY)
+    except NoOptionError:
+        pass
+    for key in ['VISUAL', 'EDITOR']:
+        editor = os.environ.get(key, None)
+        if editor:
+            return editor
+    return 'vi'

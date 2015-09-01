@@ -19,7 +19,7 @@ import re
 from setuptools import setup, find_packages
 
 VERSIONFILE = "yoyo/__init__.py"
-install_requires = []
+install_requires = ['python-slugify']
 
 
 def get_version():

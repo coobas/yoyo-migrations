@@ -338,10 +338,6 @@ class MigrationList(MutableSequence):
     def replace(self, newmigrations):
         return self.__class__(newmigrations, self.post_apply)
 
-    def __getslice__(self, i, j):
-        return self.__class__(super(MigrationList, self).__getslice__(i, j),
-                              self.post_apply)
-
 
 class StepCollector(object):
     """
@@ -441,6 +437,16 @@ def descendants(migration, population):
             break
     descendants.remove(migration)
     return descendants
+
+
+def heads(migration_list):
+    """
+    Return the set of migrations that have no child dependencies
+    """
+    heads = set(migration_list)
+    for m in migration_list:
+        heads -= m.depends
+    return heads
 
 
 def topological_sort(migration_list):

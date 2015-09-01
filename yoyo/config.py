@@ -19,6 +19,8 @@ import os
 from yoyo.compat import SafeConfigParser
 
 CONFIG_FILENAME = '.yoyorc'
+CONFIG_EDITOR_KEY = 'editor'
+CONFIG_NEW_MIGRATION_COMMAND_KEY = 'new_migration_command'
 
 
 def update_argparser_defaults(parser, defaults):

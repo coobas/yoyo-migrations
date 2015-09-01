@@ -16,17 +16,25 @@ from __future__ import unicode_literals
 
 from shutil import rmtree
 from tempfile import mkdtemp
+from functools import partial
 import io
 import os
 import os.path
 import sys
 
-from mock import patch, call
+from mock import Mock, patch, call
+import frozendate
+import tms
 
 from yoyo import read_migrations
 from yoyo.compat import SafeConfigParser
 from yoyo.tests import with_migrations, dburi
 from yoyo.scripts.main import main, parse_args, LEGACY_CONFIG_FILENAME
+
+
+def is_tmpfile(p, directory=None):
+    return ((p.startswith(directory) if directory else True) and
+            os.path.basename(p).startswith('tmp'))
 
 
 class TestInteractiveScript(object):
@@ -253,3 +261,102 @@ class TestMarkCommand(TestInteractiveScript):
         c = backend.cursor()
         c.execute("SELECT * FROM t")
         assert len(c.fetchall()) == 0
+
+
+class TestNewMigration(TestInteractiveScript):
+
+    def setup(self):
+        super(TestNewMigration, self).setup()
+        self.subprocess_patch = patch('yoyo.scripts.newmigration.subprocess')
+        self.subprocess = self.subprocess_patch.start()
+
+    def teardown(self):
+        super(TestNewMigration, self).teardown()
+        self.subprocess_patch.stop()
+
+    @with_migrations()
+    def test_it_creates_an_empty_migration(self, tmpdir):
+        main(['new', '-b', '-m', 'foo', tmpdir, dburi])
+        assert any('-foo.py' in f for f in os.listdir(tmpdir))
+
+    @with_migrations(m1='',
+                     m2='__depends__=["m1"]; step("INSERT INTO t VALUES (2)")',
+                     m3='')
+    def test_it_depends_on_all_current_heads(self, tmpdir):
+        main(['new', '-b', '-m', 'foo', tmpdir, dburi])
+        m = next(f for f in os.listdir(tmpdir) if '-foo.py' in f)
+        with io.open(os.path.join(tmpdir, m), encoding='utf-8') as f:
+            assert "__depends__ = {'m2', 'm3'}" in f.read()
+
+    @with_migrations()
+    def test_it_names_file_by_date_and_sequence(self, tmpdir):
+        with frozendate.freeze(2001, 1, 1):
+            main(['new', '-b', '-m', 'foo', tmpdir, dburi])
+            main(['new', '-b', '-m', 'bar', tmpdir, dburi])
+        names = [n for n in os.listdir(tmpdir) if n.endswith('.py')]
+        assert names[0].startswith('20010101_01_')
+        assert names[0].endswith('-foo.py')
+        assert names[1].startswith('20010101_02_')
+        assert names[1].endswith('-bar.py')
+
+    @with_migrations()
+    def test_it_invokes_correct_editor_binary_from_config(self, tmpdir):
+        self.writeconfig(editor='vim {} -c +10')
+        main(['new', tmpdir, dburi])
+        assert self.subprocess.call.call_args == call([
+            'vim',
+            tms.Matcher(partial(is_tmpfile, directory=tmpdir)),
+            '-c',
+            '+10'])
+
+    @with_migrations()
+    def test_it_invokes_correct_editor_binary_from_env(self, tmpdir):
+        # default to $VISUAL
+        with patch('os.environ', {'EDITOR': 'ed', 'VISUAL': 'visualed'}):
+            main(['new', tmpdir, dburi])
+            assert self.subprocess.call.call_args == \
+                    call(['visualed', tms.Unicode()])
+
+        # fallback to $EDITOR
+        with patch('os.environ', {'EDITOR': 'ed'}):
+            main(['new', tmpdir, dburi])
+            assert self.subprocess.call.call_args == \
+                    call(['ed', tms.Unicode()])
+
+        # Otherwise, vi
+        with patch('os.environ', {}):
+            main(['new', tmpdir, dburi]) == call(['vi', tms.Unicode()])
+
+    @with_migrations()
+    def test_it_pulls_message_from_docstring(self, tmpdir):
+        from itertools import count
+        mockstat = lambda f, c=count(): Mock(mtime=next(c))
+
+        def write_migration(argv):
+            with io.open(argv[-1], 'w', encoding='utf8') as f:
+                f.write('"""\ntest docstring\nsplit over\n\nlines\n"""\n')
+
+        self.subprocess.call = write_migration
+        with patch('yoyo.scripts.newmigration.stat', mockstat):
+            main(['new', tmpdir, dburi])
+            names = [n for n in os.listdir(tmpdir) if n.endswith('.py')]
+            assert 'test-docstring' in names[0]
+
+    @with_migrations()
+    def test_it_defaults_docstring_to_message(self, tmpdir):
+        main(['new', '-b', '-m', 'your ad here', tmpdir, dburi])
+        names = [n for n in os.listdir(tmpdir) if n.endswith('.py')]
+        with io.open(os.path.join(tmpdir, names[0]), 'r',
+                     encoding='utf-8') as f:
+            assert 'your ad here' in f.read()
+
+    @with_migrations()
+    def test_it_calls_new_migration_command(self, tmpdir):
+
+        self.writeconfig(new_migration_command='/bin/ls -l {}')
+        with frozendate.freeze(2001, 1, 1):
+            main(['new', '-b', tmpdir, dburi])
+        assert self.subprocess.call.call_args == call([
+            '/bin/ls',
+            '-l',
+            tms.Str(lambda s: os.path.basename(s).startswith('20010101_01_'))])

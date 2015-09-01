@@ -15,6 +15,7 @@
 from datetime import datetime
 from importlib import import_module
 from logging import getLogger
+import contextlib
 
 from . import exceptions
 from .migrations import topological_sort
@@ -35,6 +36,7 @@ class DatabaseBackend(object):
     insert_migration_sql = ("INSERT INTO {0.migration_table} (id, ctime) "
                             "VALUES (?, ?)")
     delete_migration_sql = "DELETE FROM {0.migration_table} WHERE id=?"
+    applied_ids_sql = "SELECT id FROM {0.migration_table} ORDER by ctime"
 
     _driver = None
 
@@ -58,6 +60,15 @@ class DatabaseBackend(object):
             return self._driver
         self._driver = self._load_driver_module()
         return self._driver
+
+    @contextlib.contextmanager
+    def transaction(self):
+        try:
+            yield
+        except:
+            self.connection.rollback()
+        else:
+            self.connection.commit()
 
     def cursor(self):
         return self.connection.cursor()
@@ -101,6 +112,19 @@ class DatabaseBackend(object):
                 self._with_placeholders(self.is_applied_sql.format(self)),
                 (migration.id,))
             return cursor.fetchone()[0] > 0
+        finally:
+            cursor.close()
+
+    def get_applied_migration_ids(self):
+        """
+        Return the list of migration ids in the order in which they
+        were applied
+        """
+        cursor = self.connection.cursor()
+        try:
+            cursor.execute(
+                self._with_placeholders(self.applied_ids_sql.format(self)))
+            return [row[0] for row in cursor.fetchall()]
         finally:
             cursor.close()
 
