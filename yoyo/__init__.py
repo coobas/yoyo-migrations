@@ -17,6 +17,8 @@ from yoyo.migrations import (read_migrations,  # noqa
                              logger,
                              step,
                              transaction,
+                             ancestors,
+                             descendants,
                              )
 
 from yoyo.connections import get_backend  # noqa

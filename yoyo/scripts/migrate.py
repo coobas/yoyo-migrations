@@ -15,7 +15,12 @@
 import argparse
 import re
 
-from yoyo import read_migrations, default_migration_table
+from yoyo.migrations import MigrationList
+from yoyo import (read_migrations,
+                  default_migration_table,
+                  ancestors,
+                  descendants,
+                  )
 from yoyo.scripts.main import InvalidArgument, get_backend
 from yoyo import utils
 
@@ -56,6 +61,10 @@ def install_argparsers(global_parser, subparsers):
                                   default=default_migration_table,
                                   help="Name of table to use for storing "
                                   "migration metadata")
+    migration_parser.add_argument('-r', '--revision',
+                                  help="Apply/rollback migration with id "
+                                  "REVISION",
+                                  metavar='REVISION')
 
     parser_apply = subparsers.add_parser(
         'apply',
@@ -98,7 +107,32 @@ def get_migrations(args, backend):
         elif args.func in {rollback, reapply}:
             migrations = backend.to_rollback(migrations)
 
-    if not args.batch_mode:
+    if args.revision:
+        targets = [m for m in migrations if args.revision in m.id]
+        if len(targets) == 0:
+            raise InvalidArgument("'{}' doesn't match ay revisions."
+                                  .format(args.revision))
+        if len(targets) > 1:
+            raise InvalidArgument("'{}' matches multiple revisions. "
+                                  "Please specify one of {}.".format(
+                                      args.revision,
+                                      ', '.join(m.id for m in targets)))
+
+        target = targets[0]
+
+        # apply/mark: apply target an all its dependencies
+        if args.func is apply:
+            deps = ancestors(target, migrations)
+            target_plus_deps = deps | {target}
+            migrations = migrations.filter(lambda m: m in target_plus_deps)
+
+        # rollback/reapply: rollback target and everything that depends on it
+        else:
+            deps = descendants(target, migrations)
+            target_plus_deps = deps | {target}
+            migrations = migrations.filter(lambda m: m in target_plus_deps)
+
+    if not args.batch_mode and not args.revision:
         migrations = prompt_migrations(backend,
                                        migrations,
                                        args.command_name)

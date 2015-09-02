@@ -18,6 +18,7 @@ from mock import Mock
 from yoyo.connections import get_backend
 from yoyo import read_migrations
 from yoyo import exceptions
+from yoyo import ancestors, descendants
 
 from yoyo.tests import with_migrations, dburi
 from yoyo.migrations import topological_sort, MigrationList
@@ -239,3 +240,36 @@ class TestMigrationList(object):
         m = MigrationList([Mock(id=n) for n in range(10)])
         with pytest.raises(exceptions.MigrationConflict):
             m[1:3] = [Mock(id=4)]
+
+
+class TestAncestorsDescendants(object):
+    def setup(self):
+        self.m1 = Mock(id='m1', depends=['m2', 'm3'])
+        self.m2 = Mock(id='m2', depends=['m3'])
+        self.m3 = Mock(id='m3', depends=['m5'])
+        self.m4 = Mock(id='m4', depends=['m5'])
+        self.m5 = Mock(id='m5', depends=[])
+        self.m1.depends = {self.m2, self.m3}
+        self.m2.depends = {self.m3}
+        self.m3.depends = {self.m5}
+        self.m4.depends = {self.m5}
+        self.migrations = {self.m1, self.m2, self.m3, self.m4, self.m5}
+
+    def test_ancestors(self):
+
+        assert ancestors(self.m1, self.migrations) == {self.m2, self.m3,
+                                                       self.m5}
+        assert ancestors(self.m2, self.migrations) == {self.m3, self.m5}
+        assert ancestors(self.m3, self.migrations) == {self.m5}
+        assert ancestors(self.m4, self.migrations) == {self.m5}
+        assert ancestors(self.m5, self.migrations) == set()
+
+
+    def test_descendants(self):
+
+        assert descendants(self.m1, self.migrations) == set()
+        assert descendants(self.m2, self.migrations) == {self.m1}
+        assert descendants(self.m3, self.migrations) == {self.m2, self.m1}
+        assert descendants(self.m4, self.migrations) == set()
+        assert descendants(self.m5, self.migrations) == {self.m4, self.m3,
+                                                         self.m2, self.m1}

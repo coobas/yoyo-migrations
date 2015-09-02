@@ -399,6 +399,48 @@ def transaction(*args, **kwargs):
     return _step_collectors[fi.filename].transaction(*args, **kwargs)
 
 
+def ancestors(migration, population):
+    """
+    Return the dependencies for ``migration`` from ``population``.
+
+    :param migration: a :class:`~yoyo.migrations.Migration` object
+    :param population: a collection of migrations
+    """
+    to_process = set()
+    for m in migration.depends:
+        to_process.add(m)
+
+    deps = set()
+    while to_process:
+        m = to_process.pop()
+        deps.add(m)
+        for d in m.depends:
+            if d in deps:
+                continue
+            deps.add(d)
+            to_process.add(d)
+    return deps
+
+
+def descendants(migration, population):
+    """
+    Return all descendants of ``migration`` from ``population``.
+
+    :param migration: a :class:`~yoyo.migrations.Migration` object
+    :param population: a collection of migrations
+    """
+    population = set(population)
+    descendants = {migration}
+    while True:
+        found = False
+        for m in population - descendants:
+            if set(m.depends) & descendants:
+                descendants.add(m)
+                found = True
+        if not found:
+            break
+    descendants.remove(migration)
+    return descendants
 def topological_sort(migration_list):
 
     # The sorted list, initially empty
