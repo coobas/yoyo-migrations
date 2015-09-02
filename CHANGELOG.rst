@@ -10,9 +10,11 @@ file carefully before upgrading.
 * The configuration file is now stored per-project, not per-migrations source
   directory. This makes it possible to share a migrations source directory
   across multiple projects.
-
 * Improved url parsing
 * Allow database uris containing usernames with the symbol '@'
+* The command line option ``--no-cache`` has been renamed to
+  ``--no-config-file``. The old name is retained as an alias for backwards
+  compatibility
 
 Version 4.2.5
 ~~~~~~~~~~~~~

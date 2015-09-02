@@ -158,33 +158,56 @@ def parse_args(argv=None):
 
     :return: tuple of (argparser, parsed_args)
     """
+    #: List of arguments whose defaults should be read from the config file
+    config_args = {'batch_mode': 'getboolean',
+                   'sources': 'get',
+                   'database': 'get',
+                   'verbosity': 'getint',
+                   }
+
     globalparser, argparser, subparsers = make_argparser()
 
     # Initial parse to extract --config and any global arguments
     global_args, _ = globalparser.parse_known_args(argv)
 
-    # Read the config file and set the argparser defaults to config file values
-    config = readconfig(global_args.config or find_config())
-    defaults_from_config = dict(config.items('DEFAULT'))
-    try:
-        defaults_from_config['batch_mode'] = config.getboolean('DEFAULT',
-                                                               'batch_mode')
-    except NoOptionError:
-        pass
+    # Read the config file and create a dictionary of defaults for argparser
+    config = readconfig(global_args.config or
+                        find_config() if global_args.use_config_file else None)
 
-    argparser.set_defaults(**defaults_from_config)
+    defaults = {}
+    for argname, getter in config_args.items():
+        try:
+            defaults[argname] = getattr(config, getter)('DEFAULT', argname)
+        except NoOptionError:
+            pass
+
+    def update_argparser_defaults(parser, defaults):
+        """
+        Update an ArgumentParser's defaults.
+
+        Unlike ArgumentParser.set_defaults this will only set defaults for
+        arguments the parser has configured.
+        """
+        ns, _ = parser.parse_known_args([])
+        parser.set_defaults(**{k: v
+                               for k, v in defaults.items()
+                               if k in ns.__dict__})
+
+    # Set the argparser defaults to values read from the config file
+    update_argparser_defaults(globalparser, defaults)
+    update_argparser_defaults(argparser, defaults)
     for subp in subparsers.choices.values():
-        subp.set_defaults(**defaults_from_config)
+        update_argparser_defaults(subp, defaults)
 
-    # Now parse for real
+    # Now parse for real, starting from the top
     args = argparser.parse_args(argv)
 
-    # Update the args namespace with the previously parsed global args
-    # result. This ensures that global args (eg '-v) are recognized regardless
+    # Update the args namespace with the global args.
+    # This ensures that global args (eg '-v) are recognized regardless
     # of whether they were placed before or after the subparser command.
     # If we do not do this then the sub_parser copy of the argument takes
     # precedence, and overwrites any global args set before the command name.
-    args.__dict__.update(global_args.__dict__)
+    args.__dict__.update(globalparser.parse_known_args(argv)[0].__dict__)
 
     return config, argparser, args
 
@@ -267,6 +290,12 @@ def make_argparser():
                              help="Run in batch mode"
                              ". Turns off all user prompts")
 
+    global_args.add_argument("--no-config-file", "--no-cache",
+                             dest="use_config_file",
+                             action="store_false",
+                             default=True,
+                             help="Don't look for a .yoyorc config file")
+
     migration_args = argparse.ArgumentParser(add_help=False)
     migration_args.add_argument('sources',
                                 nargs="?",
@@ -296,10 +325,6 @@ def make_argparser():
     migration_args.add_argument("-p", "--prompt-password", dest="prompt_password",
                                 action="store_true",
                                 help="Prompt for the database password")
-
-    migration_args.add_argument("--no-cache", dest="cache", action="store_false",
-                                default=True,
-                                help="Don't cache database login credentials")
 
     migration_args.add_argument("--migration-table", dest="migration_table",
                                 action="store",
@@ -453,7 +478,7 @@ def main(argv=None):
         if result is not None:
             command_args += result
 
-    if config_is_empty and args.cache and not args.batch_mode:
+    if config_is_empty and args.use_config_file and not args.batch_mode:
         config.set('DEFAULT', 'sources', args.sources)
         config.set('DEFAULT', 'database', args.database)
         config.set('DEFAULT', 'migration_table', args.migration_table)

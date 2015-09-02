@@ -47,6 +47,18 @@ class TestInteractiveScript(object):
         os.chdir(self.saved_cwd)
         rmtree(self.tmpdir)
 
+    def writeconfig(self, **defaults):
+        cp = SafeConfigParser()
+        for item in defaults:
+            cp.set('DEFAULT', item, defaults[item])
+
+        if sys.version_info < (3, 0):
+            with open('.yoyorc', 'w') as f:
+                cp.write(f)
+        else:
+            with open('.yoyorc', 'w', encoding='UTF-8') as f:
+                cp.write(f)
+
 
 class TestYoyoScript(TestInteractiveScript):
 
@@ -59,17 +71,33 @@ class TestYoyoScript(TestInteractiveScript):
             assert m.call_args == call(3)
 
     @with_migrations()
-    def test_it_prompts_to_cache_connection_params(self, tmpdir):
+    def test_it_prompts_to_create_config_file(self, tmpdir):
         main(['apply', tmpdir, dburi])
         assert 'save migration config' in self.prompt.call_args[0][0].lower()
 
     @with_migrations()
-    def test_it_caches_connection_params(self, tmpdir):
+    def test_it_creates_config_file(self, tmpdir):
         self.prompt.return_value = 'y'
         main(['apply', tmpdir, dburi])
         assert os.path.exists('.yoyorc')
         with open('.yoyorc') as f:
             assert 'database = {0}'.format(dburi) in f.read()
+
+    @with_migrations()
+    def test_it_uses_config_file(self, tmpdir):
+        self.writeconfig(batch_mode='on')
+        with patch('yoyo.scripts.migrate.apply') as apply:
+            main(['apply', tmpdir, dburi])
+            args_used = apply.call_args[0][0]
+            assert args_used.batch_mode is True
+
+    @with_migrations()
+    def test_it_ignores_config_file(self, tmpdir):
+        self.writeconfig(batch_mode='on')
+        with patch('yoyo.scripts.migrate.apply') as apply:
+            main(['apply', '--no-config-file', tmpdir, dburi])
+            args_used = apply.call_args[0][0]
+            assert args_used.batch_mode is False
 
     @with_migrations()
     def test_it_prompts_password(self, tmpdir):
@@ -160,18 +188,6 @@ class TestYoyoScript(TestInteractiveScript):
 
 
 class TestArgParsing(TestInteractiveScript):
-
-    def writeconfig(self, **defaults):
-        cp = SafeConfigParser()
-        for item in defaults:
-            cp.set('DEFAULT', item, defaults[item])
-
-        if sys.version_info < (3, 0):
-            with open('.yoyorc', 'w') as f:
-                cp.write(f)
-        else:
-            with open('.yoyorc', 'w', encoding='UTF-8') as f:
-                cp.write(f)
 
     def test_it_uses_config_file_defaults(self):
         self.writeconfig(sources='/tmp/migrations',
