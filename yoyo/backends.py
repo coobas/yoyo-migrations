@@ -141,14 +141,17 @@ class DatabaseBackend(object):
             except exceptions.BadMigration:
                 continue
 
+    def mark_migrations(self, migrations):
+        for m in migrations:
+            try:
+                self.mark_one(m)
+            except exceptions.BadMigration:
+                continue
+
     def apply_one(self, migration, force=False):
         logger.info("Applying %s", migration.id)
         migration.process_steps(self, 'apply', force=force)
-        cursor = self.connection.cursor()
-        cursor.execute(self.insert_migration_sql.format(self),
-                       (migration.id, datetime.utcnow()))
-        self.connection.commit()
-        cursor.close()
+        self.mark_one(migration)
 
     def rollback_one(self, migration, force=False):
         logger.info("Rolling back %s", migration.id)
@@ -157,6 +160,15 @@ class DatabaseBackend(object):
         cursor.execute(
             self._with_placeholders(self.delete_migration_sql.format(self)),
             (migration.id,))
+        self.connection.commit()
+        cursor.close()
+
+    def mark_one(self, migration):
+        logger.info("Marking %s applied", migration.id)
+        cursor = self.connection.cursor()
+        cursor.execute(
+            self._with_placeholders(self.insert_migration_sql).format(self),
+            (migration.id, datetime.utcnow()))
         self.connection.commit()
         cursor.close()
 

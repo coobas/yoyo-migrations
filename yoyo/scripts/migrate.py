@@ -84,6 +84,12 @@ def install_argparsers(global_parser, subparsers):
         help="Reapply migrations")
     parser_reapply.set_defaults(func=reapply, command_name='reapply')
 
+    parser_mark = subparsers.add_parser(
+        'mark',
+        parents=[global_parser, migration_parser],
+        help="Mark migrations as applied, without running them")
+    parser_mark.set_defaults(func=mark, command_name='mark')
+
 
 def get_migrations(args, backend):
 
@@ -101,7 +107,7 @@ def get_migrations(args, backend):
             lambda m: re.search(args.match, m.id) is not None)
 
     if not args.all:
-        if args.func is apply:
+        if args.func in {apply, mark}:
             migrations = backend.to_apply(migrations)
 
         elif args.func in {rollback, reapply}:
@@ -120,8 +126,8 @@ def get_migrations(args, backend):
 
         target = targets[0]
 
-        # apply/mark: apply target an all its dependencies
-        if args.func is apply:
+        # apply: apply target an all its dependencies
+        if args.func in {mark, apply}:
             deps = ancestors(target, migrations)
             target_plus_deps = deps | {target}
             migrations = migrations.filter(lambda m: m in target_plus_deps)
@@ -164,6 +170,12 @@ def rollback(args, config):
     backend = get_backend(args)
     migrations = get_migrations(args, backend)
     backend.rollback_migrations(migrations, args.force)
+
+
+def mark(args, config):
+    backend = get_backend(args)
+    migrations = get_migrations(args, backend)
+    backend.mark_migrations(migrations)
 
 
 def prompt_migrations(backend, migrations, direction):

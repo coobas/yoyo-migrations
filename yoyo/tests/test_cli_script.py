@@ -23,6 +23,7 @@ import sys
 
 from mock import patch, call
 
+from yoyo import read_migrations, get_backend
 from yoyo.compat import SafeConfigParser
 from yoyo.tests import with_migrations, dburi
 from yoyo.scripts.main import main, parse_args, LEGACY_CONFIG_FILENAME
@@ -36,6 +37,7 @@ class TestInteractiveScript(object):
         self.prompt_patch = patch('yoyo.utils.prompt', return_value='n')
         self.prompt = self.prompt_patch.start()
         self.tmpdir = mkdtemp()
+        self.dburi = 'sqlite:////' + self.tmpdir + 'db.sqlite'
         self.saved_cwd = os.getcwd()
         os.chdir(self.tmpdir)
 
@@ -210,3 +212,43 @@ class TestArgParsing(TestInteractiveScript):
         assert args.verbosity == 0
         _, _, args = parse_args(['apply', '-v', 'X', 'Y'])
         assert args.verbosity == 1
+
+
+class TestMarkCommand(TestInteractiveScript):
+
+    @with_migrations(m1='step("CREATE TABLE test1 (id INT)")',
+                     m2='step("CREATE TABLE test2 (id INT)")',
+                     m3='step("CREATE TABLE test3 (id INT)")')
+    def test_it_prompts_only_unapplied(self, tmpdir):
+        migrations = read_migrations(tmpdir)
+        backend = get_backend(self.dburi)
+        backend.apply_migrations(migrations[:1])
+        backend.commit()
+
+        with patch('yoyo.scripts.migrate.prompt_migrations') \
+                as prompt_migrations:
+            main(['mark', tmpdir, self.dburi])
+            _, prompted, _ = prompt_migrations.call_args[0]
+            prompted = [m.id for m in prompted]
+            assert prompted == ['m2', 'm3']
+
+    @with_migrations(m1='step("INSERT INTO t VALUES (1)")',
+                     m2='__depends__=["m1"]; step("INSERT INTO t VALUES (2)")',
+                     m3='step("INSERT INTO t VALUES (2)")')
+    def test_it_marks_at_selected_version(self, tmpdir):
+
+        self.confirm.return_value = True
+        migrations = read_migrations(tmpdir)
+        backend = get_backend(self.dburi)
+        backend.cursor().execute("CREATE TABLE t (id INT)")
+        backend.commit()
+
+        main(['mark', '-r', 'm2', tmpdir, self.dburi])
+        assert backend.is_applied(migrations[0])
+        assert backend.is_applied(migrations[1])
+        assert not backend.is_applied(migrations[2])
+
+        # Check that migration steps have not been applied
+        c = backend.cursor()
+        c.execute("SELECT * FROM t")
+        assert len(c.fetchall()) == 0

@@ -19,6 +19,8 @@ file carefully before upgrading.
   the specified migration to be applied, plus any dependencies. In the case
   of rollback, this removes the specified revision and any other migrations
   that depend upon it.
+* Added 'mark' command to allow migrations to be marked in the
+  database without actually running them
 
 Version 4.2.5
 ~~~~~~~~~~~~~
