@@ -270,6 +270,14 @@ class DatabaseBackend(object):
                 except exceptions.BadMigration:
                     continue
 
+    def unmark_migrations(self, migrations):
+        with self.transaction():
+            for m in migrations:
+                try:
+                    self.unmark_one(m)
+                except exceptions.BadMigration:
+                    continue
+
     def apply_one(self, migration, force=False):
         """
         Apply a single migration
@@ -288,7 +296,7 @@ class DatabaseBackend(object):
 
     def unmark_one(self, migration):
         sql = self._with_placeholders(self.delete_migration_sql.format(self))
-        self.execute(sql, migration.id)
+        self.execute(sql, (migration.id,))
 
     def mark_one(self, migration):
         logger.info("Marking %s applied", migration.id)

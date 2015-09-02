@@ -90,6 +90,12 @@ def install_argparsers(global_parser, subparsers):
         help="Mark migrations as applied, without running them")
     parser_mark.set_defaults(func=mark, command_name='mark')
 
+    parser_unmark = subparsers.add_parser(
+        'unmark',
+        parents=[global_parser, migration_parser],
+        help="Unmark applied migrations, without rolling them back")
+    parser_unmark.set_defaults(func=unmark, command_name='unmark')
+
 
 def get_migrations(args, backend):
 
@@ -110,7 +116,7 @@ def get_migrations(args, backend):
         if args.func in {apply, mark}:
             migrations = backend.to_apply(migrations)
 
-        elif args.func in {rollback, reapply}:
+        elif args.func in {rollback, reapply, unmark}:
             migrations = backend.to_rollback(migrations)
 
     if args.revision:
@@ -176,6 +182,12 @@ def mark(args, config):
     backend = get_backend(args, config)
     migrations = get_migrations(args, backend)
     backend.mark_migrations(migrations)
+
+
+def unmark(args, config):
+    backend = get_backend(args, config)
+    migrations = get_migrations(args, backend)
+    backend.unmark_migrations(migrations)
 
 
 def prompt_migrations(backend, migrations, direction):

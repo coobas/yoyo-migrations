@@ -261,6 +261,36 @@ class TestMarkCommand(TestInteractiveScript):
         assert len(c.fetchall()) == 0
 
 
+class TestUnmarkCommand(TestInteractiveScript):
+
+    @with_migrations(m1='', m2='', m3='')
+    def test_it_prompts_only_applied(self, tmpdir):
+        from yoyo.connections import get_backend
+        migrations = read_migrations(tmpdir)
+        backend = get_backend(self.dburi)
+        backend.apply_migrations(migrations[:2])
+
+        with patch('yoyo.scripts.migrate.prompt_migrations') \
+                as prompt_migrations:
+            main(['unmark', tmpdir, self.dburi])
+            _, prompted, _ = prompt_migrations.call_args[0]
+            prompted = [m.id for m in prompted]
+            assert prompted == ['m2', 'm1']
+
+    @with_migrations(m1='', m2='__depends__=["m1"]', m3='__depends__=["m2"]')
+    def test_it_unmarks_to_selected_revision(self, tmpdir):
+        from yoyo.connections import get_backend
+        self.confirm.return_value = True
+        migrations = read_migrations(tmpdir)
+        backend = get_backend(self.dburi)
+        backend.apply_migrations(migrations)
+
+        main(['unmark', '-r', 'm2', tmpdir, self.dburi])
+        assert backend.is_applied(migrations[0])
+        assert not backend.is_applied(migrations[1])
+        assert not backend.is_applied(migrations[2])
+
+
 class TestNewMigration(TestInteractiveScript):
 
     def setup(self):
