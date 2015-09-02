@@ -235,7 +235,9 @@ class SQLiteBackend(DatabaseBackend):
     driver_module = 'sqlite3'
 
     def connect(self, dburi):
-        return self.driver.connect(dburi.database)
+        conn = self.driver.connect(dburi.database)
+        conn.isolation_level = None
+        return conn
 
 
 class PostgresqlBackend(DatabaseBackend):
