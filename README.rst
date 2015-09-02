@@ -191,6 +191,50 @@ your command history when you have moved to a different directory).
 If you do not want this config file to be used, add the ``--no-config``
 parameter to the command line options.
 
+Connections
+-----------
+
+Database connections are specified using a URI. Examples:
+
+SQLite
+~~~~~~
+
+::
+
+  # Use 4 slashes for an absolute database path on unix like platforms
+  database = sqlite:////home/user/mydb.sqlite
+
+  # Absolute path on Windows.
+  database = sqlite:///c:\home\user\mydb.sqlite
+
+  # Use 3 slashes for a relative path
+  database = sqlite:///mydb.sqlite
+
+
+MySQL
+~~~~~
+
+::
+
+  # Network database connection
+  database = mysql://scott:tiger@localhost/mydatabase
+
+  # Connect via a unix socket
+  database = mysql://scott:tiger@/mydatabase?unix_socket=/tmp/mysql.sock
+
+
+PostgreSQL
+~~~~~~~~~~
+
+::
+
+  # Network database connection
+  database = postgresql://scott:tiger@localhost/mydatabase
+
+  # Omit the host to use a socket connection
+  database = postgresql://scott:tiger@/mydatabase
+
+
 Using yoyo from python code
 ---------------------------
 
