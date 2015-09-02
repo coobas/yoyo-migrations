@@ -101,7 +101,7 @@ class DatabaseBackend(object):
                            'format': '%s',
                            'pyformat': '%s'}.get(self.driver.paramstyle)
         if placeholder_gen is None:
-            raise ValueError("Unsupported parmastyle: %r" %
+            raise ValueError("Unsupported paramstyle: %r" %
                              (self.driver.paramstyle,))
         return sql.replace('?', placeholder_gen)
 
