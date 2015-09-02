@@ -34,12 +34,14 @@ Usage
 
 Yoyo is usually invoked as a command line script.
 
-Examples:
+Start a new migration::
 
-Read all migrations from directory ``migrations`` and apply them to a
-PostgreSQL database::
+  yoyo-migrate new ./migrations -m "Add column to foo"
 
-   yoyo-migrate apply ./migrations postgres://user:password@localhost/database
+
+Apply migrations from directory ``migrations`` to a PostgreSQL database::
+
+   yoyo-migrate apply ./migrations postgresql://scott:password@localhost/db
 
 Rollback migrations previously applied to a MySQL database::
 
