@@ -21,6 +21,12 @@ file carefully before upgrading.
   that depend upon it.
 * Added 'mark' command to allow migrations to be marked in the
   database without actually running them
+* Transaction handling has changed. Each migration now always runs in a
+  single transaction, with individual steps running in nested transactions
+  (using savepoints).
+  The ``transaction()`` function is still available
+  for backwards compatibility,
+  but now creates a savepoint rather than a full transaction.
 
 Version 4.2.5
 ~~~~~~~~~~~~~

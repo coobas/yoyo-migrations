@@ -25,7 +25,8 @@ Install from the PyPI with the command::
 Database support
 ----------------
 
-PostgreSQL, MySQL, ODBC and SQLite databases are supported.
+PostgreSQL, MySQL and SQLite databases are supported.
+An ODBC backend is also available, but is unsupported (patches welcome!)
 
 
 Usage
@@ -127,26 +128,31 @@ their single argument. For example::
 Transactions
 ------------
 
-By default each step is run in its own transaction.
-You can run multiple steps within a single transaction by wrapping them in a
-``transaction`` call, like so::
+Each migration is run in a separate transaction and savepoints are used
+to isolate steps within each migration.
 
-  #
-  # file: migrations/0001.create-foo.py
-  #
-  from yoyo import step, transaction
-  transaction(
-    step(
-      "CREATE TABLE foo (id INT, bar VARCHAR(20), PRIMARY KEY (id))",
-      "DROP TABLE foo",
-    ),
-    step("INSERT INTO foo (1, 'baz')"),
-    ignore_errors='all',
-  )
+If an error occurs during a step and the step has ``ignore_errors`` set,
+then that individual step will be rolled back and
+execution will pick up from the next step.
+If ``ignore_errors`` is not set then the entire migration will be rolled back
+and execution stopped.
 
-If this is the case setting ``ignore_errors`` on individual steps makes no
-sense: database errors will always cause the entire transaction to be rolled
-back. The outer ``transaction`` can however have ``ignore_errors`` set.
+Note that some databases (eg MySQL) do not support rollback on DDL statements
+(eg ``CREATE ...`` and ``ALTER ...`` statements). For these databases
+you may need to manually intervene to reset the database state
+should errors occur during your migration.
+
+Using ``group`` allows you to nest steps, giving you control of where
+rollbacks happen. For example::
+
+    group([
+      step("ALTER TABLE employees ADD tax_code TEXT"),
+      step("CREATE INDEX tax_code_idx ON employees (tax_code)")
+    ], ignore_errors='all')
+    step("UPDATE employees SET tax_code='C' WHERE pay_grade < 4")
+    step("UPDATE employees SET tax_code='B' WHERE pay_grade >= 6")
+    step("UPDATE employees SET tax_code='A' WHERE pay_grade >= 8")
+
 
 Post-apply hook
 ---------------

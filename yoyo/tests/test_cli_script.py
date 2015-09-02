@@ -232,7 +232,6 @@ class TestMarkCommand(TestInteractiveScript):
         migrations = read_migrations(tmpdir)
         backend = get_backend(self.dburi)
         backend.apply_migrations(migrations[:1])
-        backend.commit()
 
         with patch('yoyo.scripts.migrate.prompt_migrations') \
                 as prompt_migrations:
@@ -249,8 +248,8 @@ class TestMarkCommand(TestInteractiveScript):
         self.confirm.return_value = True
         migrations = read_migrations(tmpdir)
         backend = get_backend(self.dburi)
-        backend.cursor().execute("CREATE TABLE t (id INT)")
-        backend.commit()
+        with backend.transaction():
+            backend.execute("CREATE TABLE t (id INT)")
 
         main(['mark', '-r', 'm2', tmpdir, self.dburi])
         assert backend.is_applied(migrations[0])
@@ -258,8 +257,7 @@ class TestMarkCommand(TestInteractiveScript):
         assert not backend.is_applied(migrations[2])
 
         # Check that migration steps have not been applied
-        c = backend.cursor()
-        c.execute("SELECT * FROM t")
+        c = backend.execute("SELECT * FROM t")
         assert len(c.fetchall()) == 0
 
 

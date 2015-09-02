@@ -17,6 +17,7 @@ from yoyo.migrations import (read_migrations,  # noqa
                              logger,
                              step,
                              transaction,
+                             group,
                              ancestors,
                              descendants,
                              )

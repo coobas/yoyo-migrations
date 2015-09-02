@@ -14,13 +14,83 @@
 
 from datetime import datetime
 from importlib import import_module
+from itertools import count
 from logging import getLogger
-import contextlib
 
 from . import exceptions
 from .migrations import topological_sort
 
 logger = getLogger('yoyo.migrations')
+
+
+class TransactionManager(object):
+    """
+    Returned by the :meth:`~yoyo.backends.DatabaseBackend.transaction`
+    context manager.
+
+    If rollback is called, the transaction is flagged to be rolled back
+    when the context manager block closes
+    """
+
+    def __init__(self, backend):
+        self.backend = backend
+        self._rollback = False
+
+    def __enter__(self):
+        self._do_begin()
+        return self
+
+    def __exit__(self, exc_type, value, traceback):
+        if exc_type:
+            self._do_rollback()
+            return None
+
+        if self._rollback:
+            self._do_rollback()
+        else:
+            self._do_commit()
+
+    def rollback(self):
+        """
+        Flag that the transaction will be rolled back when the with statement
+        exits
+        """
+        self._rollback = True
+
+    def _do_begin(self):
+        """
+        Instruct the backend to begin a transaction
+        """
+        self.backend.begin()
+
+    def _do_commit(self):
+        """
+        Instruct the backend to commit the transaction
+        """
+        self.backend.commit()
+
+    def _do_rollback(self):
+        """
+        Instruct the backend to roll back the transaction
+        """
+        self.backend.rollback()
+
+
+class SavepointTransactionManager(TransactionManager):
+
+    id = None
+    id_generator = count(1)
+
+    def _do_begin(self):
+        assert self.id is None
+        self.id = 'sp_{}'.format(next(self.id_generator))
+        self.backend.savepoint(self.id)
+
+    def _do_commit(self):
+        self.backend.savepoint_release(self.id)
+
+    def _do_rollback(self):
+        self.backend.savepoint_rollback(self.id)
 
 
 class DatabaseBackend(object):
@@ -39,10 +109,11 @@ class DatabaseBackend(object):
     applied_ids_sql = "SELECT id FROM {0.migration_table} ORDER by ctime"
 
     _driver = None
+    _in_transaction = False
 
     def __init__(self, dburi, migration_table):
         self.uri = dburi
-        self.connection = self.connect(dburi)
+        self._connection = self.connect(dburi)
         self.migration_table = migration_table
         self.create_migrations_table()
 
@@ -61,23 +132,64 @@ class DatabaseBackend(object):
         self._driver = self._load_driver_module()
         return self._driver
 
-    @contextlib.contextmanager
+    @property
+    def connection(self):
+        return self._connection
+
     def transaction(self):
-        try:
-            yield
-        except:
-            self.connection.rollback()
+        if not self._in_transaction:
+            return TransactionManager(self)
+
         else:
-            self.connection.commit()
+            return SavepointTransactionManager(self)
 
     def cursor(self):
         return self.connection.cursor()
 
     def commit(self):
-        return self.connection.commit()
+        self.connection.commit()
+        self._in_transaction = False
 
     def rollback(self):
-        return self.connection.rollback()
+        self.connection.rollback()
+        self._in_transaction = False
+
+    def begin(self):
+        """
+        Begin a new transaction
+        """
+        self._in_transaction = True
+        self.execute("BEGIN")
+
+    def savepoint(self, id):
+        """
+        Create a new savepoint with the given id
+        """
+        self.execute("SAVEPOINT {}".format(id))
+
+    def savepoint_release(self, id):
+        """
+        Release (commit) the savepoint with the given id
+        """
+        self.execute("RELEASE SAVEPOINT {}".format(id))
+
+    def savepoint_rollback(self, id):
+        """
+        Rollback the savepoint with the given id
+        """
+        self.execute("ROLLBACK TO SAVEPOINT {}".format(id))
+
+    _cursor = None
+    def execute(self, stmt, args=tuple()):
+        """
+        Create a new cursor, execute a single statement and return the cursor
+        object
+        """
+        if self._cursor is None:
+            self._cursor = self.cursor()
+        cursor = self._cursor
+        cursor.execute(self._with_placeholders(stmt), args)
+        return cursor
 
     def create_migrations_table(self):
         """
@@ -85,16 +197,10 @@ class DatabaseBackend(object):
         """
         sql = self.create_table_sql.format(table_name=self.migration_table)
         try:
-            cursor = self.connection.cursor()
-            try:
-                cursor.execute(sql)
-                self.connection.commit()
-            except tuple(exceptions.DatabaseErrors):
-                pass
-            finally:
-                cursor.close()
-        finally:
-            self.connection.rollback()
+            with self.transaction():
+                self.execute(sql)
+        except tuple(exceptions.DatabaseErrors):
+            pass
 
     def _with_placeholders(self, sql):
         placeholder_gen = {'qmark': '?',
@@ -106,27 +212,16 @@ class DatabaseBackend(object):
         return sql.replace('?', placeholder_gen)
 
     def is_applied(self, migration):
-        cursor = self.connection.cursor()
-        try:
-            cursor.execute(
-                self._with_placeholders(self.is_applied_sql.format(self)),
-                (migration.id,))
-            return cursor.fetchone()[0] > 0
-        finally:
-            cursor.close()
+        sql = self._with_placeholders(self.is_applied_sql.format(self))
+        return self.execute(sql, (migration.id,)).fetchone()[0] > 0
 
     def get_applied_migration_ids(self):
         """
         Return the list of migration ids in the order in which they
         were applied
         """
-        cursor = self.connection.cursor()
-        try:
-            cursor.execute(
-                self._with_placeholders(self.applied_ids_sql.format(self)))
-            return [row[0] for row in cursor.fetchall()]
-        finally:
-            cursor.close()
+        sql = self._with_placeholders(self.applied_ids_sql.format(self))
+        return [row[0] for row in self.execute(sql)]
 
     def to_apply(self, migrations):
         """
@@ -152,7 +247,8 @@ class DatabaseBackend(object):
             return
         for m in migrations + migrations.post_apply:
             try:
-                self.apply_one(m, force)
+                with self.transaction():
+                    self.apply_one(m, force)
             except exceptions.BadMigration:
                 continue
 
@@ -161,40 +257,43 @@ class DatabaseBackend(object):
             return
         for m in migrations + migrations.post_apply:
             try:
-                self.rollback_one(m, force)
+                with self.transaction():
+                    self.rollback_one(m, force)
             except exceptions.BadMigration:
                 continue
 
     def mark_migrations(self, migrations):
-        for m in migrations:
-            try:
-                self.mark_one(m)
-            except exceptions.BadMigration:
-                continue
+        with self.transaction():
+            for m in migrations:
+                try:
+                    self.mark_one(m)
+                except exceptions.BadMigration:
+                    continue
 
     def apply_one(self, migration, force=False):
+        """
+        Apply a single migration
+        """
         logger.info("Applying %s", migration.id)
         migration.process_steps(self, 'apply', force=force)
         self.mark_one(migration)
 
     def rollback_one(self, migration, force=False):
+        """
+        Rollback a single migration
+        """
         logger.info("Rolling back %s", migration.id)
         migration.process_steps(self, 'rollback', force=force)
-        cursor = self.connection.cursor()
-        cursor.execute(
-            self._with_placeholders(self.delete_migration_sql.format(self)),
-            (migration.id,))
-        self.connection.commit()
-        cursor.close()
+        self.unmark_one(migration)
+
+    def unmark_one(self, migration):
+        sql = self._with_placeholders(self.delete_migration_sql.format(self))
+        self.execute(sql, migration.id)
 
     def mark_one(self, migration):
         logger.info("Marking %s applied", migration.id)
-        cursor = self.connection.cursor()
-        cursor.execute(
-            self._with_placeholders(self.insert_migration_sql).format(self),
-            (migration.id, datetime.utcnow()))
-        self.connection.commit()
-        cursor.close()
+        sql = self._with_placeholders(self.insert_migration_sql).format(self)
+        self.execute(sql, (migration.id, datetime.utcnow()))
 
 
 class ODBCBackend(DatabaseBackend):

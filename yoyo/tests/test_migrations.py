@@ -26,13 +26,12 @@ from yoyo.migrations import topological_sort, MigrationList
 
 @with_migrations(
     """
-step("CREATE TABLE test (id INT)")
-transaction(
-    step("INSERT INTO test VALUES (1)"),
-    step("INSERT INTO test VALUES ('x', 'y')")
-)
+    step("CREATE TABLE test (id INT)")
+    """,
     """
-)
+step("INSERT INTO test VALUES (1)")
+step("INSERT INTO test VALUES ('x', 'y')")
+    """)
 def test_transaction_is_not_committed_on_error(tmpdir):
     backend = get_backend(dburi)
     migrations = read_migrations(tmpdir)
@@ -86,8 +85,9 @@ def test_execution_continues_with_ignore_errors(tmpdir):
 
 @with_migrations(
     '''
+    from yoyo import step, group
     step("CREATE TABLE test (id INT)")
-    transaction(
+    group(
         step("INSERT INTO test VALUES (1)"),
         step("INSERT INTO test VALUES ('a', 'b')"),
         ignore_errors='all'
@@ -145,7 +145,6 @@ def test_specify_migration_table(tmpdir):
     def foo(conn):
         conn.cursor().execute("CREATE TABLE foo_test (id INT)")
         conn.cursor().execute("INSERT INTO foo_test VALUES (1)")
-        conn.commit()
     def bar(conn):
         foo(conn)
     step(bar)
@@ -165,12 +164,12 @@ def test_migration_functions_have_namespace_access(tmpdir):
 
 @with_migrations(
     '''
-    from yoyo import transaction, step
+    from yoyo import group, step
     step("CREATE TABLE test (id INT)")
-    transaction(step("INSERT INTO test VALUES (1)")),
+    group(step("INSERT INTO test VALUES (1)")),
     '''
 )
-def test_migrations_can_import_step_and_transaction(tmpdir):
+def test_migrations_can_import_step_and_group(tmpdir):
     backend = get_backend(dburi)
     migrations = read_migrations(tmpdir)
     backend.apply_migrations(migrations)

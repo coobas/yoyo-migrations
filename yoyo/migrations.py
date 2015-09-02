@@ -64,8 +64,9 @@ class Migration(object):
             migration_code = compile(source, f.name, 'exec')
 
         collector = _step_collectors[f.name] = StepCollector()
-        ns = {'step': collector.step,
-              'transaction': collector.transaction}
+        ns = {'step': collector.add_step,
+              'group': collector.add_step_group,
+              'transaction': collector.add_step_group}
         try:
             exec_(migration_code, ns)
         except Exception as e:
@@ -81,7 +82,7 @@ class Migration(object):
             raise exceptions.BadMigration(
                 "Could not resolve dependencies in {}".format(self.path))
         self.source = source
-        self.steps = collector.steps
+        self.steps = list(collector.steps)
 
     def process_steps(self, backend, direction, force=False):
 
@@ -120,6 +121,11 @@ class PostApplyHookMigration(Migration):
 
 class StepBase(object):
 
+    id = None
+
+    def __repr__(self):
+        return "<{} #{}>".format(self.__class__.__name__, self.id)
+
     def apply(self, backend, force=False):
         raise NotImplementedError()
 
@@ -127,41 +133,35 @@ class StepBase(object):
         raise NotImplementedError()
 
 
-class Transaction(StepBase):
+class TransactionWrapper(StepBase):
     """
-    A ``Transaction`` object causes all associated steps to be run within a
-    single database transaction.
+    A ``Transaction`` object causes a step to be run within a
+    single database transaction. Nested transactions are implemented via
+    savepoints.
     """
 
-    def __init__(self, steps, ignore_errors=None):
+    def __init__(self, step, ignore_errors=None):
         assert ignore_errors in (None, 'all', 'apply', 'rollback')
-        self.steps = steps
+        self.step = step
         self.ignore_errors = ignore_errors
 
-    def apply(self, backend, force=False):
+    def __repr__(self):
+        return '<TransactionWrapper {!r}>'.format(self.step)
 
-        for step in self.steps:
+    def apply(self, backend, force=False, direction='apply'):
+        with backend.transaction() as transaction:
             try:
-                step.apply(backend, force)
+                getattr(self.step, direction)(backend, force)
             except tuple(exceptions.DatabaseErrors):
-                backend.rollback()
-                if force or self.ignore_errors in ('apply', 'all'):
-                    logger.exception("Ignored error in step %d", step.id)
+                if force or self.ignore_errors in (direction, 'all'):
+                    logger.exception("Ignored error in %r", self.step)
+                    transaction.rollback()
                     return
-                raise
-        backend.commit()
+                else:
+                    raise
 
     def rollback(self, backend, force=False):
-        for step in reversed(self.steps):
-            try:
-                step.rollback(backend, force)
-            except tuple(exceptions.DatabaseErrors):
-                backend.rollback()
-                if force or self.ignore_errors in ('rollback', 'all'):
-                    logger.exception("Ignored error in step %d", step.id)
-                    return
-                raise
-        backend.commit()
+        self.apply(backend, force, 'rollback')
 
 
 class MigrationStep(StepBase):
@@ -171,9 +171,6 @@ class MigrationStep(StepBase):
     Each migration step comprises apply and rollback steps of up and down SQL
     statements.
     """
-
-    transaction = None
-
     def __init__(self, id, apply, rollback):
 
         self.id = id
@@ -241,6 +238,25 @@ class MigrationStep(StepBase):
                 cursor.close()
         else:
             self._rollback(backend.connection)
+
+
+class StepGroup(MigrationStep):
+    """
+    Multiple steps aggregated together
+    """
+    def __init__(self, steps):
+        self.steps = steps
+
+    def __repr__(self):
+        return "{}({!r})".format(self.__class__.__name__, self.steps)
+
+    def apply(self, backend, force=False):
+        for item in self.steps:
+            item.apply(backend, force)
+
+    def rollback(self, backend, force=False):
+        for item in self.steps:
+            item.apply(backend, force)
 
 
 def read_migrations(*directories):
@@ -349,53 +365,59 @@ class StepCollector(object):
     """
 
     def __init__(self):
-        self.steps = []
+        self.steps = OrderedDict()
         self.step_id = count(0)
 
-    def step(self, apply, rollback=None, ignore_errors=None):
+    def add_step(self, apply, rollback=None, ignore_errors=None):
         """
         Wrap the given apply and rollback code in a transaction, and add it
         to the list of steps.
         Return the transaction-wrapped step.
         """
-        t = Transaction([MigrationStep(next(self.step_id), apply, rollback)],
-                        ignore_errors)
-        self.steps.append(t)
+        t = MigrationStep(next(self.step_id), apply, rollback)
+        t = TransactionWrapper(t, ignore_errors)
+        self.steps[t] = 1
         return t
 
-    def transaction(self, *steps, **kwargs):
+    def add_step_group(self, *args, **kwargs):
         """
-        Wrap the given list of steps in a single transaction, removing the
-        default transactions around individual steps.
+        Create a ``StepGroup`` group of steps.
         """
-        steps = chain(*(s if isinstance(s, Iterable) else [s] for s in steps))
-
         ignore_errors = kwargs.pop('ignore_errors', None)
-        assert kwargs == {}
+        if 'steps' in kwargs:
+            if args:
+                raise ValueError("steps cannot be called with both keyword "
+                                 "and positional 'steps' argument")
 
-        transaction = Transaction([], ignore_errors)
-        for oldtransaction in steps:
-            if oldtransaction.ignore_errors is not None:
-                raise AssertionError("ignore_errors cannot be specified "
-                                        "within a transaction")
-            try:
-                (step,) = oldtransaction.steps
-            except ValueError:
-                raise AssertionError("Transactions cannot be nested")
-            transaction.steps.append(step)
-            self.steps.remove(oldtransaction)
-        self.steps.append(transaction)
-        return transaction
+            steps = kwargs['steps']
+        else:
+            steps = list(chain(*(s if isinstance(s, Iterable) else [s]
+                                 for s in args)))
+        for s in steps:
+            del self.steps[s]
+
+        group = TransactionWrapper(StepGroup(steps), ignore_errors)
+        self.steps[group] = 1
+        return group
+
+
+def _get_collector(depth=2):
+    fi = inspect.getframeinfo(inspect.stack()[depth][0])
+    return _step_collectors[fi.filename]
 
 
 def step(*args, **kwargs):
-    fi = inspect.getframeinfo(inspect.stack()[1][0])
-    return _step_collectors[fi.filename].step(*args, **kwargs)
+    collector = _get_collector()
+    return collector.add_step(*args, **kwargs)
 
 
-def transaction(*args, **kwargs):
-    fi = inspect.getframeinfo(inspect.stack()[1][0])
-    return _step_collectors[fi.filename].transaction(*args, **kwargs)
+def group(*args, **kwargs):
+    collector = _get_collector()
+    return collector.add_step_group(*args, **kwargs)
+
+#: Alias for compatibility purposes.
+#: This no longer affects transaction handling.
+transaction = group
 
 
 def ancestors(migration, population):
