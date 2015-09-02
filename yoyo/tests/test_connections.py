@@ -54,7 +54,8 @@ class TestParseURI:
 
 
 @patch('yoyo.backends.import_module',
-       return_value=Mock(DatabaseError=MockDatabaseError))
+       return_value=Mock(DatabaseError=MockDatabaseError,
+                         paramstyle='qmark'))
 def test_connections(import_module):
 
     from yoyo import backends
