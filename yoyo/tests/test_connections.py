@@ -63,7 +63,7 @@ def test_connections(import_module):
         (backends.ODBCBackend, 'pyodbc',
          call('UID=scott;PWD=tiger;ServerName=db.example.org;'
               'Port=42;Database=northwind;foo=bar')),
-        (backends.MySQLBackend, 'MySQLdb',
+        (backends.MySQLBackend, 'pymysql',
          call(user='scott', passwd='tiger', host='db.example.org', port=42,
               db='northwind', foo='bar')),
         (backends.SQLiteBackend, 'sqlite3', call('northwind')),

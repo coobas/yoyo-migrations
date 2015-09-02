@@ -213,7 +213,7 @@ class ODBCBackend(DatabaseBackend):
 
 class MySQLBackend(DatabaseBackend):
 
-    driver_module = 'MySQLdb'
+    driver_module = 'pymysql'
 
     def connect(self, dburi):
         kwargs = dburi.args

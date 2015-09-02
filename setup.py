@@ -54,7 +54,7 @@ setup(
     zip_safe=False,
     install_requires=install_requires,
     extras_require={
-        'mysql': ['mysql-python'],
+        'mysql': ['PyMySQL'],
         'postgres': ['psycopg2'],
         'pyodbc': ['pyodbc']
     },
