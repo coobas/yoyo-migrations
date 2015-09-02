@@ -27,7 +27,7 @@ from yoyo.utils import plural
 
 logger = getLogger('yoyo.migrations')
 default_migration_table = '_yoyo_migration'
-_step_collectors = {}
+_step_collectors = defaultdict(lambda: StepCollector())
 
 
 class Migration(object):
@@ -63,7 +63,7 @@ class Migration(object):
             self.source = source = f.read()
             migration_code = compile(source, f.name, 'exec')
 
-        collector = _step_collectors[f.name] = StepCollector()
+        collector = _step_collectors[f.name]
         ns = {'step': collector.add_step,
               'group': collector.add_step_group,
               'transaction': collector.add_step_group}

@@ -17,6 +17,7 @@ from __future__ import unicode_literals
 from shutil import rmtree
 from tempfile import mkdtemp
 from functools import partial
+from itertools import count
 import io
 import os
 import os.path
@@ -297,10 +298,15 @@ class TestNewMigration(TestInteractiveScript):
         super(TestNewMigration, self).setup()
         self.subprocess_patch = patch('yoyo.scripts.newmigration.subprocess')
         self.subprocess = self.subprocess_patch.start()
+        self.subprocess.call.return_value = 0
+        mockstat = lambda f, c=count(): Mock(st_mtime=next(c))
+        self.stat_patch = patch('yoyo.scripts.newmigration.stat', mockstat)
+        self.stat_patch.start()
 
     def teardown(self):
         super(TestNewMigration, self).teardown()
         self.subprocess_patch.stop()
+        self.stat_patch.stop()
 
     @with_migrations()
     def test_it_creates_an_empty_migration(self, tmpdir):
@@ -357,18 +363,26 @@ class TestNewMigration(TestInteractiveScript):
 
     @with_migrations()
     def test_it_pulls_message_from_docstring(self, tmpdir):
-        from itertools import count
-        mockstat = lambda f, c=count(): Mock(mtime=next(c))
-
         def write_migration(argv):
             with io.open(argv[-1], 'w', encoding='utf8') as f:
                 f.write('"""\ntest docstring\nsplit over\n\nlines\n"""\n')
 
         self.subprocess.call = write_migration
-        with patch('yoyo.scripts.newmigration.stat', mockstat):
-            main(['new', tmpdir, dburi])
-            names = [n for n in os.listdir(tmpdir) if n.endswith('.py')]
-            assert 'test-docstring' in names[0]
+        main(['new', tmpdir, dburi])
+        names = [n for n in os.listdir(tmpdir) if n.endswith('.py')]
+        assert 'test-docstring' in names[0]
+
+    @with_migrations()
+    def test_it_prompts_to_reedit_bad_migration(self, tmpdir):
+        def write_migration(argv):
+            with io.open(argv[-1], 'w', encoding='utf8') as f:
+                f.write('this is not valid python!')
+
+        self.subprocess.call = write_migration
+        main(['new', tmpdir, dburi])
+        prompts = [args[0].lower()
+                   for args, kwargs in self.prompt.call_args_list]
+        assert 'retry editing?' in prompts[0]
 
     @with_migrations()
     def test_it_defaults_docstring_to_message(self, tmpdir):

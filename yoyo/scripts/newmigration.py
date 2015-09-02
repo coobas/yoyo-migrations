@@ -26,13 +26,15 @@ import shlex
 import string
 import subprocess
 import sys
+import traceback
+
 from slugify import slugify
 
 from yoyo import default_migration_table
 from yoyo.compat import NoOptionError
 from yoyo.config import CONFIG_NEW_MIGRATION_COMMAND_KEY
 from yoyo.migrations import read_migrations, heads
-from yoyo.utils import get_editor
+from yoyo import utils
 from .main import InvalidArgument
 
 from os import path, stat, unlink, rename
@@ -143,7 +145,7 @@ def make_filename(directory, message):
 
 
 def create_with_editor(config, directory, migration_source):
-    editor = get_editor(config)
+    editor = utils.get_editor(config)
     tmpfile = NamedTemporaryFile(dir=directory, suffix='.py', delete=False)
     try:
         with io.open(tmpfile.name, 'w', encoding='UTF-8') as f:
@@ -154,17 +156,45 @@ def create_with_editor(config, directory, migration_source):
             editor.append(tmpfile.name)
 
         mtime = stat(tmpfile.name).st_mtime
-        subprocess.call(editor)
-
-        if stat(tmpfile.name).st_mtime == mtime:
-            return None
-
         sys.path.insert(0, directory)
-        modname = path.splitext(path.basename(tmpfile.name))[0]
-        m = __import__(modname)
+        while True:
+            try:
+                subprocess.call(editor)
+            except OSError:
+                print("Error: could not open editor!")
+            else:
+                if stat(tmpfile.name).st_mtime == mtime:
+                    print("abort: no changes made")
+                    return None
+
+            modname = path.splitext(path.basename(tmpfile.name))[0]
+            try:
+                message = __import__(modname).__doc__
+                break
+            except Exception:
+                message = ''
+                print("Error loading migration")
+                print(traceback.format_exc())
+                print()
+                r = utils.prompt("Retry editing?", "Ynq?")
+                if r == 'q':
+                    return None
+                elif r == 'y':
+                    continue
+                elif r == 'n':
+                    break
+                elif r == '?':
+                    print("")
+                    print("y: reopen the migration file in your editor")
+                    print("n: save the migration as-is, without re-editing")
+                    print("q: quit without saving the migration")
+                    print("")
+                    print("?: show this help")
+                    continue
+
         sys.path = sys.path[1:]
 
-        filename = make_filename(directory, m.__doc__)
+        filename = make_filename(directory, message)
         rename(tmpfile.name, filename)
         return filename
     finally:
