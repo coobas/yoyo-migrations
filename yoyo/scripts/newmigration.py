@@ -44,13 +44,13 @@ migration_template = dedent('''\
     {message}
     """
 
-    from yoyo import step, transaction
+    from yoyo import step
 
     __depends__ = {{{depends}}}
 
-    steps = transaction([
+    steps = [
         step("")
-    ])
+    ]
     ''')
 
 
