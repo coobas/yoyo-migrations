@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import sys
+
 from mock import patch, call, Mock
 import pytest
 
@@ -24,6 +26,9 @@ class MockDatabaseError(Exception):
 
 class TestParseURI:
 
+    @pytest.mark.skipif(sys.version_info < (2, 7, 4),
+                        reason="Requires python>=2.7.4 "
+                        "(http://bugs.python.org/issue7904)")
     def test_it_parses_all_fields(self):
         parsed = parse_uri('protocol://scott:tiger@server:666/db?k=1')
         assert tuple(parsed) == ('protocol', 'scott', 'tiger', 'server', 666,
@@ -53,6 +58,9 @@ class TestParseURI:
         assert parse_uri('sqlite:////foo/bar.db').database == '/foo/bar.db'
 
 
+@pytest.mark.skipif(sys.version_info < (2, 7, 4),
+                    reason="Requires python>=2.7.4 "
+                    "(http://bugs.python.org/issue7904)")
 @patch('yoyo.backends.import_module',
        return_value=Mock(DatabaseError=MockDatabaseError,
                          paramstyle='qmark'))
