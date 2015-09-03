@@ -19,7 +19,7 @@ import logging
 import os
 import sys
 
-from yoyo.compat import NoOptionError
+from yoyo.compat import configparser
 from yoyo.config import (CONFIG_FILENAME,
                          find_config,
                          read_config,
@@ -75,7 +75,7 @@ def parse_args(argv=None):
     for argname, getter in config_args.items():
         try:
             defaults[argname] = getattr(config, getter)('DEFAULT', argname)
-        except NoOptionError:
+        except configparser.NoOptionError:
             pass
 
     # Set the argparser defaults to values read from the config file
@@ -169,10 +169,10 @@ def upgrade_legacy_config(args, config, sources):
                              transform=None, section='DEFAULT'):
             try:
                 config.get(section, newname)
-            except NoOptionError:
+            except configparser.NoOptionError:
                 try:
                     value = legacy_config.get(section, oldname)
-                except NoOptionError:
+                except configparser.NoOptionError:
                     pass
                 else:
                     if transform:
@@ -205,13 +205,13 @@ def upgrade_legacy_config(args, config, sources):
         try:
             args.database = (
                     args.database or legacy_config.get('DEFAULT', 'dburi'))
-        except NoOptionError:
+        except configparser.NoOptionError:
             pass
         try:
             args.migration_table = (
                 args.migration_table or
                 legacy_config.get('DEFAULT', 'migration_table'))
-        except NoOptionError:
+        except configparser.NoOptionError:
             pass
 
 

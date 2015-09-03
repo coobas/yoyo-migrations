@@ -16,11 +16,18 @@
 Handle config file and argument parsing
 """
 import os
-from yoyo.compat import SafeConfigParser
+from yoyo.compat import configparser
+import iniherit
 
 CONFIG_FILENAME = '.yoyorc'
 CONFIG_EDITOR_KEY = 'editor'
 CONFIG_NEW_MIGRATION_COMMAND_KEY = 'post_create_command'
+
+
+def get_configparser(**defaults):
+    return iniherit.SafeConfigParser(
+        defaults=defaults,
+        interpolation=configparser.ExtendedInterpolation())
 
 
 def update_argparser_defaults(parser, defaults):
@@ -42,8 +49,8 @@ def read_config(path):
     ConfigParse object if ``path`` is ``None``.
     """
     if path is None:
-        return SafeConfigParser()
-    config = SafeConfigParser()
+        return get_configparser()
+    config = get_configparser(here=os.path.dirname(path))
     config.read([path])
     return config
 

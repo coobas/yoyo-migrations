@@ -28,7 +28,7 @@ import frozendate
 import tms
 
 from yoyo import read_migrations
-from yoyo.compat import SafeConfigParser
+from yoyo.config import get_configparser
 from yoyo.tests import with_migrations, dburi
 from yoyo.scripts.main import main, parse_args, LEGACY_CONFIG_FILENAME
 
@@ -57,7 +57,7 @@ class TestInteractiveScript(object):
         rmtree(self.tmpdir)
 
     def writeconfig(self, **defaults):
-        cp = SafeConfigParser()
+        cp = get_configparser()
         for item in defaults:
             cp.set('DEFAULT', item, defaults[item])
 
@@ -204,6 +204,11 @@ class TestArgParsing(TestInteractiveScript):
         _, _, args = parse_args(['apply'])
         assert args.database == 'postgresql:///foo'
         assert args.sources == '/tmp/migrations'
+
+    def test_it_uses_interpolated_values_from_config(self):
+        self.writeconfig(sources='${here}/migrations')
+        _, _, args = parse_args(['apply'])
+        assert args.sources == os.getcwd() + '/migrations'
 
     def test_cli_args_take_precendence(self):
         self.writeconfig(sources='A')

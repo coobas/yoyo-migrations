@@ -2,15 +2,15 @@ import os
 
 import pytest
 
-from yoyo.connections import get_backend
 from yoyo import backends
 from yoyo import exceptions
-from yoyo.compat import SafeConfigParser
+from yoyo.config import get_configparser
+from yoyo.connections import get_backend
 
 
 config_file = os.path.join(os.path.dirname(__file__),
                            *('../../test_databases.ini'.split('/')))
-config = SafeConfigParser()
+config = get_configparser()
 config.read([config_file])
 
 

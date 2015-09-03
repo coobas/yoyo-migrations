@@ -16,10 +16,14 @@
 
 import os
 import re
+import sys
 from setuptools import setup, find_packages
 
 VERSIONFILE = "yoyo/__init__.py"
-install_requires = ['python-slugify']
+install_requires = ['python-slugify', 'iniherit']
+
+if sys.version_info < (3, 0):
+    install_requires.append('configparser')
 
 
 def get_version():

@@ -16,9 +16,9 @@ import codecs
 import locale
 import sys
 try:
-    from configparser import SafeConfigParser, NoSectionError, NoOptionError
+    import configparser
 except ImportError:
-    from ConfigParser import SafeConfigParser, NoSectionError, NoOptionError  # noqa
+    import ConfigParser as configparser  # noqa
 
 try:
     from urllib.parse import (urlsplit, urlunsplit, urlencode, parse_qsl,

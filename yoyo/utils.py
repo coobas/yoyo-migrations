@@ -16,7 +16,7 @@ from __future__ import print_function
 import os
 import sys
 
-from yoyo.compat import NoOptionError
+from yoyo.compat import configparser
 from yoyo.config import CONFIG_EDITOR_KEY
 
 try:
@@ -96,7 +96,7 @@ def get_editor(config):
     """
     try:
         return config.get('DEFAULT', CONFIG_EDITOR_KEY)
-    except NoOptionError:
+    except configparser.NoOptionError:
         pass
     for key in ['VISUAL', 'EDITOR']:
         editor = os.environ.get(key, None)

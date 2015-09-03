@@ -31,7 +31,7 @@ import traceback
 from slugify import slugify
 
 from yoyo import default_migration_table
-from yoyo.compat import NoOptionError
+from yoyo.compat import configparser
 from yoyo.config import CONFIG_NEW_MIGRATION_COMMAND_KEY
 from yoyo.migrations import read_migrations, heads
 from yoyo import utils
@@ -108,7 +108,7 @@ def new_migration(args, config):
         command = [part.format(p) for part in shlex.split(command)]
         logger.info("Running command: %s", ' '.join(command))
         subprocess.call(command)
-    except NoOptionError:
+    except configparser.NoOptionError:
         pass
 
     print("Created file", p)
