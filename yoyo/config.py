@@ -23,6 +23,10 @@ CONFIG_EDITOR_KEY = 'editor'
 CONFIG_NEW_MIGRATION_COMMAND_KEY = 'post_create_command'
 
 
+def get_interpolation_defaults(path):
+    return {'here': os.path.dirname(path)}
+
+
 def get_configparser(**defaults):
     return iniherit.SafeConfigParser(defaults=defaults)
 
@@ -47,7 +51,7 @@ def read_config(path):
     """
     if path is None:
         return get_configparser()
-    config = get_configparser(here=os.path.dirname(path))
+    config = get_configparser(**get_interpolation_defaults(path))
     config.read([path])
     return config
 
