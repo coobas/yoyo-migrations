@@ -4,6 +4,9 @@ Yoyo database migrations
 Yoyo is a database schema migration tool using plain SQL and python's builtin
 DB-API.
 
+.. image:: https://drone.io/bitbucket.org/ollyc/yoyo/status.png
+
+
 What does yoyo-migrations do?
 -----------------------------
 
