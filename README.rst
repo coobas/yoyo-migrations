@@ -178,7 +178,7 @@ password will not be available to other users via the system's process list.
 Configuration file
 ------------------
 
-``yoyo-migrate`` looks for a configuration file called ``.yoyorc``, in
+``yoyo-migrate`` looks for a configuration file called ``yoyo.ini``, in
 the current working directory or any ancestor directory.
 
 If no configuration file is found ``yoyo-migrate`` will prompt you to

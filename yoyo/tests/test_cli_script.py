@@ -62,10 +62,10 @@ class TestInteractiveScript(object):
             cp.set('DEFAULT', item, defaults[item])
 
         if sys.version_info < (3, 0):
-            with open('.yoyorc', 'w') as f:
+            with open('yoyo.ini', 'w') as f:
                 cp.write(f)
         else:
-            with open('.yoyorc', 'w', encoding='UTF-8') as f:
+            with open('yoyo.ini', 'w', encoding='UTF-8') as f:
                 cp.write(f)
 
 
@@ -88,8 +88,8 @@ class TestYoyoScript(TestInteractiveScript):
     def test_it_creates_config_file(self, tmpdir):
         self.confirm.return_value = True
         main(['apply', tmpdir, dburi])
-        assert os.path.exists('.yoyorc')
-        with open('.yoyorc') as f:
+        assert os.path.exists('yoyo.ini')
+        with open('yoyo.ini') as f:
             assert 'database = {0}'.format(dburi) in f.read()
 
     @with_migrations()
@@ -176,7 +176,7 @@ class TestYoyoScript(TestInteractiveScript):
         assert prompts[1].startswith('delete legacy configuration')
         assert not os.path.exists(legacy_config_path)
 
-        with open('.yoyorc', 'r') as f:
+        with open('yoyo.ini', 'r') as f:
             config = f.read()
             assert 'database = sqlite:///\n' in config
             assert 'migration_table = _yoyo_migration\n' in config
@@ -191,7 +191,7 @@ class TestYoyoScript(TestInteractiveScript):
         self.confirm.return_value = True
         main(['apply', tmpdir])
 
-        with open('.yoyorc', 'r') as f:
+        with open('yoyo.ini', 'r') as f:
             config = f.read()
         assert 'migration_table = _yoyo_migration\n' in config
 

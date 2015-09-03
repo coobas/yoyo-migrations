@@ -18,7 +18,7 @@ Handle config file and argument parsing
 import os
 import iniherit
 
-CONFIG_FILENAME = '.yoyorc'
+CONFIG_FILENAME = 'yoyo.ini'
 CONFIG_EDITOR_KEY = 'editor'
 CONFIG_NEW_MIGRATION_COMMAND_KEY = 'post_create_command'
 

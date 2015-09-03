@@ -122,7 +122,7 @@ def make_argparser():
                                dest="use_config_file",
                                action="store_false",
                                default=True,
-                               help="Don't look for a .yoyorc config file")
+                               help="Don't look for a yoyo.ini config file")
     argparser = argparse.ArgumentParser(prog='yoyo-migrate',
                                         parents=[global_parser])
 
