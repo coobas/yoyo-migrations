@@ -393,12 +393,14 @@ class TestNewMigration(TestInteractiveScript):
             assert 'your ad here' in f.read()
 
     @with_migrations()
-    def test_it_calls_new_migration_command(self, tmpdir):
-
-        self.writeconfig(new_migration_command='/bin/ls -l {}')
+    def test_it_calls_post_create_command(self, tmpdir):
+        self.writeconfig(post_create_command='/bin/ls -l {} {}')
         with frozendate.freeze(2001, 1, 1):
             main(['new', '-b', tmpdir, dburi])
+        is_filename = tms.Str(
+            lambda s: os.path.basename(s).startswith('20010101_01_'))
         assert self.subprocess.call.call_args == call([
             '/bin/ls',
             '-l',
-            tms.Str(lambda s: os.path.basename(s).startswith('20010101_01_'))])
+            is_filename,
+            is_filename])
