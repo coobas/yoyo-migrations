@@ -10,6 +10,8 @@ file carefully before upgrading.
 * The configuration file is now stored per-project, not per-migrations source
   directory. This makes it possible to share a migrations source directory
   across multiple projects.
+* The api for calling yoyo programmatically has changed. Refer to the
+  README for an up to date example of calling yoyo from python code.
 * Improved url parsing
 * Allow database uris containing usernames with the symbol '@'
 * The command line option ``--no-cache`` has been renamed to
