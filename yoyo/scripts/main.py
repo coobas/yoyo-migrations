@@ -190,29 +190,32 @@ def upgrade_legacy_config(args, config, sources):
             if utils.confirm("Move legacy configuration in {!r} to {!r}?"
                              .format(path, config_path)):
                 save_config(config, config_path)
-            try:
-                if utils.confirm("Delete legacy configuration file {!r}"
-                                 .format(path)):
-                    os.unlink(path)
-            except OSError:
-                logger.warn("Could not remove %r. Manually remove this file "
-                            "to avoid future warnings", path)
+                try:
+                    if utils.confirm("Delete legacy configuration file {!r}"
+                                    .format(path)):
+                        os.unlink(path)
+                except OSError:
+                    logger.warn("Could not remove %r. Manually remove this file "
+                                "to avoid future warnings", path)
+                return True
         else:
             logger.warn("Found legacy configuration in %r. Run "
                         "yoyo-migrate in interactive mode to update your "
                         "configuration files", path)
 
-        try:
-            args.database = (
-                    args.database or legacy_config.get('DEFAULT', 'dburi'))
-        except configparser.NoOptionError:
-            pass
-        try:
-            args.migration_table = (
-                args.migration_table or
-                legacy_config.get('DEFAULT', 'migration_table'))
-        except configparser.NoOptionError:
-            pass
+            try:
+                args.database = (
+                        args.database or legacy_config.get('DEFAULT', 'dburi'))
+            except configparser.NoOptionError:
+                pass
+            try:
+                args.migration_table = (
+                    args.migration_table or
+                    legacy_config.get('DEFAULT', 'migration_table'))
+            except configparser.NoOptionError:
+                pass
+
+        return False
 
 
 def get_backend(args, config):
@@ -246,13 +249,22 @@ def main(argv=None):
                        config.items('DEFAULT') == [])
 
     sources = getattr(args, 'sources', None)
-    if sources:
-        if upgrade_legacy_config(args, config, sources.split()):
-            return main(argv)
 
     verbosity = args.verbosity
     verbosity = min(max_verbosity, max(min_verbosity, verbosity))
     configure_logging(verbosity)
+
+    if args.sources:
+        config.set('DEFAULT', 'sources', args.sources)
+    if args.database:
+        config.set('DEFAULT', 'database', args.database)
+    config.set('DEFAULT', 'migration_table', args.migration_table)
+    config.set('DEFAULT', 'batch_mode', 'on' if args.batch_mode else 'off')
+    config.set('DEFAULT', 'verbosity', str(args.verbosity))
+
+    if sources:
+        if upgrade_legacy_config(args, config, sources.split()):
+            return main(argv)
 
     try:
         args.func(args, config)
@@ -260,10 +272,6 @@ def main(argv=None):
         argparser.error(e.args[0])
 
     if config_is_empty and args.use_config_file and not args.batch_mode:
-        config.set('DEFAULT', 'sources', args.sources)
-        config.set('DEFAULT', 'database', args.database)
-        config.set('DEFAULT', 'migration_table', args.migration_table)
-        config.set('DEFAULT', 'batch_mode', 'off' if args.batch_mode else 'on')
 
         prompt_save_config(config, args.config or CONFIG_FILENAME)
 

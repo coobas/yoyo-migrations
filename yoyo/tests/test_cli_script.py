@@ -172,6 +172,7 @@ class TestYoyoScript(TestInteractiveScript):
         main(['apply', tmpdir])
         prompts = [args[0].lower()
                     for args, kwargs in self.confirm.call_args_list]
+        assert len(prompts) == 2
         assert prompts[0].startswith('move legacy configuration')
         assert prompts[1].startswith('delete legacy configuration')
         assert not os.path.exists(legacy_config_path)
@@ -180,6 +181,8 @@ class TestYoyoScript(TestInteractiveScript):
             config = f.read()
             assert 'database = sqlite:///\n' in config
             assert 'migration_table = _yoyo_migration\n' in config
+            assert 'batch_mode = off\n' in config
+            assert 'verbosity = 0\n' in config
 
     @with_migrations()
     def test_it_upgrades_migration_table_None(self, tmpdir):
