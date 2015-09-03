@@ -332,7 +332,7 @@ class TestNewMigration(TestInteractiveScript):
         with frozendate.freeze(2001, 1, 1):
             main(['new', '-b', '-m', 'foo', tmpdir, dburi])
             main(['new', '-b', '-m', 'bar', tmpdir, dburi])
-        names = [n for n in os.listdir(tmpdir) if n.endswith('.py')]
+        names = [n for n in sorted(os.listdir(tmpdir)) if n.endswith('.py')]
         assert names[0].startswith('20010101_01_')
         assert names[0].endswith('-foo.py')
         assert names[1].startswith('20010101_02_')
@@ -374,7 +374,7 @@ class TestNewMigration(TestInteractiveScript):
 
         self.subprocess.call = write_migration
         main(['new', tmpdir, dburi])
-        names = [n for n in os.listdir(tmpdir) if n.endswith('.py')]
+        names = [n for n in sorted(os.listdir(tmpdir)) if n.endswith('.py')]
         assert 'test-docstring' in names[0]
 
     @with_migrations()
@@ -392,7 +392,7 @@ class TestNewMigration(TestInteractiveScript):
     @with_migrations()
     def test_it_defaults_docstring_to_message(self, tmpdir):
         main(['new', '-b', '-m', 'your ad here', tmpdir, dburi])
-        names = [n for n in os.listdir(tmpdir) if n.endswith('.py')]
+        names = [n for n in sorted(os.listdir(tmpdir)) if n.endswith('.py')]
         with io.open(os.path.join(tmpdir, names[0]), 'r',
                      encoding='utf-8') as f:
             assert 'your ad here' in f.read()
