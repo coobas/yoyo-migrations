@@ -206,7 +206,7 @@ class TestArgParsing(TestInteractiveScript):
         assert args.sources == '/tmp/migrations'
 
     def test_it_uses_interpolated_values_from_config(self):
-        self.writeconfig(sources='${here}/migrations')
+        self.writeconfig(sources='%(here)s/migrations')
         _, _, args = parse_args(['apply'])
         assert args.sources == os.getcwd() + '/migrations'
 

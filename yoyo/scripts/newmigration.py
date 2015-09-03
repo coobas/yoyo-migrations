@@ -104,7 +104,7 @@ def new_migration(args, config):
 
     try:
         command = config.get('DEFAULT',
-                                CONFIG_NEW_MIGRATION_COMMAND_KEY)
+                             CONFIG_NEW_MIGRATION_COMMAND_KEY)
         command = [part.format(p) for part in shlex.split(command)]
         logger.info("Running command: %s", ' '.join(command))
         subprocess.call(command)

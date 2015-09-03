@@ -16,7 +16,6 @@
 Handle config file and argument parsing
 """
 import os
-from yoyo.compat import configparser
 import iniherit
 
 CONFIG_FILENAME = '.yoyorc'
@@ -25,9 +24,7 @@ CONFIG_NEW_MIGRATION_COMMAND_KEY = 'post_create_command'
 
 
 def get_configparser(**defaults):
-    return iniherit.SafeConfigParser(
-        defaults=defaults,
-        interpolation=configparser.ExtendedInterpolation())
+    return iniherit.SafeConfigParser(defaults=defaults)
 
 
 def update_argparser_defaults(parser, defaults):

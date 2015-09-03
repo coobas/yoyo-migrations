@@ -16,25 +16,16 @@
 
 import os
 import re
-import sys
 from setuptools import setup, find_packages
 
 VERSIONFILE = "yoyo/__init__.py"
 install_requires = ['python-slugify', 'iniherit']
-
-if sys.version_info < (3, 0):
-    install_requires.append('configparser')
 
 
 def get_version():
     with open(VERSIONFILE, 'rb') as f:
         return re.search("^__version__\s*=\s*['\"]([^'\"]*)['\"]",
                            f.read().decode('UTF-8'), re.M).group(1)
-
-try:
-    import argparse  # NOQA
-except ImportError:
-    install_requires.append('argparse')
 
 
 def read(*path):
