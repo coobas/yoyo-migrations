@@ -294,12 +294,10 @@ Using yoyo from python code
 
 The following example shows how to apply migrations from inside python code::
 
-    from yoyo import read_migrations
-    from yoyo.connections import get_backend
+    from yoyo import read_migrations, get_backend
 
     backend = get_backend('postgres://myuser@localhost/mydatabase')
     migrations = read_migrations('path/to/migrations')
     backend.apply_migrations(migrations)
-    backend.commit()
 
 .. :vim:sw=4:et
