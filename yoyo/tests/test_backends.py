@@ -68,3 +68,10 @@ class TestTransactionHandling(object):
         with backend.transaction():
             rows = list(backend.execute("SELECT * FROM t").fetchall())
             assert rows == [('A',), ('C',)]
+
+    def test_backend_detects_transactional_ddl(self, backend):
+        expected = {backends.PostgresqlBackend: True,
+                    backends.SQLiteBackend: True,
+                    backends.MySQLBackend: False}
+        if backend.__class__ in expected:
+            assert backend.has_transactional_ddl is expected[backend.__class__]

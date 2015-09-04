@@ -17,7 +17,7 @@ from importlib import import_module
 from itertools import count
 from logging import getLogger
 
-from . import exceptions
+from . import exceptions, utils
 from .migrations import topological_sort
 
 logger = getLogger('yoyo.migrations')
@@ -107,6 +107,7 @@ class DatabaseBackend(object):
                             "VALUES (?, ?)")
     delete_migration_sql = "DELETE FROM {0.migration_table} WHERE id=?"
     applied_ids_sql = "SELECT id FROM {0.migration_table} ORDER by ctime"
+    create_test_table_sql = "CREATE TABLE {table_name} (id INT PRIMARY KEY)"
 
     _driver = None
     _in_transaction = False
@@ -116,6 +117,7 @@ class DatabaseBackend(object):
         self._connection = self.connect(dburi)
         self.migration_table = migration_table
         self.create_migrations_table()
+        self.has_transactional_ddl = self._check_transactional_ddl()
 
     def _load_driver_module(self):
         """
@@ -135,6 +137,23 @@ class DatabaseBackend(object):
     @property
     def connection(self):
         return self._connection
+
+    def _check_transactional_ddl(self):
+        """
+        Return True if the database supports committing/rolling back
+        DDL statements within a transaction
+        """
+        table_name = '_yoyo_tmp_{}'.format(utils.get_random_string(10))
+        sql = self.create_test_table_sql.format(table_name=table_name)
+        with self.transaction() as t:
+            self.execute(sql)
+            t.rollback()
+        try:
+            with self.transaction():
+                self.execute("DROP TABLE {}".format(table_name))
+        except tuple(exceptions.DatabaseErrors):
+            return True
+        return False
 
     def transaction(self):
         if not self._in_transaction:
