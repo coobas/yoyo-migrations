@@ -1,28 +1,15 @@
-import os
-
 import pytest
 
 from yoyo import backends
 from yoyo import exceptions
-from yoyo.config import get_configparser
-from yoyo.connections import get_backend
-
-
-config_file = os.path.join(os.path.dirname(__file__),
-                           *('../../test_databases.ini'.split('/')))
-config = get_configparser()
-config.read([config_file])
-
-
-def get_test_dbs():
-    return [dburi for _, dburi in config.items('DEFAULT')]
+from yoyo.tests import get_test_backends
 
 
 class TestTransactionHandling(object):
 
-    @pytest.yield_fixture(autouse=True, params=get_test_dbs())
+    @pytest.yield_fixture(autouse=True, params=get_test_backends())
     def backend(self, request):
-        backend = get_backend(request.param)
+        backend = request.param
         with backend.transaction():
             if backend.__class__ is backends.MySQLBackend:
                 backend.execute("CREATE TABLE t (id CHAR(1) primary key) "

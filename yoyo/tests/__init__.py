@@ -18,7 +18,23 @@ from textwrap import dedent
 from shutil import rmtree
 import os.path
 
+from yoyo.config import get_configparser
+from yoyo.connections import get_backend
+
 dburi = "sqlite:///:memory:"
+
+config_file = os.path.join(os.path.dirname(__file__),
+                           *('../../test_databases.ini'.split('/')))
+config = get_configparser()
+config.read([config_file])
+
+
+def get_test_dburis():
+    return [dburi for _, dburi in config.items('DEFAULT')]
+
+
+def get_test_backends():
+    return [get_backend(dburi) for dburi in get_test_dburis()]
 
 
 def with_migrations(*migrations, **kwmigrations):
