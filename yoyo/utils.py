@@ -77,7 +77,7 @@ def confirm(s, default=None):
             options = 'Yn'
         elif default == 'n':
             options = 'yN'
-    return prompt(s, options)
+    return prompt(s, options) == 'y'
 
 
 def plural(quantity, one, plural):
