@@ -22,6 +22,7 @@ from yoyo import ancestors, descendants
 
 from yoyo.tests import with_migrations, migrations_dir, dburi
 from yoyo.migrations import topological_sort, MigrationList
+from yoyo.scripts import newmigration
 
 
 @with_migrations(
@@ -209,6 +210,15 @@ def test_migrations_can_import_step_and_group(tmpdir):
     cursor = backend.cursor()
     cursor.execute("SELECT id FROM _yoyo_test")
     assert cursor.fetchall() == [(1,)]
+
+
+@with_migrations(**{newmigration.tempfile_prefix + 'test': ''})
+def test_read_migrations_ignores_yoyo_new_tmp_files(tmpdir):
+    """
+    The yoyo new command creates temporary files in the migrations directory.
+    These shouldn't be picked up by yoyo apply etc
+    """
+    assert len(read_migrations(tmpdir)) == 0
 
 
 class TestTopologicalSort(object):

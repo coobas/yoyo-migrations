@@ -267,10 +267,13 @@ def read_migrations(*directories):
     """
     Return a ``MigrationList`` containing all migrations from ``directory``.
     """
+    from yoyo.scripts import newmigration
     migrations = []
     for directory in directories:
         paths = [os.path.join(directory, path)
-                for path in os.listdir(directory) if path.endswith('.py')]
+                for path in os.listdir(directory)
+                 if path.endswith('.py') and
+                 not path.startswith(newmigration.tempfile_prefix)]
 
         for path in sorted(paths):
 

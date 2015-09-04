@@ -31,11 +31,12 @@ from yoyo import read_migrations
 from yoyo.config import get_configparser
 from yoyo.tests import with_migrations, dburi
 from yoyo.scripts.main import main, parse_args, LEGACY_CONFIG_FILENAME
+from yoyo.scripts import newmigration
 
 
 def is_tmpfile(p, directory=None):
     return ((p.startswith(directory) if directory else True) and
-            os.path.basename(p).startswith('tmp'))
+            os.path.basename(p).startswith(newmigration.tempfile_prefix))
 
 
 class TestInteractiveScript(object):

@@ -39,6 +39,8 @@ from os import path, stat, unlink, rename
 
 logger = logging.getLogger('yoyo.migrations')
 
+tempfile_prefix = '_tmp_yoyonew'
+
 migration_template = dedent('''\
     """
     {message}
@@ -141,7 +143,10 @@ def make_filename(directory, message):
 
 def create_with_editor(config, directory, migration_source):
     editor = utils.get_editor(config)
-    tmpfile = NamedTemporaryFile(dir=directory, suffix='.py', delete=False)
+    tmpfile = NamedTemporaryFile(dir=directory,
+                                 prefix=tempfile_prefix,
+                                 suffix='.py',
+                                 delete=False)
     try:
         with io.open(tmpfile.name, 'w', encoding='UTF-8') as f:
             f.write(migration_source)
