@@ -8,4 +8,12 @@ def backend_fixture(request):
     """
     Return all backends configured in ``test_databases.ini``
     """
-    yield request.param
+    backend = request.param
+    try:
+        yield backend
+    finally:
+        backend.rollback()
+        for table in (request.param.list_tables()):
+            if table.startswith('_yoyo'):
+                with backend.transaction():
+                    backend.execute("DROP TABLE {}".format(table))

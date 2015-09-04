@@ -102,6 +102,7 @@ class DatabaseBackend(object):
             id VARCHAR(255) NOT NULL PRIMARY KEY,
             ctime TIMESTAMP
         )"""
+    list_tables_sql = "SELECT table_name FROM information_schema.tables"
     is_applied_sql = "SELECT COUNT(1) FROM {0.migration_table} WHERE id=?"
     insert_migration_sql = ("INSERT INTO {0.migration_table} (id, ctime) "
                             "VALUES (?, ?)")
@@ -154,6 +155,15 @@ class DatabaseBackend(object):
         except tuple(exceptions.DatabaseErrors):
             return True
         return False
+
+    def list_tables(self):
+        """
+        Return a list of tables present in the backend.
+        This is used by the test suite to clean up tables
+        generated during testing
+        """
+        cursor = self.execute(self.list_tables_sql)
+        return [row[0] for row in cursor.fetchall()]
 
     def transaction(self):
         if not self._in_transaction:
@@ -356,6 +366,7 @@ class MySQLBackend(DatabaseBackend):
 class SQLiteBackend(DatabaseBackend):
 
     driver_module = 'sqlite3'
+    list_tables_sql = "SELECT name FROM sqlite_master WHERE type = 'table'"
 
     def connect(self, dburi):
         conn = self.driver.connect(dburi.database)
