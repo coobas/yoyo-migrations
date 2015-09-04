@@ -18,8 +18,11 @@ class TestTransactionHandling(object):
                 backend.execute("CREATE TABLE _yoyo_t "
                                 "(id CHAR(1) primary key)")
         yield backend
-        with backend.transaction():
-            backend.execute("DROP TABLE _yoyo_t")
+        backend.rollback()
+        for table in (backend.list_tables()):
+            if table.startswith('_yoyo'):
+                with backend.transaction():
+                    backend.execute("DROP TABLE {}".format(table))
 
     def test_it_commits(self, backend):
         with backend.transaction():
@@ -61,3 +64,30 @@ class TestTransactionHandling(object):
                     backends.MySQLBackend: False}
         if backend.__class__ in expected:
             assert backend.has_transactional_ddl is expected[backend.__class__]
+
+    def test_non_transactional_ddl_behaviour(self, backend):
+        """
+        DDL queries in MySQL commit the current transaction,
+        but it still seems to respect a subsequent rollback.
+
+        We don't rely on this behaviour, but it's weird and worth having
+        a test to document how it works and flag up in future should a new
+        backend do things differently
+        """
+        if backend.has_transactional_ddl:
+            return
+
+        with backend.transaction() as trans:
+            backend.execute("CREATE TABLE _yoyo_a (id INT)")  # implicit commit
+            backend.execute("INSERT INTO _yoyo_a VALUES (1)")
+            backend.execute("CREATE TABLE _yoyo_b (id INT)")  # implicit commit
+            backend.execute("INSERT INTO _yoyo_b VALUES (1)")
+            trans.rollback()
+
+        count_a = backend.execute("SELECT COUNT(1) FROM _yoyo_a")\
+                .fetchall()[0][0]
+        assert count_a == 1
+
+        count_b = backend.execute("SELECT COUNT(1) FROM _yoyo_b")\
+                .fetchall()[0][0]
+        assert count_b == 0

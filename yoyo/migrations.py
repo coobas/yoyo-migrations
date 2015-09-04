@@ -100,14 +100,18 @@ class Migration(object):
                 getattr(step, direction)(backend, force)
                 executed_steps.append(step)
             except backend.DatabaseError:
-                backend.connection.rollback()
                 exc_info = sys.exc_info()
-                try:
-                    for step in reversed(executed_steps):
-                        getattr(step, reverse)(backend)
-                except backend.DatabaseError:
-                    logger.exception(
-                        'Database error when reversing %s of step', direction)
+
+                if not backend.has_transactional_ddl:
+                    # Any DDL statements that have been executed have been
+                    # committed. Go through the rollback steps to undo these
+                    # inasmuch is possible.
+                    try:
+                        for step in reversed(executed_steps):
+                            getattr(step, reverse)(backend)
+                    except backend.DatabaseError:
+                        logger.exception('Could not %s step %s',
+                                         direction, step.id)
                 reraise(exc_info[0], exc_info[1], exc_info[2])
 
 

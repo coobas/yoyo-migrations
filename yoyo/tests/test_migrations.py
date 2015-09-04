@@ -20,7 +20,7 @@ from yoyo import read_migrations
 from yoyo import exceptions
 from yoyo import ancestors, descendants
 
-from yoyo.tests import with_migrations, dburi
+from yoyo.tests import with_migrations, migrations_dir, dburi
 from yoyo.migrations import topological_sort, MigrationList
 
 
@@ -119,6 +119,43 @@ def test_rollbackignores_errors(tmpdir):
     backend.rollback_migrations(migrations)
     cursor.execute("SELECT * FROM _yoyo_test")
     assert cursor.fetchall() == []
+
+
+def test_migration_is_committed(backend_fixture):
+    with migrations_dir('step("CREATE TABLE _yoyo_test (id INT)")') as tmpdir:
+        migrations = read_migrations(tmpdir)
+        backend_fixture.apply_migrations(migrations)
+
+    backend_fixture.rollback()
+    rows = backend_fixture.execute("SELECT * FROM _yoyo_test").fetchall()
+    assert list(rows) == []
+
+
+def test_rollback_happens_on_step_failure(backend_fixture):
+    with migrations_dir('''
+                        step("",
+                             "CREATE TABLE _yoyo_is_rolledback (i INT)"),
+                        step("CREATE TABLE _yoyo_test (s VARCHAR(100))",
+                             "DROP TABLE _yoyo_test")
+                        step("invalid sql!")''') as tmpdir:
+        migrations = read_migrations(tmpdir)
+        with pytest.raises(backend_fixture.DatabaseError):
+            backend_fixture.apply_migrations(migrations)
+
+    # The _yoyo_test table should have either been deleted (transactional ddl)
+    # or dropped (non-transactional-ddl)
+    with pytest.raises(backend_fixture.DatabaseError):
+        backend_fixture.execute("SELECT * FROM _yoyo_test")
+
+    # Transactional DDL: rollback steps not executed
+    if backend_fixture.has_transactional_ddl:
+        with pytest.raises(backend_fixture.DatabaseError):
+            backend_fixture.execute("SELECT * FROM _yoyo_is_rolledback")
+
+    # Non-transactional DDL: ensure the rollback steps were executed
+    else:
+        cursor = backend_fixture.execute("SELECT * FROM _yoyo_is_rolledback")
+        assert list(cursor.fetchall()) == []
 
 
 @with_migrations(

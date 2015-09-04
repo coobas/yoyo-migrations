@@ -87,7 +87,13 @@ class SavepointTransactionManager(TransactionManager):
         self.backend.savepoint(self.id)
 
     def _do_commit(self):
-        self.backend.savepoint_release(self.id)
+        """
+        This does nothing.
+
+        Trying to the release savepoint here could cause an database error in
+        databases where DDL queries cause the transaction to be committed
+        and all savepoints released.
+        """
 
     def _do_rollback(self):
         self.backend.savepoint_rollback(self.id)
