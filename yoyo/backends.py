@@ -179,15 +179,12 @@ class DatabaseBackend(object):
         """
         self.execute("ROLLBACK TO SAVEPOINT {}".format(id))
 
-    _cursor = None
     def execute(self, stmt, args=tuple()):
         """
         Create a new cursor, execute a single statement and return the cursor
         object
         """
-        if self._cursor is None:
-            self._cursor = self.cursor()
-        cursor = self._cursor
+        cursor = self.cursor()
         cursor.execute(self._with_placeholders(stmt), args)
         return cursor
 
