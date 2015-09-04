@@ -123,7 +123,7 @@ def make_argparser():
                                action="store_false",
                                default=True,
                                help="Don't look for a yoyo.ini config file")
-    argparser = argparse.ArgumentParser(prog='yoyo-migrate',
+    argparser = argparse.ArgumentParser(prog='yoyo',
                                         parents=[global_parser])
 
     subparsers = argparser.add_subparsers(help='Commands help')
@@ -200,7 +200,7 @@ def upgrade_legacy_config(args, config, sources):
                 return True
         else:
             logger.warn("Found legacy configuration in %r. Run "
-                        "yoyo-migrate in interactive mode to update your "
+                        "yoyo in interactive mode to update your "
                         "configuration files", path)
 
             try:

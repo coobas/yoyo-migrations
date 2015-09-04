@@ -56,7 +56,8 @@ setup(
     tests_require=['mock'],
     entry_points={
         'console_scripts': [
-            'yoyo-migrate=yoyo.scripts.main:main'
+            'yoyo=yoyo.scripts.main:main',
+            'yoyo-migrate=yoyo.scripts.main:main',
         ],
     }
 )

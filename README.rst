@@ -39,21 +39,21 @@ Yoyo is usually invoked as a command line script.
 
 Start a new migration::
 
-  yoyo-migrate new ./migrations -m "Add column to foo"
+  yoyo new ./migrations -m "Add column to foo"
 
 
 Apply migrations from directory ``migrations`` to a PostgreSQL database::
 
-   yoyo-migrate apply ./migrations postgresql://scott:password@localhost/db
+   yoyo apply ./migrations postgresql://scott:password@localhost/db
 
 Rollback migrations previously applied to a MySQL database::
 
-   yoyo-migrate rollback ./migrations mysql://user:password@localhost/database
+   yoyo rollback ./migrations mysql://user:password@localhost/database
 
 Reapply (ie rollback then apply again) migrations to a SQLite database at
 location ``/home/sheila/important-data.db``::
 
-    yoyo-migrate reapply ./migrations sqlite:////home/sheila/important-data.db
+    yoyo reapply ./migrations sqlite:////home/sheila/important-data.db
 
 By default, yoyo-migrations starts in an interactive mode, prompting you for
 each migration file before applying it, making it easy to preview which
@@ -93,7 +93,7 @@ are applied in filename order, so it's useful to
 name your files using a date (eg '20090115-xyz.py') or some other incrementing
 number.
 
-yoyo-migrate creates a table in your target database, ``_yoyo_migration``, to
+yoyo creates a table in your target database, ``_yoyo_migration``, to
 track which migrations have been applied.
 
 Steps may also take an optional argument ``ignore_errors``, which must be one
@@ -223,23 +223,23 @@ You normally specify your database username and password as part of the
 database connection string on the command line. On a multi-user machine, other
 users could view your database password in the process list.
 
-The ``-p`` or ``--prompt-password`` flag causes yoyo-migrate to prompt
+The ``-p`` or ``--prompt-password`` flag causes yoyo to prompt
 for a password, ignoring any password specified in the connection string. This
 password will not be available to other users via the system's process list.
 
 Configuration file
 ------------------
 
-``yoyo-migrate`` looks for a configuration file called ``yoyo.ini``, in
+Yoyo looks for a configuration file called ``yoyo.ini``, in
 the current working directory or any ancestor directory.
 
-If no configuration file is found ``yoyo-migrate`` will prompt you to
+If no configuration file is found ``yoyo`` will prompt you to
 create one, popuplated with the current command line args.
 
 Using a configuration file saves typing,
 avoids your database username and password showing in
-process listings and lessens the risk of accidentally running ``yoyo-migrate``
-on the wrong database (ie by re-running an earlier ``yoyo-migrate`` entry in
+process listings and lessens the risk of accidentally running ``yoyo``
+on the wrong database (ie by re-running an earlier ``yoyo`` entry in
 your command history when you have moved to a different directory).
 
 If you do not want this config file to be used, add the ``--no-config``
