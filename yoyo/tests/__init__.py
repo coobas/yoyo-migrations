@@ -37,26 +37,36 @@ def get_test_backends():
     return [get_backend(dburi) for dburi in get_test_dburis()]
 
 
-def with_migrations(*migrations, **kwmigrations):
+class MigrationsContextManager(object):
     """
-    Decorator taking a list of migrations. Creates a temporary directory writes
+    Decorator/contextmanager taking a list of migrations.
+    Creates a temporary directory writes
     each migration to a file (named '0.py', '1.py', '2.py' etc), calls the
     decorated function with the directory name as the first argument, and
     cleans up the temporary directory on exit.
     """
-    def add_migrations_dir(func):
-        tmpdir = mkdtemp()
-        for id, code in chain(enumerate(migrations), kwmigrations.items()):
-            with open(os.path.join(tmpdir, '{!s}.py'.format(id)), 'w') as f:
+    def __init__(self, *migrations, **kwmigrations):
+        self.migrations = migrations
+        self.kwmigrations = kwmigrations
+
+    def __enter__(self):
+        tmpdir = self.tmpdir = mkdtemp()
+        for id, code in chain(enumerate(self.migrations),
+                              self.kwmigrations.items()):
+            migfile = os.path.join(tmpdir, '{!s}.py'.format(id))
+            with open(migfile, 'w') as f:
                 f.write(dedent(code).strip())
 
-        def decorated(*args, **kwargs):
-            args = args + (tmpdir,)
-            try:
-                func(*args, **kwargs)
-            finally:
-                rmtree(tmpdir)
+        return tmpdir
 
-        return decorated
+    def __exit__(self, *exc_info):
+        rmtree(self.tmpdir)
 
-    return add_migrations_dir
+    def __call__(self, func):
+        def decorator(*args, **kwargs):
+            with self:
+                return func(*(args + (self.tmpdir,)), **kwargs)
+        return decorator
+
+with_migrations = MigrationsContextManager
+migrations_dir = MigrationsContextManager
