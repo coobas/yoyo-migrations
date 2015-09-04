@@ -115,11 +115,11 @@ class DatabaseBackend(object):
 
     def __init__(self, dburi, migration_table):
         self.uri = dburi
+        self.DatabaseError = self.driver.DatabaseError
         self._connection = self.connect(dburi)
         self.migration_table = migration_table
         self.create_migrations_table()
         self.has_transactional_ddl = self._check_transactional_ddl()
-        self.DatabaseError = self.driver.DatabaseError
 
     def _load_driver_module(self):
         """
