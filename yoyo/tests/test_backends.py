@@ -12,48 +12,50 @@ class TestTransactionHandling(object):
         backend = request.param
         with backend.transaction():
             if backend.__class__ is backends.MySQLBackend:
-                backend.execute("CREATE TABLE t (id CHAR(1) primary key) "
+                backend.execute("CREATE TABLE _yoyo_t "
+                                "(id CHAR(1) primary key) "
                                 "ENGINE=InnoDB")
             else:
-                backend.execute("CREATE TABLE t (id CHAR(1) primary key)")
+                backend.execute("CREATE TABLE _yoyo_t "
+                                "(id CHAR(1) primary key)")
         yield backend
         with backend.transaction():
-            backend.execute("DROP TABLE t")
+            backend.execute("DROP TABLE _yoyo_t")
 
     def test_it_commits(self, backend):
         with backend.transaction():
-            backend.execute("INSERT INTO t values ('A')")
+            backend.execute("INSERT INTO _yoyo_t values ('A')")
 
         with backend.transaction():
-            rows = list(backend.execute("SELECT * FROM t").fetchall())
+            rows = list(backend.execute("SELECT * FROM _yoyo_t").fetchall())
             assert rows == [('A',)]
 
     def test_it_rolls_back(self, backend):
         try:
             with backend.transaction():
-                backend.execute("INSERT INTO t values ('A')")
+                backend.execute("INSERT INTO _yoyo_t values ('A')")
                 # Invalid SQL to produce an error
                 backend.execute("INSERT INTO nonexistant values ('A')")
         except tuple(exceptions.DatabaseErrors):
             pass
 
         with backend.transaction():
-            rows = list(backend.execute("SELECT * FROM t").fetchall())
+            rows = list(backend.execute("SELECT * FROM _yoyo_t").fetchall())
             assert rows == []
 
     def test_it_nests_transactions(self, backend):
         with backend.transaction():
-            backend.execute("INSERT INTO t values ('A')")
+            backend.execute("INSERT INTO _yoyo_t values ('A')")
 
             with backend.transaction() as trans:
-                backend.execute("INSERT INTO t values ('B')")
+                backend.execute("INSERT INTO _yoyo_t values ('B')")
                 trans.rollback()
 
             with backend.transaction() as trans:
-                backend.execute("INSERT INTO t values ('C')")
+                backend.execute("INSERT INTO _yoyo_t values ('C')")
 
         with backend.transaction():
-            rows = list(backend.execute("SELECT * FROM t").fetchall())
+            rows = list(backend.execute("SELECT * FROM _yoyo_t").fetchall())
             assert rows == [('A',), ('C',)]
 
     def test_backend_detects_transactional_ddl(self, backend):
