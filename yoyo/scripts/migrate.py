@@ -20,7 +20,6 @@ from yoyo import (read_migrations,
                   ancestors,
                   descendants,
                   )
-from yoyo.migrations import MigrationList
 from yoyo.scripts.main import InvalidArgument, get_backend
 from yoyo import utils
 
