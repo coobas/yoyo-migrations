@@ -14,6 +14,8 @@
 
 from __future__ import print_function
 import os
+import random
+import string
 import sys
 
 from yoyo.compat import configparser
@@ -103,3 +105,11 @@ def get_editor(config):
         if editor:
             return editor
     return 'vi'
+
+
+def get_random_string(length, chars=(string.ascii_letters + string.digits)):
+    """
+    Return a random string of ``length`` characters
+    """
+    rng = random.SystemRandom()
+    return ''.join(rng.choice(chars) for i in range(length))

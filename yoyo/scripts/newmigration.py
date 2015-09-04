@@ -21,9 +21,7 @@ from tempfile import NamedTemporaryFile
 import glob
 import logging
 import io
-import random
 import shlex
-import string
 import subprocess
 import sys
 import traceback
@@ -126,6 +124,7 @@ def make_filename(directory, message):
 
     datestr = date.today().strftime('%Y%m%d')
     number = '01'
+    rand = utils.get_random_string(5)
 
     for p in glob.glob(path.join(directory, '{}_*'.format(datestr))):
         n = path.basename(p)[len(datestr) + 1:].split('_')[0]
@@ -135,10 +134,6 @@ def make_filename(directory, message):
                 number = str(int(n) + 1).zfill(2)
         except ValueError:
             continue
-
-    rng = random.SystemRandom()
-    rand = ''.join(rng.choice(string.digits + string.ascii_letters)
-                   for i in range(5))
 
     return path.join(directory, '{}_{}_{}{}.py'.format(
         datestr, number, rand, slug))
