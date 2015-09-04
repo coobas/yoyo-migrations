@@ -119,6 +119,7 @@ class DatabaseBackend(object):
         self.migration_table = migration_table
         self.create_migrations_table()
         self.has_transactional_ddl = self._check_transactional_ddl()
+        self.DatabaseError = self.driver.DatabaseError
 
     def _load_driver_module(self):
         """
@@ -152,7 +153,7 @@ class DatabaseBackend(object):
         try:
             with self.transaction():
                 self.execute("DROP TABLE {}".format(table_name))
-        except tuple(exceptions.DatabaseErrors):
+        except self.DatabaseError:
             return True
         return False
 
@@ -225,7 +226,7 @@ class DatabaseBackend(object):
         try:
             with self.transaction():
                 self.execute(sql)
-        except tuple(exceptions.DatabaseErrors):
+        except self.DatabaseError:
             pass
 
     def _with_placeholders(self, sql):

@@ -35,13 +35,8 @@ step("INSERT INTO _yoyo_test VALUES ('x', 'y')")
 def test_transaction_is_not_committed_on_error(tmpdir):
     backend = get_backend(dburi)
     migrations = read_migrations(tmpdir)
-    try:
+    with pytest.raises(backend.DatabaseError):
         backend.apply_migrations(migrations)
-    except tuple(exceptions.DatabaseErrors):
-        # Expected
-        pass
-    else:
-        raise AssertionError("Expected a DatabaseError")
     cursor = backend.cursor()
     cursor.execute("SELECT count(1) FROM _yoyo_test")
     assert cursor.fetchone() == (0,)

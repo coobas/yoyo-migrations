@@ -99,13 +99,13 @@ class Migration(object):
             try:
                 getattr(step, direction)(backend, force)
                 executed_steps.append(step)
-            except tuple(exceptions.DatabaseErrors):
+            except backend.DatabaseError:
                 backend.connection.rollback()
                 exc_info = sys.exc_info()
                 try:
                     for step in reversed(executed_steps):
                         getattr(step, reverse)(backend)
-                except tuple(exceptions.DatabaseErrors):
+                except backend.DatabaseError:
                     logger.exception(
                         'Database error when reversing %s of step', direction)
                 reraise(exc_info[0], exc_info[1], exc_info[2])
@@ -152,7 +152,7 @@ class TransactionWrapper(StepBase):
         with backend.transaction() as transaction:
             try:
                 getattr(self.step, direction)(backend, force)
-            except tuple(exceptions.DatabaseErrors):
+            except backend.DatabaseError:
                 if force or self.ignore_errors in (direction, 'all'):
                     logger.exception("Ignored error in %r", self.step)
                     transaction.rollback()

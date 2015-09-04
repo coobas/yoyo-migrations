@@ -1,7 +1,6 @@
 import pytest
 
 from yoyo import backends
-from yoyo import exceptions
 from yoyo.tests import get_test_backends
 
 
@@ -31,13 +30,11 @@ class TestTransactionHandling(object):
             assert rows == [('A',)]
 
     def test_it_rolls_back(self, backend):
-        try:
+        with pytest.raises(backend.DatabaseError):
             with backend.transaction():
                 backend.execute("INSERT INTO _yoyo_t values ('A')")
                 # Invalid SQL to produce an error
                 backend.execute("INSERT INTO nonexistant values ('A')")
-        except tuple(exceptions.DatabaseErrors):
-            pass
 
         with backend.transaction():
             rows = list(backend.execute("SELECT * FROM _yoyo_t").fetchall())
