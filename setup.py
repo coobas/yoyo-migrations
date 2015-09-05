@@ -41,6 +41,7 @@ setup(
     version=get_version(),
     description='Database schema migration tool using SQL and DB-API',
     long_description=read('README.rst') + '\n\n' + read('CHANGELOG.rst'),
+    url='https://bitbucket.org/ollyc/yoyo',
     author='Oliver Cope',
     author_email='oliver@redgecko.org',
     license='Apache',
