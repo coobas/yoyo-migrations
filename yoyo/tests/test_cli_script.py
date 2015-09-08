@@ -212,7 +212,7 @@ class TestArgParsing(TestInteractiveScript):
     def test_it_uses_interpolated_values_from_config(self):
         self.writeconfig(sources='%(here)s/migrations')
         _, _, args = parse_args(['apply'])
-        assert args.sources == os.getcwd() + '/migrations'
+        assert args.sources == [os.getcwd() + '/migrations']
 
     def test_cli_args_take_precendence(self):
         self.writeconfig(sources='A')
