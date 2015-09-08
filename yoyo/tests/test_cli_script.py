@@ -207,7 +207,7 @@ class TestArgParsing(TestInteractiveScript):
                          database='postgresql:///foo')
         _, _, args = parse_args(['apply'])
         assert args.database == 'postgresql:///foo'
-        assert args.sources == '/tmp/migrations'
+        assert args.sources == ['/tmp/migrations']
 
     def test_it_uses_interpolated_values_from_config(self):
         self.writeconfig(sources='%(here)s/migrations')

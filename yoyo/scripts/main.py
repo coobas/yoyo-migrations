@@ -78,6 +78,9 @@ def parse_args(argv=None):
         except configparser.NoOptionError:
             pass
 
+    if 'sources' in defaults:
+        defaults['sources'] = defaults['sources'].split()
+
     # Set the argparser defaults to values read from the config file
     update_argparser_defaults(globalparser, defaults)
     update_argparser_defaults(argparser, defaults)
