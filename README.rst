@@ -174,7 +174,13 @@ Config file inheritance may be used to customize configuration per site::
   # file: yoyo.ini
   #
   [DEFAULT]
-  %inherit %(here)s/yoyo-defaults.ini
+
+  ; Inherit settings from yoyo-defaults.ini
+  %inherit = %(here)s/yoyo-defaults.ini
+
+  ; Use '?' to avoid raising an error if the file does not exist
+  %inherit = ?%(here)s/yoyo-defaults.ini
+
   database = sqlite:///%(here)s/mydb.sqlite
 
 
