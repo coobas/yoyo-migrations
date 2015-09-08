@@ -68,10 +68,10 @@ def install_argparsers(global_parser, subparsers):
                                   help="Name of table to use for storing "
                                   "migration metadata")
     parser_new.add_argument('sources',
-                            nargs="?",
+                            nargs="*",
                             help="Source directory of migration scripts")
-    parser_new.add_argument("database",
-                            nargs="?",
+    parser_new.add_argument("-d",
+                            "--database",
                             default=None,
                             help="Database, eg 'sqlite:///path/to/sqlite.db' "
                             "or 'postgresql://user@host/db'")
@@ -79,10 +79,8 @@ def install_argparsers(global_parser, subparsers):
 
 def new_migration(args, config):
 
-    sources = args.sources
-    sources = sources.split()
     try:
-        directory = sources[0]
+        directory = args.sources[0]
     except IndexError:
         raise InvalidArgument("Please specify a migrations directory")
 

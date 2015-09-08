@@ -255,7 +255,7 @@ def main(argv=None):
     configure_logging(verbosity)
 
     if args.sources:
-        config.set('DEFAULT', 'sources', args.sources)
+        config.set('DEFAULT', 'sources', ' '.join(args.sources))
     if args.database:
         config.set('DEFAULT', 'database', args.database)
     config.set('DEFAULT', 'migration_table', args.migration_table)
@@ -263,7 +263,7 @@ def main(argv=None):
     config.set('DEFAULT', 'verbosity', str(args.verbosity))
 
     if sources:
-        if upgrade_legacy_config(args, config, sources.split()):
+        if upgrade_legacy_config(args, config, sources):
             return main(argv)
 
     try:

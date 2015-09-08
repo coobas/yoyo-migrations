@@ -27,11 +27,11 @@ from yoyo import utils
 def install_argparsers(global_parser, subparsers):
     migration_parser = argparse.ArgumentParser(add_help=False)
     migration_parser.add_argument('sources',
-                                  nargs="?",
+                                  nargs="*",
                                   help="Source directory of migration scripts")
 
-    migration_parser.add_argument("database",
-                                  nargs="?",
+    migration_parser.add_argument("-d",
+                                  "--database",
                                   default=None,
                                   help="Database, eg 'sqlite:///path/to/sqlite.db' "
                                   "or 'postgresql://user@host/db'")
@@ -60,6 +60,7 @@ def install_argparsers(global_parser, subparsers):
                                   default=default_migration_table,
                                   help="Name of table to use for storing "
                                   "migration metadata")
+
     migration_parser.add_argument('-r', '--revision',
                                   help="Apply/rollback migration with id "
                                   "REVISION",
@@ -101,10 +102,9 @@ def get_migrations(args, backend):
     sources = args.sources
     dburi = args.database
 
-    if sources is None:
+    if not sources:
         raise InvalidArgument("Please specify the migration source directory")
 
-    sources = sources.split()
     migrations = read_migrations(*sources)
 
     if args.match:

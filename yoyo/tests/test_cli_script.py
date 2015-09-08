@@ -75,20 +75,20 @@ class TestYoyoScript(TestInteractiveScript):
     @with_migrations()
     def test_it_sets_verbosity_level(self, tmpdir):
         with patch('yoyo.scripts.main.configure_logging') as m:
-            main(['apply', tmpdir, dburi])
+            main(['apply', tmpdir, '--database', dburi])
             assert m.call_args == call(0)
-            main(['-vvv', 'apply', tmpdir, dburi])
+            main(['-vvv', 'apply', tmpdir, '--database', dburi])
             assert m.call_args == call(3)
 
     @with_migrations()
     def test_it_prompts_to_create_config_file(self, tmpdir):
-        main(['apply', tmpdir, dburi])
+        main(['apply', tmpdir, '--database', dburi])
         assert 'save migration config' in self.confirm.call_args[0][0].lower()
 
     @with_migrations()
     def test_it_creates_config_file(self, tmpdir):
         self.confirm.return_value = True
-        main(['apply', tmpdir, dburi])
+        main(['apply', tmpdir, '--database', dburi])
         assert os.path.exists('yoyo.ini')
         with open('yoyo.ini') as f:
             assert 'database = {0}'.format(dburi) in f.read()
@@ -97,7 +97,7 @@ class TestYoyoScript(TestInteractiveScript):
     def test_it_uses_config_file(self, tmpdir):
         self.writeconfig(batch_mode='on')
         with patch('yoyo.scripts.migrate.apply') as apply:
-            main(['apply', tmpdir, dburi])
+            main(['apply', tmpdir, '--database', dburi])
             args_used = apply.call_args[0][0]
             assert args_used.batch_mode is True
 
@@ -105,7 +105,7 @@ class TestYoyoScript(TestInteractiveScript):
     def test_it_ignores_config_file(self, tmpdir):
         self.writeconfig(batch_mode='on')
         with patch('yoyo.scripts.migrate.apply') as apply:
-            main(['apply', '--no-config-file', tmpdir, dburi])
+            main(['apply', '--no-config-file', tmpdir, '--database', dburi])
             args_used = apply.call_args[0][0]
             assert args_used.batch_mode is False
 
@@ -115,7 +115,7 @@ class TestYoyoScript(TestInteractiveScript):
         with patch('yoyo.scripts.main.getpass',
                    return_value='fish') as getpass, \
                 patch('yoyo.connections.get_backend') as get_backend:
-            main(['apply', tmpdir, dburi, '--prompt-password'])
+            main(['apply', tmpdir, '--database', dburi, '--prompt-password'])
             assert getpass.call_count == 1
             assert get_backend.call_args == call('sqlite://user:fish@/:memory',
                                                  '_yoyo_migration')
@@ -125,28 +125,28 @@ class TestYoyoScript(TestInteractiveScript):
         with patch('yoyo.scripts.migrate.prompt_migrations') \
                 as prompt_migrations, \
                 patch('yoyo.scripts.migrate.get_backend') as get_backend:
-            main(['apply', tmpdir, dburi])
+            main(['apply', tmpdir, '--database', dburi])
             migrations = get_backend().to_apply()
             assert migrations in prompt_migrations.call_args[0]
 
     @with_migrations()
     def test_it_applies_migrations(self, tmpdir):
         with patch('yoyo.scripts.migrate.get_backend') as get_backend:
-            main(['-b', 'apply', tmpdir, dburi])
+            main(['-b', 'apply', tmpdir, '--database', dburi])
             assert get_backend().rollback_migrations.call_count == 0
             assert get_backend().apply_migrations.call_count == 1
 
     @with_migrations()
     def test_it_rollsback_migrations(self, tmpdir):
         with patch('yoyo.scripts.migrate.get_backend') as get_backend:
-            main(['-b', 'rollback', tmpdir, dburi])
+            main(['-b', 'rollback', tmpdir, '--database', dburi])
             assert get_backend().rollback_migrations.call_count == 1
             assert get_backend().apply_migrations.call_count == 0
 
     @with_migrations()
     def test_it_reapplies_migrations(self, tmpdir):
         with patch('yoyo.scripts.migrate.get_backend') as get_backend:
-            main(['-b', 'reapply', tmpdir, dburi])
+            main(['-b', 'reapply', tmpdir, '--database', dburi])
             assert get_backend().rollback_migrations.call_count == 1
             assert get_backend().apply_migrations.call_count == 1
 
@@ -155,7 +155,7 @@ class TestYoyoScript(TestInteractiveScript):
     def test_it_applies_from_multiple_sources(self, t1, t2):
             with patch('yoyo.backends.DatabaseBackend.apply_migrations') \
                     as apply:
-                main(['-b', 'apply', "{} {}".format(t1, t2), dburi])
+                main(['-b', 'apply', t1, t2, '--database', dburi])
                 call_posargs, call_kwargs = apply.call_args
                 migrations, _ = call_posargs
                 assert [m.path for m in migrations] == \
@@ -216,13 +216,13 @@ class TestArgParsing(TestInteractiveScript):
 
     def test_cli_args_take_precendence(self):
         self.writeconfig(sources='A')
-        _, _, args = parse_args(['apply', 'B', 'C'])
-        assert args.sources == 'B'
+        _, _, args = parse_args(['apply', 'B', '--database', 'C'])
+        assert args.sources == ['B']
 
     def test_global_args_can_appear_before_command(self):
-        _, _, args = parse_args(['apply', 'X', 'Y'])
+        _, _, args = parse_args(['apply', 'X', '--database', 'Y'])
         assert args.verbosity == 0
-        _, _, args = parse_args(['-v', 'apply', 'X', 'Y'])
+        _, _, args = parse_args(['-v', 'apply', 'X', '--database', 'Y'])
         assert args.verbosity == 1
 
     def test_global_args_can_appear_after_command(self):
@@ -245,7 +245,7 @@ class TestMarkCommand(TestInteractiveScript):
 
         with patch('yoyo.scripts.migrate.prompt_migrations') \
                 as prompt_migrations:
-            main(['mark', tmpdir, self.dburi])
+            main(['mark', tmpdir, '--database', self.dburi])
             _, prompted, _ = prompt_migrations.call_args[0]
             prompted = [m.id for m in prompted]
             assert prompted == ['m2', 'm3']
@@ -261,7 +261,7 @@ class TestMarkCommand(TestInteractiveScript):
         with backend.transaction():
             backend.execute("CREATE TABLE t (id INT)")
 
-        main(['mark', '-r', 'm2', tmpdir, self.dburi])
+        main(['mark', '-r', 'm2', tmpdir, '--database', self.dburi])
         assert backend.is_applied(migrations[0])
         assert backend.is_applied(migrations[1])
         assert not backend.is_applied(migrations[2])
@@ -282,7 +282,7 @@ class TestUnmarkCommand(TestInteractiveScript):
 
         with patch('yoyo.scripts.migrate.prompt_migrations') \
                 as prompt_migrations:
-            main(['unmark', tmpdir, self.dburi])
+            main(['unmark', tmpdir, '--database', self.dburi])
             _, prompted, _ = prompt_migrations.call_args[0]
             prompted = [m.id for m in prompted]
             assert prompted == ['m2', 'm1']
@@ -295,7 +295,7 @@ class TestUnmarkCommand(TestInteractiveScript):
         backend = get_backend(self.dburi)
         backend.apply_migrations(migrations)
 
-        main(['unmark', '-r', 'm2', tmpdir, self.dburi])
+        main(['unmark', '-r', 'm2', tmpdir, '--database', self.dburi])
         assert backend.is_applied(migrations[0])
         assert not backend.is_applied(migrations[1])
         assert not backend.is_applied(migrations[2])
@@ -319,14 +319,14 @@ class TestNewMigration(TestInteractiveScript):
 
     @with_migrations()
     def test_it_creates_an_empty_migration(self, tmpdir):
-        main(['new', '-b', '-m', 'foo', tmpdir, dburi])
+        main(['new', '-b', '-m', 'foo', tmpdir, '--database', dburi])
         assert any('-foo.py' in f for f in os.listdir(tmpdir))
 
     @with_migrations(m1='',
                      m2='__depends__=["m1"]; step("INSERT INTO t VALUES (2)")',
                      m3='')
     def test_it_depends_on_all_current_heads(self, tmpdir):
-        main(['new', '-b', '-m', 'foo', tmpdir, dburi])
+        main(['new', '-b', '-m', 'foo', tmpdir, '--database', dburi])
         m = next(f for f in os.listdir(tmpdir) if '-foo.py' in f)
         with io.open(os.path.join(tmpdir, m), encoding='utf-8') as f:
             assert "__depends__ = {'m2', 'm3'}" in f.read()
@@ -334,8 +334,8 @@ class TestNewMigration(TestInteractiveScript):
     @with_migrations()
     def test_it_names_file_by_date_and_sequence(self, tmpdir):
         with frozendate.freeze(2001, 1, 1):
-            main(['new', '-b', '-m', 'foo', tmpdir, dburi])
-            main(['new', '-b', '-m', 'bar', tmpdir, dburi])
+            main(['new', '-b', '-m', 'foo', tmpdir, '--database', dburi])
+            main(['new', '-b', '-m', 'bar', tmpdir, '--database', dburi])
         names = [n for n in sorted(os.listdir(tmpdir)) if n.endswith('.py')]
         assert names[0].startswith('20010101_01_')
         assert names[0].endswith('-foo.py')
@@ -345,7 +345,7 @@ class TestNewMigration(TestInteractiveScript):
     @with_migrations()
     def test_it_invokes_correct_editor_binary_from_config(self, tmpdir):
         self.writeconfig(editor='vim {} -c +10')
-        main(['new', tmpdir, dburi])
+        main(['new', tmpdir, '--database', dburi])
         assert self.subprocess.call.call_args == call([
             'vim',
             tms.Matcher(partial(is_tmpfile, directory=tmpdir)),
@@ -356,19 +356,19 @@ class TestNewMigration(TestInteractiveScript):
     def test_it_invokes_correct_editor_binary_from_env(self, tmpdir):
         # default to $VISUAL
         with patch('os.environ', {'EDITOR': 'ed', 'VISUAL': 'visualed'}):
-            main(['new', tmpdir, dburi])
+            main(['new', tmpdir, '--database', dburi])
             assert self.subprocess.call.call_args == \
                     call(['visualed', tms.Unicode()])
 
         # fallback to $EDITOR
         with patch('os.environ', {'EDITOR': 'ed'}):
-            main(['new', tmpdir, dburi])
+            main(['new', tmpdir, '--database', dburi])
             assert self.subprocess.call.call_args == \
                     call(['ed', tms.Unicode()])
 
         # Otherwise, vi
         with patch('os.environ', {}):
-            main(['new', tmpdir, dburi]) == call(['vi', tms.Unicode()])
+            main(['new', tmpdir, '--database', dburi]) == call(['vi', tms.Unicode()])
 
     @with_migrations()
     def test_it_pulls_message_from_docstring(self, tmpdir):
@@ -377,7 +377,7 @@ class TestNewMigration(TestInteractiveScript):
                 f.write('"""\ntest docstring\nsplit over\n\nlines\n"""\n')
 
         self.subprocess.call = write_migration
-        main(['new', tmpdir, dburi])
+        main(['new', tmpdir, '--database', dburi])
         names = [n for n in sorted(os.listdir(tmpdir)) if n.endswith('.py')]
         assert 'test-docstring' in names[0]
 
@@ -388,14 +388,14 @@ class TestNewMigration(TestInteractiveScript):
                 f.write('this is not valid python!')
 
         self.subprocess.call = write_migration
-        main(['new', tmpdir, dburi])
+        main(['new', tmpdir, '--database', dburi])
         prompts = [args[0].lower()
                    for args, kwargs in self.prompt.call_args_list]
         assert 'retry editing?' in prompts[0]
 
     @with_migrations()
     def test_it_defaults_docstring_to_message(self, tmpdir):
-        main(['new', '-b', '-m', 'your ad here', tmpdir, dburi])
+        main(['new', '-b', '-m', 'your ad here', tmpdir, '--database', dburi])
         names = [n for n in sorted(os.listdir(tmpdir)) if n.endswith('.py')]
         with io.open(os.path.join(tmpdir, names[0]), 'r',
                      encoding='utf-8') as f:
@@ -405,7 +405,7 @@ class TestNewMigration(TestInteractiveScript):
     def test_it_calls_post_create_command(self, tmpdir):
         self.writeconfig(post_create_command='/bin/ls -l {} {}')
         with frozendate.freeze(2001, 1, 1):
-            main(['new', '-b', tmpdir, dburi])
+            main(['new', '-b', tmpdir, '--database', dburi])
         is_filename = tms.Str(
             lambda s: os.path.basename(s).startswith('20010101_01_'))
         assert self.subprocess.call.call_args == call([

@@ -17,6 +17,9 @@ file carefully before upgrading.
 * The command line option ``--no-cache`` has been renamed to
   ``--no-config-file``. The old name is retained as an alias for backwards
   compatibility
+* The database must now be supplied using the ``--database/-d`` command line
+  flag. This makes it possible to change the database when calling yoyo without
+  needing to respecify the migration directories.
 * Added a --revision command line option. In the case of apply, this causes
   the specified migration to be applied, plus any dependencies. In the case
   of rollback, this removes the specified revision and any other migrations

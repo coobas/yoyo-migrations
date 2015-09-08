@@ -44,16 +44,16 @@ Start a new migration::
 
 Apply migrations from directory ``migrations`` to a PostgreSQL database::
 
-   yoyo apply ./migrations postgresql://scott:password@localhost/db
+   yoyo apply --database postgresql://scott:tiger@localhost/db ./migrations
 
 Rollback migrations previously applied to a MySQL database::
 
-   yoyo rollback ./migrations mysql://user:password@localhost/database
+   yoyo rollback --database mysql://scott:tiger@localhost/database ./migrations
 
 Reapply (ie rollback then apply again) migrations to a SQLite database at
-location ``/home/sheila/important-data.db``::
+location ``/home/sheila/important.db``::
 
-    yoyo reapply ./migrations sqlite:////home/sheila/important-data.db
+    yoyo reapply --database sqlite:////home/sheila/important.db ./migrations
 
 By default, yoyo-migrations starts in an interactive mode, prompting you for
 each migration file before applying it, making it easy to preview which
