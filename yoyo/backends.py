@@ -370,6 +370,24 @@ class MySQLBackend(DatabaseBackend):
         return self.driver.connect(**kwargs)
 
 
+class MySQLdbBackend(DatabaseBackend):
+
+    driver_module = 'MySQLdb'
+    def connect(self, dburi):
+        kwargs = dburi.args
+        if dburi.username is not None:
+            kwargs['user'] = dburi.username
+        if dburi.password is not None:
+            kwargs['passwd'] = dburi.password
+        if dburi.hostname is not None:
+            kwargs['host'] = dburi.hostname
+        if dburi.port is not None:
+            kwargs['port'] = dburi.port
+        kwargs['db'] = dburi.database
+
+        return self.driver.connect(**kwargs)
+
+
 class SQLiteBackend(DatabaseBackend):
 
     driver_module = 'sqlite3'

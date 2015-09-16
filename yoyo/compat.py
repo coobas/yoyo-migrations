@@ -50,7 +50,7 @@ else:
         exec(code, globals_)
 
 
-if PY2:
+if PY2 and hasattr(sys.stdout, 'isatty'):
     # In python2 sys.stdout is a byte stream.
     # Convert it to a unicode stream using the environment's preferred encoding
     if sys.stdout.isatty():

@@ -283,6 +283,14 @@ MySQL
   database = mysql://scott:tiger@/mydatabase?unix_socket=/tmp/mysql.sock
 
 
+MySQL with MySQLdb
+~~~~~
+
+::
+
+  # Use the MySQLdb driver instead of pymysql
+  database = mysql+mysqldb://scott:tiger@localhost/mydatabase
+
 PostgreSQL
 ~~~~~~~~~~
 

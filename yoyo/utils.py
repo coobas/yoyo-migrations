@@ -45,7 +45,11 @@ try:
         return a
 
 except ImportError:
-    from msvcrt import getch
+    # some non windows environments don't hav termios (google cloud)
+    # running yoyo through the python sdk should not require `getch`
+    try:
+        from msvcrt import getch
+    except: pass
 
 
 def prompt(prompt, options):

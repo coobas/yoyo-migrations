@@ -20,7 +20,8 @@ from .migrations import default_migration_table
 from .backends import (PostgresqlBackend,
                        SQLiteBackend,
                        ODBCBackend,
-                       MySQLBackend)
+                       MySQLBackend,
+                       MySQLdbBackend)
 from .compat import urlsplit, urlunsplit, parse_qsl, urlencode, quote, unquote
 
 BACKENDS = {
@@ -29,6 +30,7 @@ BACKENDS = {
     'postgres': PostgresqlBackend,
     'psql': PostgresqlBackend,
     'mysql': MySQLBackend,
+    'mysql+mysqldb': MySQLdbBackend,
     'sqlite': SQLiteBackend,
 }
 
