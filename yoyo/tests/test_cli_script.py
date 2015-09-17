@@ -199,6 +199,13 @@ class TestYoyoScript(TestInteractiveScript):
             config = f.read()
         assert 'migration_table = _yoyo_migration\n' in config
 
+    @with_migrations()
+    def test_it_forces_batch_mode_if_not_running_in_a_tty(self, tmpdir):
+        with patch('sys.stdout', isatty=lambda: False):
+            main(['apply', tmpdir, '--database', dburi])
+            assert self.prompt.call_count == 0
+            assert self.confirm.call_count == 0
+
 
 class TestArgParsing(TestInteractiveScript):
 

@@ -118,6 +118,7 @@ def make_argparser():
                                "--batch",
                                dest="batch_mode",
                                action="store_true",
+                               default=(not sys.stdout.isatty()),
                                help="Run in batch mode"
                                ". Turns off all user prompts")
 
