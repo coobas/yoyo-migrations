@@ -373,6 +373,7 @@ class MySQLBackend(DatabaseBackend):
 class MySQLdbBackend(DatabaseBackend):
 
     driver_module = 'MySQLdb'
+
     def connect(self, dburi):
         kwargs = dburi.args
         if dburi.username is not None:

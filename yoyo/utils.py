@@ -49,7 +49,8 @@ except ImportError:
     # running yoyo through the python sdk should not require `getch`
     try:
         from msvcrt import getch
-    except: pass
+    except:
+        pass
 
 
 def prompt(prompt, options):
