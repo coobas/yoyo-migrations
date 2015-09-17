@@ -45,7 +45,7 @@ try:
         return a
 
 except ImportError:
-    # some non windows environments don't hav termios (google cloud)
+    # some non Windows environments don't have termios (google cloud)
     # running yoyo through the python sdk should not require `getch`
     try:
         from msvcrt import getch
