@@ -153,13 +153,13 @@ class TestYoyoScript(TestInteractiveScript):
     @with_migrations(m1='step("CREATE TABLE _yoyo_test1 (id INT)")')
     @with_migrations(m2='step("CREATE TABLE _yoyo_test2 (id INT)")')
     def test_it_applies_from_multiple_sources(self, t1, t2):
-            with patch('yoyo.backends.DatabaseBackend.apply_migrations') \
-                    as apply:
-                main(['-b', 'apply', t1, t2, '--database', dburi])
-                call_posargs, call_kwargs = apply.call_args
-                migrations, _ = call_posargs
-                assert [m.path for m in migrations] == \
-                        [os.path.join(t1, 'm1.py'), os.path.join(t2, 'm2.py')]
+        with patch('yoyo.backends.DatabaseBackend.apply_migrations') \
+                as apply:
+            main(['-b', 'apply', t1, t2, '--database', dburi])
+            call_posargs, call_kwargs = apply.call_args
+            migrations, _ = call_posargs
+            assert [m.path for m in migrations] == \
+                [os.path.join(t1, 'm1.py'), os.path.join(t2, 'm2.py')]
 
     @with_migrations()
     def test_it_offers_to_upgrade(self, tmpdir):
