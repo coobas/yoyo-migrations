@@ -42,6 +42,8 @@ def is_tmpfile(p, directory=None):
 class TestInteractiveScript(object):
 
     def setup(self):
+        self.stdout_tty_patch = patch('sys.stdout.isatty', return_value=True)
+        self.stdout_tty_patch.start()
         self.confirm_patch = patch('yoyo.utils.confirm', return_value=False)
         self.confirm = self.confirm_patch.start()
         self.prompt_patch = patch('yoyo.utils.prompt', return_value='n')
@@ -54,6 +56,7 @@ class TestInteractiveScript(object):
     def teardown(self):
         self.prompt_patch.stop()
         self.confirm_patch.stop()
+        self.stdout_tty_patch.stop()
         os.chdir(self.saved_cwd)
         rmtree(self.tmpdir)
 
