@@ -32,6 +32,9 @@ file carefully before upgrading.
   The ``transaction()`` function is still available
   for backwards compatibility,
   but now creates a savepoint rather than a full transaction.
+* The default MySQL driver has been changed to PyMySQL, for Python 3
+  compatbility reasons. MySQLdb can be used by specifying the
+  'mysql+mysqldb://' scheme
 
 Version 4.2.5
 ~~~~~~~~~~~~~
