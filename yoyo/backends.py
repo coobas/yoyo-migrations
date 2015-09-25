@@ -258,7 +258,7 @@ class DatabaseBackend(object):
         were applied
         """
         sql = self._with_placeholders(self.applied_ids_sql.format(self))
-        return [row[0] for row in self.execute(sql)]
+        return [row[0] for row in self.execute(sql).fetchall()]
 
     def to_apply(self, migrations):
         """
