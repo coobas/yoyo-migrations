@@ -14,7 +14,7 @@
 
 import sys
 
-from mock import patch, call, Mock
+from mock import patch, call, MagicMock
 import pytest
 
 from yoyo.connections import parse_uri, BadConnectionURI
@@ -62,8 +62,8 @@ class TestParseURI:
                     reason="Requires python>=2.7.4 "
                     "(http://bugs.python.org/issue7904)")
 @patch('yoyo.backends.import_module',
-       return_value=Mock(DatabaseError=MockDatabaseError,
-                         paramstyle='qmark'))
+       return_value=MagicMock(DatabaseError=MockDatabaseError,
+                              paramstyle='qmark'))
 def test_connections(import_module):
 
     from yoyo import backends
