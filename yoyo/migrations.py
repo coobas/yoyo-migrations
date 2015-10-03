@@ -302,7 +302,7 @@ class MigrationList(MutableSequence):
     def __init__(self, items=None, post_apply=None):
         self.items = list(items) if items else []
         self.post_apply = post_apply if post_apply else []
-        self.keys = set(item.id for item in items)
+        self.keys = set(item.id for item in self.items)
         self.check_conflicts()
 
     def __repr__(self):

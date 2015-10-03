@@ -256,6 +256,10 @@ class TestTopologicalSort(object):
 
 class TestMigrationList(object):
 
+    def test_can_create_empty(self):
+        m = MigrationList()
+        assert list(m) == []
+
     def test_cannot_create_with_duplicate_ids(self):
         with pytest.raises(exceptions.MigrationConflict):
             MigrationList([Mock(id=1), Mock(id=1)])
