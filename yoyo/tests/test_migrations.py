@@ -212,15 +212,6 @@ def test_migrations_can_import_step_and_group(tmpdir):
     assert cursor.fetchall() == [(1,)]
 
 
-@with_migrations(**{newmigration.tempfile_prefix + 'test': ''})
-def test_read_migrations_ignores_yoyo_new_tmp_files(tmpdir):
-    """
-    The yoyo new command creates temporary files in the migrations directory.
-    These shouldn't be picked up by yoyo apply etc
-    """
-    assert len(read_migrations(tmpdir)) == 0
-
-
 class TestTopologicalSort(object):
 
     def get_mock_migrations(self):
@@ -314,3 +305,20 @@ class TestAncestorsDescendants(object):
         assert descendants(self.m4, self.migrations) == set()
         assert descendants(self.m5, self.migrations) == {self.m4, self.m3,
                                                          self.m2, self.m1}
+
+
+class TestReadMigrations(object):
+
+    @with_migrations(**{newmigration.tempfile_prefix + 'test': ''})
+    def test_it_ignores_yoyo_new_tmp_files(self, tmpdir):
+        """
+        The yoyo new command creates temporary files in the migrations directory.
+        These shouldn't be picked up by yoyo apply etc
+        """
+        assert len(read_migrations(tmpdir)) == 0
+
+    @with_migrations(**{'post-apply': '''step('SELECT 1')'''})
+    def test_it_loads_post_apply_scripts(self, tmpdir):
+        migrations = read_migrations(tmpdir)
+        assert len(migrations) == 0
+        assert len(migrations.post_apply) == 1

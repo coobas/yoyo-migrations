@@ -268,7 +268,7 @@ def read_migrations(*directories):
     Return a ``MigrationList`` containing all migrations from ``directory``.
     """
     from yoyo.scripts import newmigration
-    migrations = []
+    migrations = MigrationList()
     for directory in directories:
         paths = [os.path.join(directory, path)
                 for path in os.listdir(directory)
@@ -291,7 +291,7 @@ def read_migrations(*directories):
             else:
                 migrations.append(migration)
 
-    return MigrationList(migrations)
+    return migrations
 
 
 class MigrationList(MutableSequence):
