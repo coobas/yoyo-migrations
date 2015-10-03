@@ -230,7 +230,8 @@ class DatabaseBackend(object):
         """
         sql = self.create_table_sql.format(table_name=self.migration_table)
         try:
-            self.get_applied_migration_ids()
+            with self.transaction():
+                self.get_applied_migration_ids()
             table_exists = True
         except self.DatabaseError:
             table_exists = False
