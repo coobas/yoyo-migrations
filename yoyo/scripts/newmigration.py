@@ -92,7 +92,7 @@ def new_migration(args, config):
                 depends=', '.join('{!r}'.format(m.id) for m in depends))
 
     if args.batch_mode:
-        p = make_filename(directory, message)
+        p = make_filename(config, directory, message)
         with io.open(p, 'w', encoding='UTF-8') as f:
             f.write(migration_source)
     else:
@@ -112,7 +112,7 @@ def new_migration(args, config):
     print("Created file", p)
 
 
-def make_filename(directory, message):
+def make_filename(config, directory, message):
     lines = (l.strip() for l in message.split('\n'))
     lines = (l for l in lines if l)
     message = next(lines, None)
@@ -126,6 +126,11 @@ def make_filename(directory, message):
     number = '01'
     rand = utils.get_random_string(5)
 
+    try:
+        prefix = config.get('DEFAULT', 'prefix')
+    except configparser.NoOptionError:
+        prefix = ''
+
     for p in glob.glob(path.join(directory, '{}_*'.format(datestr))):
         n = path.basename(p)[len(datestr) + 1:].split('_')[0]
 
@@ -135,8 +140,8 @@ def make_filename(directory, message):
         except ValueError:
             continue
 
-    return path.join(directory, '{}_{}_{}{}.py'.format(
-        datestr, number, rand, slug))
+    return path.join(directory, '{}{}_{}_{}{}.py'.format(
+        prefix, datestr, number, rand, slug))
 
 
 def create_with_editor(config, directory, migration_source):
@@ -192,7 +197,7 @@ def create_with_editor(config, directory, migration_source):
 
         sys.path = sys.path[1:]
 
-        filename = make_filename(directory, message)
+        filename = make_filename(config, directory, message)
         rename(tmpfile.name, filename)
         return filename
     finally:

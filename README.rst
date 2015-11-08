@@ -160,6 +160,9 @@ options::
   # "{}" is expanded to the filename of the new migration
   post_create_command = hg add {}
 
+  # A prefix to use for generated migration filenames
+  prefix = myproject_
+
 
 Config file inheritance may be used to customize configuration per site::
 

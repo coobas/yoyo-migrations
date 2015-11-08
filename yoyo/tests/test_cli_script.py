@@ -22,6 +22,7 @@ import io
 import os
 import os.path
 import sys
+import re
 
 from mock import Mock, patch, call
 import frozendate
@@ -423,3 +424,10 @@ class TestNewMigration(TestInteractiveScript):
             '-l',
             is_filename,
             is_filename])
+
+    @with_migrations()
+    def test_it_uses_configured_prefix(self, tmpdir):
+        self.writeconfig(prefix='foo_')
+        main(['new', '-b', '-m', 'bar', tmpdir, '--database', dburi])
+        names = [n for n in sorted(os.listdir(tmpdir)) if n.endswith('.py')]
+        assert re.match('foo_.*-bar', names[0]) is not None
