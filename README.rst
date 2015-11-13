@@ -287,7 +287,7 @@ MySQL
 
 
 MySQL with MySQLdb
-~~~~~
+~~~~~~~~~~~~~~~~~~
 
 ::
 
