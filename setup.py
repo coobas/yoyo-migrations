@@ -45,6 +45,8 @@ setup(
     author='Oliver Cope',
     author_email='oliver@redgecko.org',
     license='Apache',
+    keywords=['migrations', 'migrate', 'database', 'db', 'alembic', 'south',
+              'mysql', 'postgresql', 'sqlite'],
     packages=find_packages(),
     include_package_data=True,
     zip_safe=False,
