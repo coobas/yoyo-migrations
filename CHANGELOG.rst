@@ -1,8 +1,8 @@
 CHANGELOG
 ---------
 
-Version 5.0.0
-~~~~~~~~~~~~~
+5.0.0 (released 2015-11-13)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **This version introduces backwards incompatible changes**. Please read this
 file carefully before upgrading.
