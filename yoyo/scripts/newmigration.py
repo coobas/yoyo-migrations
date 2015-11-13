@@ -131,8 +131,8 @@ def make_filename(config, directory, message):
     except configparser.NoOptionError:
         prefix = ''
 
-    for p in glob.glob(path.join(directory, '{}_*'.format(datestr))):
-        n = path.basename(p)[len(datestr) + 1:].split('_')[0]
+    for p in glob.glob(path.join(directory, '{}{}_*'.format(prefix, datestr))):
+        n = path.basename(p)[len(prefix) + len(datestr) + 1:].split('_')[0]
 
         try:
             if number <= n:
