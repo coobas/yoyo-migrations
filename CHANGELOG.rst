@@ -40,7 +40,9 @@ file carefully before upgrading.
   but now creates a savepoint rather than a full transaction.
 * The default MySQL driver has been changed to PyMySQL, for Python 3
   compatbility reasons. MySQLdb can be used by specifying the
-  'mysql+mysqldb://' scheme
+  'mysql+mysqldb://' scheme.
+* Errors encountered while creating the _yoyo_migrations table are now raised
+  rather than being silently ignored (thanks to James Socol).
 
 Version 4.2.5
 ~~~~~~~~~~~~~
