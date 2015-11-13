@@ -1,8 +1,8 @@
 CHANGELOG
 ---------
 
-5.0.1
-~~~~~
+5.0.1 (released 2015-11-13)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 * Bugfix: migration files are now sequentially named when using the prefix
   option (thanks to Igor Tsarev)
