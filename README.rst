@@ -315,6 +315,6 @@ The following example shows how to apply migrations from inside python code::
 
     backend = get_backend('postgres://myuser@localhost/mydatabase')
     migrations = read_migrations('path/to/migrations')
-    backend.apply_migrations(migrations)
+    backend.apply_migrations(backend.to_apply(migrations))
 
 .. :vim:sw=4:et
