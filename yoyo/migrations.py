@@ -181,11 +181,13 @@ class MigrationStep(StepBase):
         self._rollback = rollback
         self._apply = apply
 
-    def _execute(self, cursor, stmt, out=stdout):
+    def _execute(self, cursor, stmt, out=None):
         """
         Execute the given statement. If rows are returned, output these in a
         tabulated format.
         """
+        if out is None:
+            out = stdout
         if isinstance(stmt, ustr):
             logger.debug(" - executing %r", stmt.encode('ascii', 'replace'))
         else:
@@ -202,9 +204,10 @@ class MigrationStep(StepBase):
                     if len(value) > column_sizes[ix]:
                         column_sizes[ix] = len(value)
             format = '|'.join(' %%- %ds ' % size for size in column_sizes)
-            out.write(format % tuple(column_names) + "\n")
+            format += '\n'
+            out.write(format % tuple(column_names))
             out.write('+'.join('-' * (size + 2) for size in column_sizes)
-                      + "\n")
+                      + '\n')
             for row in result:
                 out.write(format % tuple(row))
             out.write(plural(len(result), '(%d row)', '(%d rows)') + "\n")

@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import pytest
-from mock import Mock
+from mock import Mock, patch
 
 from yoyo.connections import get_backend
 from yoyo import read_migrations
@@ -210,6 +210,27 @@ def test_migrations_can_import_step_and_group(tmpdir):
     cursor = backend.cursor()
     cursor.execute("SELECT id FROM _yoyo_test")
     assert cursor.fetchall() == [(1,)]
+
+
+@with_migrations(
+    '''
+    step("CREATE TABLE _yoyo_test (id INT, c VARCHAR(1))")
+    step("INSERT INTO _yoyo_test VALUES (1, 'a')")
+    step("INSERT INTO _yoyo_test VALUES (2, 'b')")
+    step("SELECT * FROM _yoyo_test")
+    '''
+)
+def test_migrations_display_selected_data(tmpdir):
+    backend = get_backend(dburi)
+    migrations = read_migrations(tmpdir)
+    with patch('yoyo.migrations.stdout') as stdout:
+        backend.apply_migrations(migrations)
+        written = ''.join(a[0] for a, kw in stdout.write.call_args_list)
+        assert written == (' id | c \n'
+                           '----+---\n'
+                           ' 1  | a \n'
+                           ' 2  | b \n'
+                           '(2 rows)\n')
 
 
 class TestTopologicalSort(object):
