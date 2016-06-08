@@ -121,7 +121,7 @@ def get_migrations(args, backend):
     if args.revision:
         targets = [m for m in migrations if args.revision in m.id]
         if len(targets) == 0:
-            raise InvalidArgument("'{}' doesn't match ay revisions."
+            raise InvalidArgument("'{}' doesn't match any revisions."
                                   .format(args.revision))
         if len(targets) > 1:
             raise InvalidArgument("'{}' matches multiple revisions. "
