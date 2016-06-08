@@ -58,6 +58,7 @@ def parse_args(argv=None):
                    'sources': 'get',
                    'database': 'get',
                    'verbosity': 'getint',
+                   'migration_table': 'get',
                    }
 
     globalparser, argparser, subparsers = make_argparser()

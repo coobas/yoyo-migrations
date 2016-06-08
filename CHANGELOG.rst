@@ -1,6 +1,13 @@
 CHANGELOG
 ---------
 
+5.0.2
+~~~~~
+
+* Bugfix: make sure that the migration_table option is read from the config
+  file (thanks to Frederik Holljen for the report and Manolo Micozzi for the
+  fix)
+
 5.0.1 (released 2015-11-13)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

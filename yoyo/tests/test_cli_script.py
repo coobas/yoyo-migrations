@@ -215,10 +215,12 @@ class TestArgParsing(TestInteractiveScript):
 
     def test_it_uses_config_file_defaults(self):
         self.writeconfig(sources='/tmp/migrations',
-                         database='postgresql:///foo')
+                         database='postgresql:///foo',
+                         migration_table='my_migrations')
         _, _, args = parse_args(['apply'])
         assert args.database == 'postgresql:///foo'
         assert args.sources == ['/tmp/migrations']
+        assert args.migration_table == 'my_migrations'
 
     def test_it_uses_interpolated_values_from_config(self):
         self.writeconfig(sources='%(here)s/migrations')
