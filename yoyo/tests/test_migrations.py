@@ -401,3 +401,14 @@ class TestPostApplyHooks(object):
             migrations.add_migration('b', '')
             _apply_migrations()
             assert count_postapply_calls() == 2
+
+    @with_migrations(**{
+        'a': "step('create table postapply (i int)')",
+        'post-apply': "step('insert into postapply values (1)')",
+        'post-apply2': "step('insert into postapply values (2)')"})
+    def test_it_runs_multiple_post_apply_hooks(self, tmpdir):
+        backend = get_backend(dburi)
+        backend.apply_migrations(backend.to_apply(read_migrations(tmpdir)))
+        cursor = backend.cursor()
+        cursor.execute("SELECT * FROM postapply")
+        assert cursor.fetchall() == [(1,), (2,)]
