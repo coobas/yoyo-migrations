@@ -347,3 +347,23 @@ class TestReadMigrations(object):
         migrations = read_migrations(tmpdir)
         assert len(migrations) == 0
         assert len(migrations.post_apply) == 1
+
+    @with_migrations(**{'a': '''step('SELECT 1')'''})
+    def test_it_does_not_add_duplicate_steps(self, tmpdir):
+        m = read_migrations(tmpdir)[0]
+        m.load()
+        assert len(m.steps) == 1
+
+        m = read_migrations(tmpdir)[0]
+        m.load()
+        assert len(m.steps) == 1
+
+    @with_migrations(**{'a': '''from yoyo import step; step('SELECT 1')'''})
+    def test_it_does_not_add_duplicate_steps_with_imported_symbols(self, tmpdir):
+        m = read_migrations(tmpdir)[0]
+        m.load()
+        assert len(m.steps) == 1
+
+        m = read_migrations(tmpdir)[0]
+        m.load()
+        assert len(m.steps) == 1

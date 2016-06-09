@@ -27,7 +27,6 @@ from yoyo.utils import plural
 
 logger = getLogger('yoyo.migrations')
 default_migration_table = '_yoyo_migration'
-_step_collectors = defaultdict(lambda: StepCollector())
 
 
 class Migration(object):
@@ -63,10 +62,11 @@ class Migration(object):
             self.source = source = f.read()
             migration_code = compile(source, f.name, 'exec')
 
-        collector = _step_collectors[f.name]
+        collector = StepCollector()
         ns = {'step': collector.add_step,
               'group': collector.add_step_group,
-              'transaction': collector.add_step_group}
+              'transaction': collector.add_step_group,
+              'collector': collector}
         try:
             exec_(migration_code, ns)
         except Exception as e:
@@ -293,7 +293,6 @@ def read_migrations(*directories):
                 migrations.post_apply.append(migration)
             else:
                 migrations.append(migration)
-
     return migrations
 
 
@@ -412,18 +411,16 @@ class StepCollector(object):
 
 
 def _get_collector(depth=2):
-    fi = inspect.getframeinfo(inspect.stack()[depth][0])
-    return _step_collectors[fi.filename]
+    return inspect.stack()[depth][0].f_locals['collector']
 
 
 def step(*args, **kwargs):
-    collector = _get_collector()
-    return collector.add_step(*args, **kwargs)
+    return _get_collector().add_step(*args, **kwargs)
 
 
 def group(*args, **kwargs):
-    collector = _get_collector()
-    return collector.add_step_group(*args, **kwargs)
+    return _get_collector().add_step_group(*args, **kwargs)
+
 
 #: Alias for compatibility purposes.
 #: This no longer affects transaction handling.
