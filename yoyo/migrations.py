@@ -274,7 +274,7 @@ def read_migrations(*directories):
     migrations = MigrationList()
     for directory in directories:
         paths = [os.path.join(directory, path)
-                for path in os.listdir(directory)
+                 for path in os.listdir(directory)
                  if path.endswith('.py') and
                  not path.startswith(newmigration.tempfile_prefix)]
 
