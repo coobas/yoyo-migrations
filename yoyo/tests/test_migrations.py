@@ -367,3 +367,37 @@ class TestReadMigrations(object):
         m = read_migrations(tmpdir)[0]
         m.load()
         assert len(m.steps) == 1
+
+
+class TestPostApplyHooks(object):
+
+    def test_post_apply_hooks_are_run_every_time(self):
+
+        backend = get_backend(dburi)
+        migrations = migrations_dir(
+            **{'a': "step('create table postapply (i int)')",
+               'post-apply': "step('insert into postapply values (1)')"})
+
+        with migrations as tmp:
+
+            def count_postapply_calls():
+                cursor = backend.cursor()
+                cursor.execute("SELECT count(1) FROM postapply")
+                return cursor.fetchone()[0]
+
+            def _apply_migrations():
+                backend.apply_migrations(
+                    backend.to_apply(read_migrations(tmp)))
+
+            # Should apply migration 'a' and call the post-apply hook
+            _apply_migrations()
+            assert count_postapply_calls() == 1
+
+            # No outstanding migrations: post-apply hook should not be called
+            _apply_migrations()
+            assert count_postapply_calls() == 1
+
+            # New migration added: post-apply should be called a second time
+            migrations.add_migration('b', '')
+            _apply_migrations()
+            assert count_postapply_calls() == 2

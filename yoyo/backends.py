@@ -283,17 +283,26 @@ class DatabaseBackend(object):
     def apply_migrations(self, migrations, force=False):
         if not migrations:
             return
-        for m in migrations + migrations.post_apply:
+        for m in migrations:
             try:
                 with self.transaction():
-                    self.apply_one(m, force)
+                    self.apply_one(m, force=force)
             except exceptions.BadMigration:
                 continue
+        self.run_post_apply(migrations, force=force)
+
+    def run_post_apply(self, migrations, force=False):
+        """
+        Run any post-apply migrations present in ``migrations``
+        """
+        for m in migrations.post_apply:
+            with self.transaction():
+                self.apply_one(m, mark=False, force=force)
 
     def rollback_migrations(self, migrations, force=False):
         if not migrations:
             return
-        for m in migrations + migrations.post_apply:
+        for m in migrations:
             try:
                 with self.transaction():
                     self.rollback_one(m, force)
@@ -316,13 +325,14 @@ class DatabaseBackend(object):
                 except exceptions.BadMigration:
                     continue
 
-    def apply_one(self, migration, force=False):
+    def apply_one(self, migration, force=False, mark=True):
         """
         Apply a single migration
         """
         logger.info("Applying %s", migration.id)
         migration.process_steps(self, 'apply', force=force)
-        self.mark_one(migration)
+        if mark:
+            self.mark_one(migration)
 
     def rollback_one(self, migration, force=False):
         """
