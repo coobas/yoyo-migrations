@@ -4,6 +4,11 @@ CHANGELOG
 5.0.2
 ~~~~~
 
+* Bugfix: fix duplicate key error when using post-apply hooks (thanks to Robi
+  Wan for the report)
+* Bugfix: migration steps are no longer loaded multiple times if
+  read_migrations is called more than once (thanks to Kyle McChesney for the
+  report)
 * Bugfix: make sure that the migration_table option is read from the config
   file (thanks to Frederik Holljen for the report and Manolo Micozzi for the
   fix)
