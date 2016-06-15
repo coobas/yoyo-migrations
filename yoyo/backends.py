@@ -281,6 +281,15 @@ class DatabaseBackend(object):
                                     migrations.post_apply)
 
     def apply_migrations(self, migrations, force=False):
+        if migrations:
+            self.apply_migrations_only(migrations, force=force)
+            self.run_post_apply(migrations, force=force)
+
+    def apply_migrations_only(self, migrations, force=False):
+        """
+        Apply the list of migrations, but do not run any post-apply hooks
+        present.
+        """
         if not migrations:
             return
         for m in migrations:
@@ -289,7 +298,6 @@ class DatabaseBackend(object):
                     self.apply_one(m, force=force)
             except exceptions.BadMigration:
                 continue
-        self.run_post_apply(migrations, force=force)
 
     def run_post_apply(self, migrations, force=False):
         """

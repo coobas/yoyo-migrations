@@ -412,3 +412,13 @@ class TestPostApplyHooks(object):
         cursor = backend.cursor()
         cursor.execute("SELECT * FROM postapply")
         assert cursor.fetchall() == [(1,), (2,)]
+
+    @with_migrations(**{
+        'a': "step('create table postapply (i int)')",
+        'post-apply': "step('insert into postapply values (1)')"})
+    def test_apply_migrations_only_does_not_run_hooks(self, tmpdir):
+        backend = get_backend(dburi)
+        backend.apply_migrations_only(backend.to_apply(read_migrations(tmpdir)))
+        cursor = backend.cursor()
+        cursor.execute("SELECT * FROM postapply")
+        assert cursor.fetchall() == []
