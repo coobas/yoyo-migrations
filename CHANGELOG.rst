@@ -4,6 +4,10 @@ CHANGELOG
 5.0.2
 ~~~~~
 
+* Added ``DatabaseBackend.apply_migrations_only`` and ``run_post_hooks``
+  methods. This allows python code that interfaces with yoyo to run migrations
+  and post_hooks separately if required (thanks to Robi Wan for reporting this
+  and discussing possible fixes)
 * Bugfix: fix duplicate key error when using post-apply hooks (thanks to Robi
   Wan for the report)
 * Bugfix: migration steps are no longer loaded multiple times if
