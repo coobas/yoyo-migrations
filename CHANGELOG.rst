@@ -1,8 +1,8 @@
 CHANGELOG
 ---------
 
-5.0.2
-~~~~~
+5.0.2 (released 2016-06-21)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 * Added ``DatabaseBackend.apply_migrations_only`` and ``run_post_hooks``
   methods. This allows python code that interfaces with yoyo to run migrations
