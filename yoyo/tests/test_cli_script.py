@@ -383,6 +383,10 @@ class TestNewMigration(TestInteractiveScript):
         with patch('os.environ', {}):
             main(['new', tmpdir, '--database', dburi]) == call(['vi', tms.Unicode()])
 
+        # Prompts should only appear if there is an error reading the migration
+        # file, which should not be the case.
+        assert self.prompt.call_args_list == []
+
     @with_migrations()
     def test_it_pulls_message_from_docstring(self, tmpdir):
         def write_migration(argv):
