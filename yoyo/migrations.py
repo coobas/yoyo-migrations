@@ -81,6 +81,7 @@ class Migration(object):
         if None in self._depends:
             raise exceptions.BadMigration(
                 "Could not resolve dependencies in {}".format(self.path))
+        self.ns = ns
         self.source = source
         self.steps = list(collector.steps)
 

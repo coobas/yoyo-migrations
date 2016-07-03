@@ -1,6 +1,12 @@
 CHANGELOG
 ---------
 
+5.0.3
+~~~~~
+
+* Bugfix: fixed exception when creating a new migration interactively
+  with `yoyo new`
+
 5.0.2 (released 2016-06-21)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

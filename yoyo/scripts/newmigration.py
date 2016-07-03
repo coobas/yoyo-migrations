@@ -31,7 +31,7 @@ from slugify import slugify
 from yoyo import default_migration_table
 from yoyo.compat import configparser
 from yoyo.config import CONFIG_NEW_MIGRATION_COMMAND_KEY
-from yoyo.migrations import read_migrations, heads
+from yoyo.migrations import read_migrations, heads, Migration
 from yoyo import utils
 from .main import InvalidArgument
 
@@ -170,9 +170,10 @@ def create_with_editor(config, directory, migration_source):
                     print("abort: no changes made")
                     return None
 
-            modname = path.splitext(path.basename(tmpfile.name))[0]
             try:
-                message = __import__(modname).__doc__
+                migration = Migration(None, tmpfile.name)
+                migration.load()
+                message = migration.ns['__doc__']
                 break
             except Exception:
                 message = ''
