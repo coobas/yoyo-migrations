@@ -52,7 +52,7 @@ class DatabaseURI(_DatabaseURI):
 
         if self.username:
             return '{}:{}@{}'.format(quote(self.username),
-                                     quote(self.password),
+                                     quote(self.password or ''),
                                      hostpart)
         else:
             return hostpart
