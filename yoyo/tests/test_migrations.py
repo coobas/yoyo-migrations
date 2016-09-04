@@ -236,8 +236,13 @@ def test_migrations_display_selected_data(tmpdir):
 class TestTopologicalSort(object):
 
     def get_mock_migrations(self):
-        return [Mock(id='m1', depends=set()), Mock(id='m2', depends=set()),
-                Mock(id='m3', depends=set()), Mock(id='m4', depends=set())]
+        class MockMigration(Mock):
+            def __repr__(self):
+                return "<MockMigration {}>".format(self.id)
+        return [MockMigration(id='m1', depends=set()),
+                MockMigration(id='m2', depends=set()),
+                MockMigration(id='m3', depends=set()),
+                MockMigration(id='m4', depends=set())]
 
     def test_it_keeps_stable_order(self):
         m1, m2, m3, m4 = self.get_mock_migrations()
@@ -264,6 +269,13 @@ class TestTopologicalSort(object):
         m3.depends.add(m3)
         with pytest.raises(exceptions.BadMigration):
             list(topological_sort([m1, m2, m3, m4]))
+
+    def test_it_handles_multiple_edges_to_the_same_node(self):
+        m1, m2, m3, m4 = self.get_mock_migrations()
+        m2.depends.add(m1)
+        m3.depends.add(m1)
+        m4.depends.add(m1)
+        assert list(topological_sort([m1, m2, m3, m4])) == [m1, m2, m3, m4]
 
 
 class TestMigrationList(object):

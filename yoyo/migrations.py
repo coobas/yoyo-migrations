@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from collections import (defaultdict, OrderedDict, Counter, MutableSequence,
-                         Iterable)
+                         Iterable, deque)
 from copy import copy
 from itertools import chain, count
 from logging import getLogger
@@ -508,17 +508,17 @@ def topological_sort(migration_list):
     to_toposort = set(chain(forward_edges, backward_edges))
 
     # Starting migrations: those with no dependencies
-    # This is a reversed list so that popping/pushing from the end maintains
-    # the desired order
-    S = list(reversed([m for m in to_toposort
-                       if not any(n in valid_migrations for n in m.depends)]))
+    # To make this a stable sort we always need to pop from the left end
+    # of this list, hence use a deque.
+    S = deque(m for m in to_toposort
+              if not any(n in valid_migrations for n in m.depends))
 
     while S:
-        n = S.pop()
+        n = S.popleft()
         L.append(n)
 
         # for each node M with an edge E from N to M
-        for m in forward_edges[n]:
+        for m in list(forward_edges[n]):
 
             # remove edge E from the graph
             del forward_edges[n][m]
