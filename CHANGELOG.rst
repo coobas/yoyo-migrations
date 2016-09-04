@@ -1,6 +1,12 @@
 CHANGELOG
 ---------
 
+5.0.4
+~~~~~
+
+* Bugfix: fixed crash when mutliple migrations have the same dependency
+  (thanks to smotko for the report)
+
 5.0.3 (released 2016-07-03)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
