@@ -2,6 +2,7 @@ import pytest
 
 from yoyo import backends
 from yoyo.tests import get_test_backends
+from yoyo.tests import with_migrations
 
 
 class TestTransactionHandling(object):
@@ -91,3 +92,23 @@ class TestTransactionHandling(object):
         count_b = backend.execute("SELECT COUNT(1) FROM _yoyo_b")\
                 .fetchall()[0][0]
         assert count_b == 0
+
+    @with_migrations(a="""
+        __transactional__ = False
+        step('CREATE DATABASE yoyo_test_tmp',
+             'DROP DATABASE yoyo_test_tmp',
+             )
+    """)
+    def test_statements_requiring_no_transaction(self, tmpdir):
+        """
+        PostgreSQL will error if certain statements (eg CREATE DATABASE)
+        are run within a transaction block.
+
+        As far as I know this behavior is PostgreSQL specific. We can't run
+        this test in sqlite as it does not support CREATE DATABASE.
+        """
+        from yoyo import read_migrations
+        for backend in get_test_backends(exclude={'sqlite'}):
+            migrations = read_migrations(tmpdir)
+            backend.apply_migrations(migrations)
+            backend.rollback_migrations(migrations)

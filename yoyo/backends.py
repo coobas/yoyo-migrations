@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from datetime import datetime
+from contextlib import contextmanager
 from importlib import import_module
 from itertools import count
 from logging import getLogger
@@ -215,6 +216,15 @@ class DatabaseBackend(object):
         """
         self.execute("ROLLBACK TO SAVEPOINT {}".format(id))
 
+    @contextmanager
+    def disable_transactions(self):
+        """
+        Disable the connection's transaction support, for example by
+        setting the isolation mode to 'autocommit'
+        """
+        self.rollback()
+        yield
+
     def execute(self, stmt, args=tuple()):
         """
         Create a new cursor, execute a single statement and return the cursor
@@ -294,8 +304,7 @@ class DatabaseBackend(object):
             return
         for m in migrations:
             try:
-                with self.transaction():
-                    self.apply_one(m, force=force)
+                self.apply_one(m, force=force)
             except exceptions.BadMigration:
                 continue
 
@@ -304,16 +313,14 @@ class DatabaseBackend(object):
         Run any post-apply migrations present in ``migrations``
         """
         for m in migrations.post_apply:
-            with self.transaction():
-                self.apply_one(m, mark=False, force=force)
+            self.apply_one(m, mark=False, force=force)
 
     def rollback_migrations(self, migrations, force=False):
         if not migrations:
             return
         for m in migrations:
             try:
-                with self.transaction():
-                    self.rollback_one(m, force)
+                self.rollback_one(m, force)
             except exceptions.BadMigration:
                 continue
 
@@ -340,7 +347,8 @@ class DatabaseBackend(object):
         logger.info("Applying %s", migration.id)
         migration.process_steps(self, 'apply', force=force)
         if mark:
-            self.mark_one(migration)
+            with self.transaction():
+                self.mark_one(migration)
 
     def rollback_one(self, migration, force=False):
         """
@@ -348,7 +356,8 @@ class DatabaseBackend(object):
         """
         logger.info("Rolling back %s", migration.id)
         migration.process_steps(self, 'rollback', force=force)
-        self.unmark_one(migration)
+        with self.transaction():
+            self.unmark_one(migration)
 
     def unmark_one(self, migration):
         sql = self._with_placeholders(self.delete_migration_sql.format(self))
@@ -441,3 +450,11 @@ class PostgresqlBackend(DatabaseBackend):
             connargs.append('host=%s' % dburi.hostname)
         connargs.append('dbname=%s' % dburi.database)
         return self.driver.connect(' '.join(connargs))
+
+    @contextmanager
+    def disable_transactions(self):
+        with super(PostgresqlBackend, self).disable_transactions():
+            saved = self.connection.autocommit
+            self.connection.autocommit = True
+            yield
+            self.connection.autocommit = saved

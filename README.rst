@@ -216,6 +216,27 @@ rollbacks happen. For example::
     step("UPDATE employees SET tax_code='B' WHERE pay_grade >= 6")
     step("UPDATE employees SET tax_code='A' WHERE pay_grade >= 8")
 
+Disabling transactions
+~~~~~~~~~~~~~~~~~~~~~~
+
+In PostgreSQL it is an error to run certain statements inside a transaction
+block. These include:
+
+.. code::sql
+
+    CREATE TABLE <foo>
+    ALTER TYPE <enum> ADD ...
+
+Migrations containing such statements should set
+``__transactional__ = False``, eg:
+
+.. code::python
+
+    __transactional__ = False
+
+    step("CREATE DATABASE mydb", "DROP DATABASE mydb")
+
+Note that this feature is implemented for the PostgreSQL backend only.
 
 Post-apply hook
 ---------------

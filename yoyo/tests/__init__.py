@@ -29,12 +29,13 @@ config = get_configparser()
 config.read([config_file])
 
 
-def get_test_dburis():
-    return [dburi for _, dburi in config.items('DEFAULT')]
+def get_test_dburis(only=frozenset(), exclude=frozenset()):
+    return [dburi for name, dburi in config.items('DEFAULT')
+            if (only and name in only) or (not only and name not in exclude)]
 
 
-def get_test_backends():
-    return [get_backend(dburi) for dburi in get_test_dburis()]
+def get_test_backends(only=frozenset(), exclude=frozenset()):
+    return [get_backend(dburi) for dburi in get_test_dburis(only, exclude)]
 
 
 class MigrationsContextManager(object):
