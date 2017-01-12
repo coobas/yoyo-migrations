@@ -7,7 +7,7 @@ from yoyo.tests import with_migrations
 
 class TestTransactionHandling(object):
 
-    @pytest.yield_fixture(autouse=True, params=get_test_backends())
+    @pytest.fixture(autouse=True, params=get_test_backends())
     def backend(self, request):
         backend = request.param
         with backend.transaction():
