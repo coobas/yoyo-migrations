@@ -1,8 +1,8 @@
 CHANGELOG
 ---------
 
-5.0.5
-~~~~~
+5.0.5 (released 2017-01-12)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 * Added support for a ``__transactional__ = False`` flag in migration files,
   allowing migrations to run commands in PostgreSQL that raise errors
