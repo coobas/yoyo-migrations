@@ -71,5 +71,6 @@ class MigrationsContextManager(object):
                 return func(*(args + (self.tmpdir,)), **kwargs)
         return decorator
 
+
 with_migrations = MigrationsContextManager
 migrations_dir = MigrationsContextManager

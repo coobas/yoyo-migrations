@@ -244,8 +244,8 @@ class MigrationStep(StepBase):
             format = '|'.join(' %%- %ds ' % size for size in column_sizes)
             format += '\n'
             out.write(format % tuple(column_names))
-            out.write('+'.join('-' * (size + 2) for size in column_sizes)
-                      + '\n')
+            out.write('+'.join('-' * (size + 2) for size in column_sizes) +
+                      '\n')
             for row in result:
                 out.write(format % tuple(row))
             out.write(plural(len(result), '(%d row)', '(%d rows)') + "\n")
