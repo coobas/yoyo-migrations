@@ -388,6 +388,8 @@ class MySQLBackend(DatabaseBackend):
             kwargs['host'] = dburi.hostname
         if dburi.port is not None:
             kwargs['port'] = dburi.port
+        if 'unix_socket' in dburi.args:
+            kwargs['unix_socket'] = dburi.args['unix_socket']
         kwargs['db'] = dburi.database
 
         return self.driver.connect(**kwargs)
