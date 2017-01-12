@@ -1,6 +1,15 @@
 CHANGELOG
 ---------
 
+5.0.5
+~~~~~
+
+* Added support for a ``__transactional__ = False`` flag in migration files,
+  allowing migrations to run commands in PostgreSQL that raise errors
+  if run inside a transaction block (eg "CREATE DATABASE")
+
+* Bugfix: fix the unix_socket option for mysql connections
+
 5.0.4 (released 2016-09-04)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
