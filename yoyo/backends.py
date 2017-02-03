@@ -225,6 +225,13 @@ class DatabaseBackend(object):
         self.rollback()
         yield
 
+    @contextmanager
+    def lock_migration_table(self):
+        """
+        Lock `migrations_table` to prevent concurrent migrations.
+		"""
+        yield
+
     def execute(self, stmt, args=tuple()):
         """
         Create a new cursor, execute a single statement and return the cursor
@@ -302,11 +309,12 @@ class DatabaseBackend(object):
         """
         if not migrations:
             return
-        for m in migrations:
-            try:
-                self.apply_one(m, force=force)
-            except exceptions.BadMigration:
-                continue
+        with self.lock_migration_table():
+            for m in migrations:
+                try:
+                    self.apply_one(m, force=force)
+                except exceptions.BadMigration:
+                    continue
 
     def run_post_apply(self, migrations, force=False):
         """
@@ -458,3 +466,8 @@ class PostgresqlBackend(DatabaseBackend):
             self.connection.autocommit = True
             yield
             self.connection.autocommit = saved
+
+    @contextmanager
+    def lock_migration_table(self):
+        self.execute('LOCK TABLE {table_name} IN ACCESS EXCLUSIVE MODE'.format(table_name=self.migration_table))
+        yield
