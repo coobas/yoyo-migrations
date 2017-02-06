@@ -1,6 +1,8 @@
 import pytest
+from threading import Thread
+import time
 
-from yoyo import backends
+from yoyo import backends, read_migrations
 from yoyo.tests import get_test_backends
 from yoyo.tests import with_migrations
 
@@ -107,8 +109,22 @@ class TestTransactionHandling(object):
         As far as I know this behavior is PostgreSQL specific. We can't run
         this test in sqlite as it does not support CREATE DATABASE.
         """
-        from yoyo import read_migrations
         for backend in get_test_backends(exclude={'sqlite'}):
             migrations = read_migrations(tmpdir)
             backend.apply_migrations(migrations)
             backend.rollback_migrations(migrations)
+
+
+    @with_migrations(a="""
+		steps = [
+			step("SELECT pg_sleep(1)"),
+		]
+    """)
+    def test_lock_migration_table(self, tmpdir):
+        backend = get_test_backends(only={'postgresql'})[0]
+        migrations = read_migrations(tmpdir)
+        Thread(target = backend.apply_migrations, args = (migrations,)).start()
+        # give a chance to start, but wake up in the middle of applying
+        time.sleep(0.1)
+        assert backend.get_applied_migration_ids() == ['a']
+
