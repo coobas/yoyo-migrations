@@ -229,7 +229,7 @@ class DatabaseBackend(object):
     def lock_migration_table(self):
         """
         Lock `migrations_table` to prevent concurrent migrations.
-		"""
+        """
         yield
 
     def execute(self, stmt, args=tuple()):
@@ -469,5 +469,6 @@ class PostgresqlBackend(DatabaseBackend):
 
     @contextmanager
     def lock_migration_table(self):
-        self.execute('LOCK TABLE {table_name} IN ACCESS EXCLUSIVE MODE'.format(table_name=self.migration_table))
+        self.execute('LOCK TABLE {table_name} IN ACCESS EXCLUSIVE MODE'
+                     .format(table_name=self.migration_table))
         yield

@@ -114,17 +114,15 @@ class TestTransactionHandling(object):
             backend.apply_migrations(migrations)
             backend.rollback_migrations(migrations)
 
-
     @with_migrations(a="""
-		steps = [
-			step("SELECT pg_sleep(1)"),
-		]
+        steps = [
+            step("SELECT pg_sleep(10)"),
+        ]
     """)
     def test_lock_migration_table(self, tmpdir):
         backend = get_test_backends(only={'postgresql'})[0]
         migrations = read_migrations(tmpdir)
-        Thread(target = backend.apply_migrations, args = (migrations,)).start()
+        Thread(target=backend.apply_migrations, args=(migrations,)).start()
         # give a chance to start, but wake up in the middle of applying
         time.sleep(0.1)
         assert backend.get_applied_migration_ids() == ['a']
-
