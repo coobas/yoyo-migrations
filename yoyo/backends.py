@@ -17,6 +17,7 @@ from contextlib import contextmanager
 from importlib import import_module
 from itertools import count
 from logging import getLogger
+from copy import copy
 
 from . import exceptions, utils
 from .migrations import topological_sort
@@ -388,7 +389,7 @@ class MySQLBackend(DatabaseBackend):
     driver_module = 'pymysql'
 
     def connect(self, dburi):
-        kwargs = dburi.args
+        kwargs = copy(dburi.args)
         if dburi.username is not None:
             kwargs['user'] = dburi.username
         if dburi.password is not None:
@@ -409,7 +410,7 @@ class MySQLdbBackend(DatabaseBackend):
     driver_module = 'MySQLdb'
 
     def connect(self, dburi):
-        kwargs = dburi.args
+        kwargs = copy(dburi.args)
         if dburi.username is not None:
             kwargs['user'] = dburi.username
         if dburi.password is not None:
@@ -439,17 +440,17 @@ class PostgresqlBackend(DatabaseBackend):
     driver_module = 'psycopg2'
 
     def connect(self, dburi):
-        connargs = []
+        kwargs = copy(dburi.args)
         if dburi.username is not None:
-            connargs.append('user=%s' % dburi.username)
+            kwargs['user'] = dburi.username
         if dburi.password is not None:
-            connargs.append('password=%s' % dburi.password)
+            kwargs['password'] = dburi.password
         if dburi.port is not None:
-            connargs.append('port=%d' % dburi.port)
+            kwargs['port'] = dburi.port
         if dburi.hostname is not None:
-            connargs.append('host=%s' % dburi.hostname)
-        connargs.append('dbname=%s' % dburi.database)
-        return self.driver.connect(' '.join(connargs))
+            kwargs['host'] = dburi.hostname
+        kwargs['dbname'] = dburi.database
+        return self.driver.connect(**kwargs)
 
     @contextmanager
     def disable_transactions(self):

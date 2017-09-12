@@ -77,11 +77,10 @@ def test_connections(import_module):
               db='northwind', foo='bar')),
         (backends.SQLiteBackend, 'sqlite3', call('northwind')),
         (backends.PostgresqlBackend, 'psycopg2',
-         call('user=scott password=tiger port=42 '
-              'host=db.example.org dbname=northwind')),
+         call(user='scott', password='tiger', port=42,
+              host='db.example.org', dbname='northwind', foo='bar')),
 
     ]
-
     for cls, driver_module, connect_args in cases:
         cls(u, '_yoyo_migration')
         assert import_module.call_args == call(driver_module)
