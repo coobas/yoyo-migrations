@@ -122,7 +122,9 @@ class TestTransactionHandling(object):
     def test_lock_migration_table(self, tmpdir):
         backend = get_test_backends(only={'postgresql'})[0]
         migrations = read_migrations(tmpdir)
-        Thread(target=backend.apply_migrations, args=(migrations,)).start()
+        t = Thread(target=backend.apply_migrations, args=(migrations,))
+        t.start()
         # give a chance to start, but wake up in the middle of applying
-        time.sleep(0.1)
+        time.sleep(1)
         assert backend.get_applied_migration_ids() == ['a']
+        t.join()
