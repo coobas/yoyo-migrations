@@ -433,7 +433,10 @@ class MySQLBackend(DatabaseBackend):
             kwargs['unix_socket'] = dburi.args['unix_socket']
         kwargs['db'] = dburi.database
 
-        return self.driver.connect(**kwargs)
+        # Enable ANSI quotes mode to support double-quoted table names
+        con = self.driver.connect(**kwargs)
+        con.cursor().execute("SET sql_mode='ANSI_QUOTES'")
+        return con
 
 
 class MySQLdbBackend(DatabaseBackend):
@@ -452,7 +455,10 @@ class MySQLdbBackend(DatabaseBackend):
             kwargs['port'] = dburi.port
         kwargs['db'] = dburi.database
 
-        return self.driver.connect(**kwargs)
+        # Enable ANSI quotes mode to support double-quoted table names
+        con = self.driver.connect(**kwargs)
+        con.cursor().execute("SET sql_mode='ANSI_QUOTES'")
+        return con
 
 
 class SQLiteBackend(DatabaseBackend):
