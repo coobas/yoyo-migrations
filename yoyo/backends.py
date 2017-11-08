@@ -252,6 +252,7 @@ class DatabaseBackend(object):
 
     def _with_placeholders(self, sql):
         placeholder_gen = {'qmark': '?',
+                           'named': ':s',
                            'format': '%s',
                            'pyformat': '%s'}.get(self.driver.paramstyle)
         if placeholder_gen is None:
