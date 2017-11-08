@@ -384,6 +384,37 @@ class ODBCBackend(DatabaseBackend):
         return self.driver.connect(s)
 
 
+class OracleBackend(DatabaseBackend):
+
+    driver_module = 'cx_Oracle'
+    list_tables_sql = 'SELECT table_name FROM all_tables'
+
+    def begin(self):
+        """Oracle is always in a transaction, and has no "BEGIN" statement."""
+        self._in_transaction = True
+
+    def connect(self, dburi):
+        kwargs = dburi.args
+        if dburi.username is not None:
+            kwargs['user'] = dburi.username
+        if dburi.password is not None:
+            kwargs['password'] = dburi.password
+        # Oracle combines the hostname, port and database into a single DSN.
+        # The DSN can also be a "net service name"
+        kwargs['dsn'] = ''
+        if dburi.hostname is not None:
+            kwargs['dsn'] = dburi.hostname
+        if dburi.port is not None:
+            kwargs['dsn'] += ':{0}'.format(dburi.port)
+        if dburi.database is not None:
+            if kwargs['dsn']:
+                kwargs['dsn'] += '/{0}'.format(dburi.database)
+            else:
+                kwargs['dsn'] = dburi.database
+
+        return self.driver.connect(**kwargs)
+
+
 class MySQLBackend(DatabaseBackend):
 
     driver_module = 'pymysql'
