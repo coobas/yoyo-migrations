@@ -105,10 +105,10 @@ class TestTransactionHandling(object):
         are run within a transaction block.
 
         As far as I know this behavior is PostgreSQL specific. We can't run
-        this test in sqlite as it does not support CREATE DATABASE.
+        this test in sqlite or oracle as they do not support CREATE DATABASE.
         """
         from yoyo import read_migrations
-        for backend in get_test_backends(exclude={'sqlite'}):
+        for backend in get_test_backends(exclude={'sqlite', 'oracle'}):
             migrations = read_migrations(tmpdir)
             backend.apply_migrations(migrations)
             backend.rollback_migrations(migrations)
