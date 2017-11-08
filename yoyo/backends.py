@@ -387,7 +387,7 @@ class ODBCBackend(DatabaseBackend):
 class OracleBackend(DatabaseBackend):
 
     driver_module = 'cx_Oracle'
-    list_tables_sql = 'SELECT table_name FROM all_tables'
+    list_tables_sql = 'SELECT table_name FROM all_tables WHERE owner=user'
 
     def begin(self):
         """Oracle is always in a transaction, and has no "BEGIN" statement."""
