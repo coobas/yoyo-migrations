@@ -17,4 +17,4 @@ def backend_fixture(request):
         for table in (backend.list_tables()):
             if table.startswith('_yoyo'):
                 with backend.transaction():
-                    backend.execute("DROP TABLE {}".format(table))
+                    backend.execute("DROP TABLE \"{}\"".format(table))

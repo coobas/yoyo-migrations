@@ -12,51 +12,51 @@ class TestTransactionHandling(object):
         backend = request.param
         with backend.transaction():
             if backend.__class__ is backends.MySQLBackend:
-                backend.execute("CREATE TABLE _yoyo_t "
-                                "(id CHAR(1) primary key) "
-                                "ENGINE=InnoDB")
+                backend.execute("""CREATE TABLE "_yoyo_t"
+                                (id CHAR(1) primary key)
+                                ENGINE=InnoDB""")
             else:
-                backend.execute("CREATE TABLE _yoyo_t "
-                                "(id CHAR(1) primary key)")
+                backend.execute("""CREATE TABLE "_yoyo_t"
+                                (id CHAR(1) primary key)""")
         yield backend
         backend.rollback()
         for table in (backend.list_tables()):
             if table.startswith('_yoyo'):
                 with backend.transaction():
-                    backend.execute("DROP TABLE {}".format(table))
+                    backend.execute("DROP TABLE \"{}\"".format(table))
 
     def test_it_commits(self, backend):
         with backend.transaction():
-            backend.execute("INSERT INTO _yoyo_t values ('A')")
+            backend.execute("INSERT INTO \"_yoyo_t\" values ('A')")
 
         with backend.transaction():
-            rows = list(backend.execute("SELECT * FROM _yoyo_t").fetchall())
+            rows = list(backend.execute("SELECT * FROM \"_yoyo_t\"").fetchall())
             assert rows == [('A',)]
 
     def test_it_rolls_back(self, backend):
         with pytest.raises(backend.DatabaseError):
             with backend.transaction():
-                backend.execute("INSERT INTO _yoyo_t values ('A')")
+                backend.execute("INSERT INTO \"_yoyo_t\" values ('A')")
                 # Invalid SQL to produce an error
                 backend.execute("INSERT INTO nonexistant values ('A')")
 
         with backend.transaction():
-            rows = list(backend.execute("SELECT * FROM _yoyo_t").fetchall())
+            rows = list(backend.execute("SELECT * FROM \"_yoyo_t\"").fetchall())
             assert rows == []
 
     def test_it_nests_transactions(self, backend):
         with backend.transaction():
-            backend.execute("INSERT INTO _yoyo_t values ('A')")
+            backend.execute("INSERT INTO \"_yoyo_t\" values ('A')")
 
             with backend.transaction() as trans:
-                backend.execute("INSERT INTO _yoyo_t values ('B')")
+                backend.execute("INSERT INTO \"_yoyo_t\" values ('B')")
                 trans.rollback()
 
             with backend.transaction() as trans:
-                backend.execute("INSERT INTO _yoyo_t values ('C')")
+                backend.execute("INSERT INTO \"_yoyo_t\" values ('C')")
 
         with backend.transaction():
-            rows = list(backend.execute("SELECT * FROM _yoyo_t").fetchall())
+            rows = list(backend.execute("SELECT * FROM \"_yoyo_t\"").fetchall())
             assert rows == [('A',), ('C',)]
 
     def test_backend_detects_transactional_ddl(self, backend):
@@ -79,17 +79,17 @@ class TestTransactionHandling(object):
             return
 
         with backend.transaction() as trans:
-            backend.execute("CREATE TABLE _yoyo_a (id INT)")  # implicit commit
-            backend.execute("INSERT INTO _yoyo_a VALUES (1)")
-            backend.execute("CREATE TABLE _yoyo_b (id INT)")  # implicit commit
-            backend.execute("INSERT INTO _yoyo_b VALUES (1)")
+            backend.execute("CREATE TABLE \"_yoyo_a\" (id INT)")  # implicit commit
+            backend.execute("INSERT INTO \"_yoyo_a\" VALUES (1)")
+            backend.execute("CREATE TABLE \"_yoyo_b\" (id INT)")  # implicit commit
+            backend.execute("INSERT INTO \"_yoyo_b\" VALUES (1)")
             trans.rollback()
 
-        count_a = backend.execute("SELECT COUNT(1) FROM _yoyo_a")\
+        count_a = backend.execute("SELECT COUNT(1) FROM \"_yoyo_a\"")\
                 .fetchall()[0][0]
         assert count_a == 1
 
-        count_b = backend.execute("SELECT COUNT(1) FROM _yoyo_b")\
+        count_b = backend.execute("SELECT COUNT(1) FROM \"_yoyo_b\"")\
                 .fetchall()[0][0]
         assert count_b == 0
 

@@ -154,8 +154,8 @@ class TestYoyoScript(TestInteractiveScript):
             assert get_backend().rollback_migrations.call_count == 1
             assert get_backend().apply_migrations.call_count == 1
 
-    @with_migrations(m1='step("CREATE TABLE _yoyo_test1 (id INT)")')
-    @with_migrations(m2='step("CREATE TABLE _yoyo_test2 (id INT)")')
+    @with_migrations(m1='step("CREATE TABLE \"_yoyo_test1\" (id INT)")')
+    @with_migrations(m2='step("CREATE TABLE \"_yoyo_test2\" (id INT)")')
     def test_it_applies_from_multiple_sources(self, t1, t2):
         with patch('yoyo.backends.DatabaseBackend.apply_migrations') \
                 as apply:

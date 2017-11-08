@@ -105,17 +105,17 @@ class DatabaseBackend(object):
     driver_module = None
     connection = None
     create_table_sql = """
-        CREATE TABLE {table_name} (
+        CREATE TABLE "{table_name}" (
             id VARCHAR(255) NOT NULL PRIMARY KEY,
             ctime TIMESTAMP
         )"""
     list_tables_sql = "SELECT table_name FROM information_schema.tables"
-    is_applied_sql = "SELECT COUNT(1) FROM {0.migration_table} WHERE id=?"
-    insert_migration_sql = ("INSERT INTO {0.migration_table} (id, ctime) "
+    is_applied_sql = "SELECT COUNT(1) FROM \"{0.migration_table}\" WHERE id=?"
+    insert_migration_sql = ("INSERT INTO \"{0.migration_table}\" (id, ctime)"
                             "VALUES (?, ?)")
-    delete_migration_sql = "DELETE FROM {0.migration_table} WHERE id=?"
-    applied_ids_sql = "SELECT id FROM {0.migration_table} ORDER by ctime"
-    create_test_table_sql = "CREATE TABLE {table_name} (id INT PRIMARY KEY)"
+    delete_migration_sql = "DELETE FROM \"{0.migration_table}\" WHERE id=?"
+    applied_ids_sql = "SELECT id FROM \"{0.migration_table}\" ORDER by ctime"
+    create_test_table_sql = "CREATE TABLE \"{table_name}\" (id INT PRIMARY KEY)"
 
     _driver = None
     _in_transaction = False
@@ -159,7 +159,7 @@ class DatabaseBackend(object):
             t.rollback()
         try:
             with self.transaction():
-                self.execute("DROP TABLE {}".format(table_name))
+                self.execute("DROP TABLE \"{}\"".format(table_name))
         except self.DatabaseError:
             return True
         return False
