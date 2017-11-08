@@ -27,11 +27,11 @@ from yoyo.scripts import newmigration
 
 @with_migrations(
     """
-    step("CREATE TABLE \"_yoyo_test\" (id INT)")
+    step("CREATE TABLE \\\"_yoyo_test\\\" (id INT)")
     """,
     """
-step("INSERT INTO \"_yoyo_test\" VALUES (1)")
-step("INSERT INTO \"_yoyo_test\" VALUES ('x', 'y')")
+step("INSERT INTO \\\"_yoyo_test\\\" VALUES (1)")
+step("INSERT INTO \\\"_yoyo_test\\\" VALUES ('x', 'y')")
     """)
 def test_transaction_is_not_committed_on_error(tmpdir):
     backend = get_backend(dburi)
@@ -44,10 +44,10 @@ def test_transaction_is_not_committed_on_error(tmpdir):
 
 
 @with_migrations(
-    'step("CREATE TABLE \"_yoyo_test\" (id INT)")',
+    'step("CREATE TABLE \\\"_yoyo_test\\\" (id INT)")',
     '''
-step("INSERT INTO \"_yoyo_test\" VALUES (1)", "DELETE FROM \"_yoyo_test\" WHERE id=1")
-step("UPDATE \"_yoyo_test\" SET id=2 WHERE id=1", "UPDATE \"_yoyo_test\" SET id=1 WHERE id=2")
+step("INSERT INTO \\\"_yoyo_test\\\" VALUES (1)", "DELETE FROM \\\"_yoyo_test\\\" WHERE id=1")
+step("UPDATE \\\"_yoyo_test\\\" SET id=2 WHERE id=1", "UPDATE \\\"_yoyo_test\\\" SET id=1 WHERE id=2")
     '''
 )
 def test_rollbacks_happen_in_reverse(tmpdir):
@@ -64,10 +64,10 @@ def test_rollbacks_happen_in_reverse(tmpdir):
 
 @with_migrations(
     '''
-    step("CREATE TABLE \"_yoyo_test\" (id INT)")
-    step("INSERT INTO \"_yoyo_test\" VALUES (1)")
-    step("INSERT INTO \"_yoyo_test\" VALUES ('a', 'b')", ignore_errors='all')
-    step("INSERT INTO \"_yoyo_test\" VALUES (2)")
+    step("CREATE TABLE \\\"_yoyo_test\\\" (id INT)")
+    step("INSERT INTO \\\"_yoyo_test\\\" VALUES (1)")
+    step("INSERT INTO \\\"_yoyo_test\\\" VALUES ('a', 'b')", ignore_errors='all')
+    step("INSERT INTO \\\"_yoyo_test\\\" VALUES (2)")
     '''
 )
 def test_execution_continues_with_ignore_errors(tmpdir):
@@ -82,13 +82,13 @@ def test_execution_continues_with_ignore_errors(tmpdir):
 @with_migrations(
     '''
     from yoyo import step, group
-    step("CREATE TABLE \"_yoyo_test\" (id INT)")
+    step("CREATE TABLE \\\"_yoyo_test\\\" (id INT)")
     group(
-        step("INSERT INTO \"_yoyo_test\" VALUES (1)"),
-        step("INSERT INTO \"_yoyo_test\" VALUES ('a', 'b')"),
+        step("INSERT INTO \\\"_yoyo_test\\\" VALUES (1)"),
+        step("INSERT INTO \\\"_yoyo_test\\\" VALUES ('a', 'b')"),
         ignore_errors='all'
     )
-    step("INSERT INTO \"_yoyo_test\" VALUES (2)")
+    step("INSERT INTO \\\"_yoyo_test\\\" VALUES (2)")
     '''
 )
 def test_execution_continues_with_ignore_errors_in_transaction(tmpdir):
@@ -102,10 +102,10 @@ def test_execution_continues_with_ignore_errors_in_transaction(tmpdir):
 
 @with_migrations(
     '''
-    step("CREATE TABLE \"_yoyo_test\" (id INT)")
-    step("INSERT INTO \"_yoyo_test\" VALUES (1)",
-         "DELETE FROM \"_yoyo_test\" WHERE id=2")
-    step("UPDATE \"_yoyo_test\" SET id=2 WHERE id=1",
+    step("CREATE TABLE \\\"_yoyo_test\\\" (id INT)")
+    step("INSERT INTO \\\"_yoyo_test\\\" VALUES (1)",
+         "DELETE FROM \\\"_yoyo_test\\\" WHERE id=2")
+    step("UPDATE \\\"_yoyo_test\\\" SET id=2 WHERE id=1",
          "SELECT nonexistent FROM imaginary", ignore_errors='rollback')
     '''
 )
@@ -123,7 +123,7 @@ def test_rollbackignores_errors(tmpdir):
 
 
 def test_migration_is_committed(backend_fixture):
-    with migrations_dir('step("CREATE TABLE \"_yoyo_test\" (id INT)")') as tmpdir:
+    with migrations_dir('step("CREATE TABLE \\\"_yoyo_test\\\" (id INT)")') as tmpdir:
         migrations = read_migrations(tmpdir)
         backend_fixture.apply_migrations(migrations)
 
@@ -135,9 +135,9 @@ def test_migration_is_committed(backend_fixture):
 def test_rollback_happens_on_step_failure(backend_fixture):
     with migrations_dir('''
                         step("",
-                             "CREATE TABLE \"_yoyo_is_rolledback\" (i INT)"),
-                        step("CREATE TABLE \"_yoyo_test\" (s VARCHAR(100))",
-                             "DROP TABLE \"_yoyo_test\"")
+                             "CREATE TABLE \\\"_yoyo_is_rolledback\\\" (i INT)"),
+                        step("CREATE TABLE \\\"_yoyo_test\\\" (s VARCHAR(100))",
+                             "DROP TABLE \\\"_yoyo_test\\\"")
                         step("invalid sql!")''') as tmpdir:
         migrations = read_migrations(tmpdir)
         with pytest.raises(backend_fixture.DatabaseError):
@@ -161,8 +161,8 @@ def test_rollback_happens_on_step_failure(backend_fixture):
 
 @with_migrations(
     '''
-    step("CREATE TABLE \"_yoyo_test\" (id INT)")
-    step("DROP TABLE \"_yoyo_test\"")
+    step("CREATE TABLE \\\"_yoyo_test\\\" (id INT)")
+    step("DROP TABLE \\\"_yoyo_test\\\"")
     '''
 )
 def test_specify_migration_table(tmpdir):
@@ -199,8 +199,8 @@ def test_migration_functions_have_namespace_access(tmpdir):
 @with_migrations(
     '''
     from yoyo import group, step
-    step("CREATE TABLE \"_yoyo_test\" (id INT)")
-    group(step("INSERT INTO \"_yoyo_test\" VALUES (1)")),
+    step("CREATE TABLE \\\"_yoyo_test\\\" (id INT)")
+    group(step("INSERT INTO \\\"_yoyo_test\\\" VALUES (1)")),
     '''
 )
 def test_migrations_can_import_step_and_group(tmpdir):
@@ -214,10 +214,10 @@ def test_migrations_can_import_step_and_group(tmpdir):
 
 @with_migrations(
     '''
-    step("CREATE TABLE \"_yoyo_test\" (id INT, c VARCHAR(1))")
-    step("INSERT INTO \"_yoyo_test\" VALUES (1, 'a')")
-    step("INSERT INTO \"_yoyo_test\" VALUES (2, 'b')")
-    step("SELECT * FROM \"_yoyo_test\"")
+    step("CREATE TABLE \\\"_yoyo_test\\\" (id INT, c VARCHAR(1))")
+    step("INSERT INTO \\\"_yoyo_test\\\" VALUES (1, 'a')")
+    step("INSERT INTO \\\"_yoyo_test\\\" VALUES (2, 'b')")
+    step("SELECT * FROM \\\"_yoyo_test\\\"")
     '''
 )
 def test_migrations_display_selected_data(tmpdir):
