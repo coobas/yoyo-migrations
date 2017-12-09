@@ -14,6 +14,7 @@
 
 import argparse
 import re
+import sys
 
 from yoyo import (read_migrations,
                   default_migration_table,
@@ -156,7 +157,9 @@ def get_migrations(args, backend):
 
     if args.batch_mode and not args.revision and not args.all and args.func == rollback:
         if len(migrations) > 1:
-            print 'Try rollback all, only 1 will be rolled.'
+            sys.stderr.write("Batch mode: only rolling back a single "
+                             "migration (specify --revision or --all to roll "
+                             "back multiple migrations)\n")
             migrations = migrations[:1]
 
     if not args.batch_mode and migrations:
