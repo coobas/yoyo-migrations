@@ -155,7 +155,7 @@ def get_migrations(args, backend):
                                        args.command_name)
 
     if args.batch_mode and not args.revision and not args.all and args.func == rollback:
-        if len(migrations) > 0:
+        if len(migrations) > 1:
             print 'Try rollback all, only 1 will be rolled.'
             migrations = migrations[:1]
 
