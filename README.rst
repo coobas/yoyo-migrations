@@ -44,7 +44,7 @@ Start a new migration::
 
 Apply migrations from directory ``migrations`` to a PostgreSQL database::
 
-   yoyo apply --database postgresql://scott:tiger@localhost/db ./migrations
+   yoyo apply --database postgresql://scott:tiger@localhost/db?schema=some_schema ./migrations
 
 Rollback migrations previously applied to a MySQL database::
 
