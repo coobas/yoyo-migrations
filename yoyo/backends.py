@@ -449,7 +449,10 @@ class PostgresqlBackend(DatabaseBackend):
         if dburi.hostname is not None:
             connargs.append('host=%s' % dburi.hostname)
         connargs.append('dbname=%s' % dburi.database)
-        return self.driver.connect(' '.join(connargs))
+        connection = self.driver.connect(' '.join(connargs))
+        if "schema" in dburi.args:
+            connection.cursor().execute("SET search_path TO %s" % dburi.args["schema"])
+        return connection
 
     @contextmanager
     def disable_transactions(self):
