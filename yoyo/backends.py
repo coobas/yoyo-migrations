@@ -309,12 +309,11 @@ class DatabaseBackend(object):
         """
         if not migrations:
             return
-        with self.lock_migration_table():
-            for m in migrations:
-                try:
-                    self.apply_one(m, force=force)
-                except exceptions.BadMigration:
-                    continue
+        for m in migrations:
+            try:
+                self.apply_one(m, force=force)
+            except exceptions.BadMigration:
+                continue
 
     def run_post_apply(self, migrations, force=False):
         """

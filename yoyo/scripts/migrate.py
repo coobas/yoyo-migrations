@@ -160,33 +160,38 @@ def get_migrations(args, backend):
 
 def apply(args, config):
     backend = get_backend(args, config)
-    migrations = get_migrations(args, backend)
-    backend.apply_migrations(migrations, args.force)
+    with backend.lock_migration_table():
+        migrations = get_migrations(args, backend)
+        backend.apply_migrations(migrations, args.force)
 
 
 def reapply(args, config):
     backend = get_backend(args, config)
-    migrations = get_migrations(args, backend)
-    backend.rollback_migrations(migrations, args.force)
-    backend.apply_migrations(migrations, args.force)
+    with backend.lock_migration_table():
+        migrations = get_migrations(args, backend)
+        backend.rollback_migrations(migrations, args.force)
+        backend.apply_migrations(migrations, args.force)
 
 
 def rollback(args, config):
     backend = get_backend(args, config)
-    migrations = get_migrations(args, backend)
-    backend.rollback_migrations(migrations, args.force)
+    with backend.lock_migration_table():
+        migrations = get_migrations(args, backend)
+        backend.rollback_migrations(migrations, args.force)
 
 
 def mark(args, config):
     backend = get_backend(args, config)
-    migrations = get_migrations(args, backend)
-    backend.mark_migrations(migrations)
+    with backend.lock_migration_table():
+        migrations = get_migrations(args, backend)
+        backend.mark_migrations(migrations)
 
 
 def unmark(args, config):
     backend = get_backend(args, config)
-    migrations = get_migrations(args, backend)
-    backend.unmark_migrations(migrations)
+    with backend.lock_migration_table():
+        migrations = get_migrations(args, backend)
+        backend.unmark_migrations(migrations)
 
 
 def prompt_migrations(backend, migrations, direction):
