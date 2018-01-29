@@ -236,6 +236,7 @@ class TestYoyoScript(TestInteractiveScript):
                 t.join()
 
             # Exactly one instance of the migration script should have succeeded
+            backend.rollback()
             cursor = backend.execute('SELECT COUNT(1) from _yoyo_t')
             assert cursor.fetchone()[0] == 1
 
