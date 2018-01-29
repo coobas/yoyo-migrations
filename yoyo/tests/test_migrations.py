@@ -122,17 +122,17 @@ def test_rollbackignores_errors(tmpdir):
     assert cursor.fetchall() == []
 
 
-def test_migration_is_committed(backend_fixture):
+def test_migration_is_committed(backend):
     with migrations_dir('step("CREATE TABLE _yoyo_test (id INT)")') as tmpdir:
         migrations = read_migrations(tmpdir)
-        backend_fixture.apply_migrations(migrations)
+        backend.apply_migrations(migrations)
 
-    backend_fixture.rollback()
-    rows = backend_fixture.execute("SELECT * FROM _yoyo_test").fetchall()
+    backend.rollback()
+    rows = backend.execute("SELECT * FROM _yoyo_test").fetchall()
     assert list(rows) == []
 
 
-def test_rollback_happens_on_step_failure(backend_fixture):
+def test_rollback_happens_on_step_failure(backend):
     with migrations_dir('''
                         step("",
                              "CREATE TABLE _yoyo_is_rolledback (i INT)"),
@@ -140,22 +140,22 @@ def test_rollback_happens_on_step_failure(backend_fixture):
                              "DROP TABLE _yoyo_test")
                         step("invalid sql!")''') as tmpdir:
         migrations = read_migrations(tmpdir)
-        with pytest.raises(backend_fixture.DatabaseError):
-            backend_fixture.apply_migrations(migrations)
+        with pytest.raises(backend.DatabaseError):
+            backend.apply_migrations(migrations)
 
     # The _yoyo_test table should have either been deleted (transactional ddl)
     # or dropped (non-transactional-ddl)
-    with pytest.raises(backend_fixture.DatabaseError):
-        backend_fixture.execute("SELECT * FROM _yoyo_test")
+    with pytest.raises(backend.DatabaseError):
+        backend.execute("SELECT * FROM _yoyo_test")
 
     # Transactional DDL: rollback steps not executed
-    if backend_fixture.has_transactional_ddl:
-        with pytest.raises(backend_fixture.DatabaseError):
-            backend_fixture.execute("SELECT * FROM _yoyo_is_rolledback")
+    if backend.has_transactional_ddl:
+        with pytest.raises(backend.DatabaseError):
+            backend.execute("SELECT * FROM _yoyo_is_rolledback")
 
     # Non-transactional DDL: ensure the rollback steps were executed
     else:
-        cursor = backend_fixture.execute("SELECT * FROM _yoyo_is_rolledback")
+        cursor = backend.execute("SELECT * FROM _yoyo_is_rolledback")
         assert list(cursor.fetchall()) == []
 
 

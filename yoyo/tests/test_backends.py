@@ -9,24 +9,6 @@ from yoyo.tests import with_migrations
 
 class TestTransactionHandling(object):
 
-    @pytest.fixture(autouse=True, params=get_test_backends())
-    def backend(self, request):
-        backend = request.param
-        with backend.transaction():
-            if backend.__class__ is backends.MySQLBackend:
-                backend.execute("CREATE TABLE _yoyo_t "
-                                "(id CHAR(1) primary key) "
-                                "ENGINE=InnoDB")
-            else:
-                backend.execute("CREATE TABLE _yoyo_t "
-                                "(id CHAR(1) primary key)")
-        yield backend
-        backend.rollback()
-        for table in (backend.list_tables()):
-            if table.startswith('_yoyo'):
-                with backend.transaction():
-                    backend.execute("DROP TABLE {}".format(table))
-
     def test_it_commits(self, backend):
         with backend.transaction():
             backend.execute("INSERT INTO _yoyo_t values ('A')")
