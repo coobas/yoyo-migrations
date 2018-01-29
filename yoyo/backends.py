@@ -446,17 +446,16 @@ class PostgresqlBackend(DatabaseBackend):
     driver_module = 'psycopg2'
 
     def connect(self, dburi):
-        connargs = []
+        connect_args = {'dbname': dburi.database}
         if dburi.username is not None:
-            connargs.append('user=%s' % dburi.username)
+            connect_args['user'] = dburi.username
         if dburi.password is not None:
-            connargs.append('password=%s' % dburi.password)
+            connect_args['password'] = dburi.password
         if dburi.port is not None:
-            connargs.append('port=%d' % dburi.port)
+            connect_args['port'] = dburi.port
         if dburi.hostname is not None:
-            connargs.append('host=%s' % dburi.hostname)
-        connargs.append('dbname=%s' % dburi.database)
-        return self.driver.connect(' '.join(connargs))
+            connect_args['host'] = dburi.hostname
+        return self.driver.connect(**connect_args)
 
     @contextmanager
     def disable_transactions(self):
