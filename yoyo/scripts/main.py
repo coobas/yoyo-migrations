@@ -262,7 +262,8 @@ def main(argv=None):
     if args.sources:
         config.set('DEFAULT', 'sources', ' '.join(args.sources))
     if args.database:
-        config.set('DEFAULT', 'database', args.database)
+        # ConfigParser requires that any percent signs in the db uri be escaped.
+        config.set('DEFAULT', 'database', args.database.replace('%', '%%'))
     config.set('DEFAULT', 'migration_table', args.migration_table)
     config.set('DEFAULT', 'batch_mode', 'on' if args.batch_mode else 'off')
     config.set('DEFAULT', 'verbosity', str(args.verbosity))
