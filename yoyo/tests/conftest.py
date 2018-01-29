@@ -2,6 +2,7 @@ import pytest
 
 from yoyo import backends
 from yoyo.connections import get_backend
+from yoyo.tests import get_test_backends
 from yoyo.tests import get_test_dburis
 
 
@@ -27,3 +28,11 @@ def backend(request):
             if table.startswith('_yoyo'):
                 with backend.transaction():
                     backend.execute('DROP TABLE {}'.format(table))
+
+
+def pytest_configure(config):
+    for backend in get_test_backends():
+        for table in backend.list_tables():
+            if table.startswith('_yoyo'):
+                with backend.transaction():
+                    backend.execute("DROP TABLE {}".format(table))
