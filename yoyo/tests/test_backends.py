@@ -119,7 +119,8 @@ class TestTransactionHandling(object):
         # to complete
         time.sleep(lock_duration * 0.2)
         with backend.lock():
-            assert time.time() > t + lock_duration
+            delta = time.time() - t
+            assert delta >= lock_duration
 
         thread.join()
 
