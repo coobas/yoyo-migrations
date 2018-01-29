@@ -103,6 +103,9 @@ class TestTransactionHandling(object):
         Test that :meth:`~yoyo.backends.DatabaseBackend.lock`
         acquires an exclusive lock
         """
+        if backend.uri.scheme == 'sqlite':
+            pytest.skip("Concurrency tests not supported for sqlite databases")
+
         lock_duration = 0.2
 
         def do_something_with_lock():
@@ -121,6 +124,9 @@ class TestTransactionHandling(object):
         thread.join()
 
     def test_lock_times_out(self, backend):
+
+        if backend.uri.scheme == 'sqlite':
+            pytest.skip("Concurrency tests not supported for sqlite databases")
 
         def do_something_with_lock():
             with backend.lock():

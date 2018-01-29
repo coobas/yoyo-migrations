@@ -26,6 +26,7 @@ import re
 
 from mock import Mock, patch, call
 import frozendate
+import pytest
 import tms
 
 from yoyo import read_migrations
@@ -213,6 +214,9 @@ class TestYoyoScript(TestInteractiveScript):
     def test_concurrent_instances_do_not_conflict(self, backend):
         import threading
         from functools import partial
+
+        if backend.uri.scheme == 'sqlite':
+            pytest.skip("Concurrency tests not supported for sqlite databases")
 
         with with_migrations(m1=('import time\n'
                                  'step(lambda conn: time.sleep(0.1))\n'
