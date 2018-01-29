@@ -57,13 +57,16 @@ class DatabaseURI(_DatabaseURI):
         else:
             return hostpart
 
-    @property
-    def uri(self):
+    def __str__(self):
         return urlunsplit((self.scheme,
                            self.netloc,
                            self.database,
                            urlencode(self.args),
                            ''))
+
+    @property
+    def uri(self):
+        return str(self)
 
 
 class BadConnectionURI(Exception):
