@@ -106,7 +106,7 @@ class DatabaseBackend(object):
 
     driver_module = None
     connection = None
-    lock_table = '_yoyo_lock'
+    lock_table = 'yoyo_lock'
     create_migration_table_sql = """
         CREATE TABLE "{table_name}" (
             id VARCHAR(255) NOT NULL PRIMARY KEY,
@@ -162,14 +162,14 @@ class DatabaseBackend(object):
         Return True if the database supports committing/rolling back
         DDL statements within a transaction
         """
-        table_name = '_yoyo_tmp_{}'.format(utils.get_random_string(10))
+        table_name = 'yoyo_tmp_{}'.format(utils.get_random_string(10))
         sql = self.create_test_table_sql.format(table_name=table_name)
         with self.transaction() as t:
             self.execute(sql)
             t.rollback()
         try:
             with self.transaction():
-                self.execute("DROP TABLE \"{}\"".format(table_name))
+                self.execute("DROP TABLE {}".format(table_name))
         except self.DatabaseError:
             return True
         return False
