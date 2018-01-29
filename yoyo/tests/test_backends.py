@@ -2,7 +2,9 @@ import pytest
 from threading import Thread
 import time
 
-from yoyo import backends, read_migrations
+from yoyo import backends
+from yoyo import read_migrations
+from yoyo import exceptions
 from yoyo.tests import get_test_backends
 from yoyo.tests import with_migrations
 
@@ -96,17 +98,42 @@ class TestTransactionHandling(object):
             backend.apply_migrations(migrations)
             backend.rollback_migrations(migrations)
 
-    @with_migrations(a="""
-        steps = [
-            step("SELECT pg_sleep(10)"),
-        ]
-    """)
-    def test_lock_migration_table(self, tmpdir):
-        backend = get_test_backends(only={'postgresql'})[0]
-        migrations = read_migrations(tmpdir)
-        t = Thread(target=backend.apply_migrations, args=(migrations,))
-        t.start()
-        # give a chance to start, but wake up in the middle of applying
-        time.sleep(1)
-        assert backend.get_applied_migration_ids() == ['a']
-        t.join()
+    def test_lock(self, backend):
+        """
+        Test that :meth:`~yoyo.backends.DatabaseBackend.lock`
+        acquires an exclusive lock
+        """
+        lock_duration = 0.2
+
+        def do_something_with_lock():
+            with backend.lock():
+                time.sleep(lock_duration)
+
+        thread = Thread(target=do_something_with_lock)
+        t = time.time()
+        thread.start()
+        # Give the thread time to acquire the lock, but not enough
+        # to complete
+        time.sleep(lock_duration * 0.2)
+        with backend.lock():
+            assert time.time() > t + lock_duration
+
+        thread.join()
+
+    def test_lock_times_out(self, backend):
+
+        def do_something_with_lock():
+            with backend.lock():
+                time.sleep(lock_duration)
+
+        lock_duration = 2
+        thread = Thread(target=do_something_with_lock)
+        thread.start()
+        # Give the thread time to acquire the lock, but not enough
+        # to complete
+        time.sleep(lock_duration * 0.1)
+        with pytest.raises(exceptions.LockTimeout):
+            with backend.lock(timeout=lock_duration * 0.1):
+                assert False, "Execution should never reach this point"
+
+        thread.join()

@@ -17,6 +17,8 @@ from contextlib import contextmanager
 from importlib import import_module
 from itertools import count
 from logging import getLogger
+import os
+import time
 
 from . import exceptions, utils
 from .migrations import topological_sort
@@ -104,10 +106,18 @@ class DatabaseBackend(object):
 
     driver_module = None
     connection = None
-    create_table_sql = """
+    lock_table = '_yoyo_lock'
+    create_migration_table_sql = """
         CREATE TABLE {table_name} (
             id VARCHAR(255) NOT NULL PRIMARY KEY,
             ctime TIMESTAMP
+        )"""
+    create_lock_table_sql = """
+        CREATE TABLE {table_name} (
+            locked INT DEFAULT 1,
+            ctime TIMESTAMP,
+            pid INT NOT NULL,
+            PRIMARY KEY (locked)
         )"""
     list_tables_sql = "SELECT table_name FROM information_schema.tables"
     is_applied_sql = "SELECT COUNT(1) FROM {0.migration_table} WHERE id=?"
@@ -125,7 +135,7 @@ class DatabaseBackend(object):
         self.DatabaseError = self.driver.DatabaseError
         self._connection = self.connect(dburi)
         self.migration_table = migration_table
-        self.create_migrations_table()
+        self.create_tables()
         self.has_transactional_ddl = self._check_transactional_ddl()
 
     def _load_driver_module(self):
@@ -226,11 +236,48 @@ class DatabaseBackend(object):
         yield
 
     @contextmanager
-    def lock_migration_table(self):
+    def lock(self, timeout=10):
         """
-        Lock `migrations_table` to prevent concurrent migrations.
+        Create a lock to prevent concurrent migrations.
+
+        :param timeout: duration in seconds before raising a LockTimeout error.
         """
-        yield
+
+        pid = os.getpid()
+        started = time.time()
+        while True:
+            try:
+                with self.transaction():
+                    self.execute("INSERT INTO {} (locked, ctime, pid) "
+                                 "VALUES (1, ?, ?)".format(self.lock_table),
+                                 (datetime.utcnow(), pid))
+            except self.DatabaseError:
+                if timeout and time.time() > started + timeout:
+                    cursor = self.execute("SELECT pid FROM {}"
+                                        .format(self.lock_table))
+                    row = cursor.fetchone()
+                    if row:
+                        raise exceptions.LockTimeout(
+                            "Process {} has locked this database for "
+                            "migrations (run yoyo break-lock to "
+                            "unconditionally remove locks)"
+                            .format(row[0]))
+                    else:
+                        raise
+                time.sleep(0.1)
+            else:
+                break
+        try:
+            yield
+        finally:
+            with self.transaction():
+                self.execute("DELETE FROM {} WHERE pid=?"
+                             .format(self.lock_table),
+                             (pid,))
+
+    def break_lock(self):
+        with self.transaction():
+            self.execute("DELETE FROM {}" .format(self.lock_table))
 
     def execute(self, stmt, args=tuple()):
         """
@@ -241,21 +288,21 @@ class DatabaseBackend(object):
         cursor.execute(self._with_placeholders(stmt), args)
         return cursor
 
-    def create_migrations_table(self):
+    def create_tables(self):
         """
-        Create the migrations table if it does not already exist.
+        Create the migrations and lock tables if they do not already exist.
         """
-        sql = self.create_table_sql.format(table_name=self.migration_table)
-        try:
-            with self.transaction():
-                self.get_applied_migration_ids()
-            table_exists = True
-        except self.DatabaseError:
-            table_exists = False
+        statements = [
+            self.create_migration_table_sql.format(table_name=self.migration_table),
+            self.create_lock_table_sql.format(table_name=self.lock_table)
+        ]
 
-        if not table_exists:
-            with self.transaction():
-                self.execute(sql)
+        for stmt in statements:
+            try:
+                with self.transaction():
+                    self.execute(stmt)
+            except self.DatabaseError:
+                pass
 
     def _with_placeholders(self, sql):
         placeholder_gen = {'qmark': '?',
@@ -464,9 +511,3 @@ class PostgresqlBackend(DatabaseBackend):
             self.connection.autocommit = True
             yield
             self.connection.autocommit = saved
-
-    @contextmanager
-    def lock_migration_table(self):
-        self.execute('LOCK TABLE {table_name} IN ACCESS EXCLUSIVE MODE'
-                     .format(table_name=self.migration_table))
-        yield
