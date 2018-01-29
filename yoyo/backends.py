@@ -322,7 +322,7 @@ class DatabaseBackend(object):
         return sql.replace('?', placeholder_gen)
 
     def is_applied(self, migration):
-        sql = self._with_placeholders(self.is_applied_sql.format(self))
+        sql = self.is_applied_sql.format(self)
         return self.execute(sql, (migration.id,)).fetchone()[0] > 0
 
     def get_applied_migration_ids(self):
@@ -330,7 +330,7 @@ class DatabaseBackend(object):
         Return the list of migration ids in the order in which they
         were applied
         """
-        sql = self._with_placeholders(self.applied_ids_sql.format(self))
+        sql = self.applied_ids_sql.format(self)
         return [row[0] for row in self.execute(sql).fetchall()]
 
     def to_apply(self, migrations):
@@ -422,12 +422,12 @@ class DatabaseBackend(object):
             self.unmark_one(migration)
 
     def unmark_one(self, migration):
-        sql = self._with_placeholders(self.delete_migration_sql.format(self))
+        sql = self.delete_migration_sql.format(self)
         self.execute(sql, (migration.id,))
 
     def mark_one(self, migration):
         logger.info("Marking %s applied", migration.id)
-        sql = self._with_placeholders(self.insert_migration_sql).format(self)
+        sql = self.insert_migration_sql.format(self)
         self.execute(sql, (migration.id, datetime.utcnow()))
 
 
