@@ -277,7 +277,6 @@ def main(argv=None):
         argparser.error(e.args[0])
 
     if config_is_empty and args.use_config_file and not args.batch_mode:
-
         prompt_save_config(config, args.config or CONFIG_FILENAME)
 
 
