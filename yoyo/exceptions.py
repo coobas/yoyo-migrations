@@ -29,3 +29,9 @@ class MigrationConflict(Exception):
     """
     The migration id conflicts with another migration
     """
+
+
+class LockTimeout(Exception):
+    """
+    Timeout was reached while acquiring the migration lock
+    """

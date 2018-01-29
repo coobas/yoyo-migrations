@@ -96,6 +96,12 @@ def install_argparsers(global_parser, subparsers):
         help="Unmark applied migrations, without rolling them back")
     parser_unmark.set_defaults(func=unmark, command_name='unmark')
 
+    parser_break_lock = subparsers.add_parser(
+        'break_lock',
+        parents=[global_parser],
+        help="Break migration locks")
+    parser_break_lock.set_defaults(func=break_lock, command_name='break-lock')
+
 
 def get_migrations(args, backend):
 
@@ -160,33 +166,43 @@ def get_migrations(args, backend):
 
 def apply(args, config):
     backend = get_backend(args, config)
-    migrations = get_migrations(args, backend)
-    backend.apply_migrations(migrations, args.force)
+    with backend.lock():
+        migrations = get_migrations(args, backend)
+        backend.apply_migrations(migrations, args.force)
 
 
 def reapply(args, config):
     backend = get_backend(args, config)
-    migrations = get_migrations(args, backend)
-    backend.rollback_migrations(migrations, args.force)
-    backend.apply_migrations(migrations, args.force)
+    with backend.lock():
+        migrations = get_migrations(args, backend)
+        backend.rollback_migrations(migrations, args.force)
+        backend.apply_migrations(migrations, args.force)
 
 
 def rollback(args, config):
     backend = get_backend(args, config)
-    migrations = get_migrations(args, backend)
-    backend.rollback_migrations(migrations, args.force)
+    with backend.lock():
+        migrations = get_migrations(args, backend)
+        backend.rollback_migrations(migrations, args.force)
 
 
 def mark(args, config):
     backend = get_backend(args, config)
-    migrations = get_migrations(args, backend)
-    backend.mark_migrations(migrations)
+    with backend.lock():
+        migrations = get_migrations(args, backend)
+        backend.mark_migrations(migrations)
 
 
 def unmark(args, config):
     backend = get_backend(args, config)
-    migrations = get_migrations(args, backend)
-    backend.unmark_migrations(migrations)
+    with backend.lock():
+        migrations = get_migrations(args, backend)
+        backend.unmark_migrations(migrations)
+
+
+def break_lock(args, config):
+    backend = get_backend(args, config)
+    backend.break_lock()
 
 
 def prompt_migrations(backend, migrations, direction):

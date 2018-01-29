@@ -26,6 +26,7 @@ import re
 
 from mock import Mock, patch, call
 import frozendate
+import pytest
 import tms
 
 from yoyo import read_migrations
@@ -209,6 +210,35 @@ class TestYoyoScript(TestInteractiveScript):
             main(['apply', tmpdir, '--database', dburi])
             assert self.prompt.call_count == 0
             assert self.confirm.call_count == 0
+
+    def test_concurrent_instances_do_not_conflict(self, backend):
+        import threading
+        from functools import partial
+
+        if backend.uri.scheme == 'sqlite':
+            pytest.skip("Concurrency tests not supported for sqlite databases")
+
+        with with_migrations(m1=('import time\n'
+                                 'step(lambda conn: time.sleep(0.1))\n'
+                                 'step("INSERT INTO _yoyo_t VALUES (\'A\')")')
+                             ) as tmpdir:
+            assert '_yoyo_t' in backend.list_tables()
+            backend.rollback()
+            backend.execute("SELECT * FROM _yoyo_t")
+            run_migrations = partial(
+                main,
+                ['apply', '-b', tmpdir, '--database', str(backend.uri)])
+            threads = [threading.Thread(target=run_migrations)
+                       for ix in range(20)]
+            for t in threads:
+                t.start()
+            for t in threads:
+                t.join()
+
+            # Exactly one instance of the migration script should have succeeded
+            backend.rollback()
+            cursor = backend.execute('SELECT COUNT(1) from _yoyo_t')
+            assert cursor.fetchone()[0] == 1
 
 
 class TestArgParsing(TestInteractiveScript):
