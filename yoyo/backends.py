@@ -258,9 +258,8 @@ class DatabaseBackend(object):
                     row = cursor.fetchone()
                     if row:
                         raise exceptions.LockTimeout(
-                            "Process {} has locked this database for "
-                            "migrations (run yoyo break-lock to "
-                            "unconditionally remove locks)"
+                            "Process {} has locked this database "
+                            "(run yoyo break-lock to remove this lock)"
                             .format(row[0]))
                     else:
                         raise
