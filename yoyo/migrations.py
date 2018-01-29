@@ -111,8 +111,8 @@ class Migration(object):
                 except backend.DatabaseError:
                     exc_info = sys.exc_info()
 
-                    if not (backend.has_transactional_ddl or
-                            not self.use_transactions):
+                    if not backend.has_transactional_ddl or \
+                            not self.use_transactions:
                         # Any DDL statements that have been executed have been
                         # committed. Go through the rollback steps to undo
                         # these inasmuch is possible.

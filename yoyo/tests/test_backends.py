@@ -1,29 +1,15 @@
 import pytest
+from threading import Thread
+import time
 
 from yoyo import backends
+from yoyo import read_migrations
+from yoyo import exceptions
 from yoyo.tests import get_test_backends
 from yoyo.tests import with_migrations
 
 
 class TestTransactionHandling(object):
-
-    @pytest.fixture(autouse=True, params=get_test_backends())
-    def backend(self, request):
-        backend = request.param
-        with backend.transaction():
-            if backend.__class__ is backends.MySQLBackend:
-                backend.execute("""CREATE TABLE "_yoyo_t"
-                                (id CHAR(1) primary key)
-                                ENGINE=InnoDB""")
-            else:
-                backend.execute("""CREATE TABLE "_yoyo_t"
-                                (id CHAR(1) primary key)""")
-        yield backend
-        backend.rollback()
-        for table in (backend.list_tables()):
-            if table.startswith('_yoyo'):
-                with backend.transaction():
-                    backend.execute("DROP TABLE \"{}\"".format(table))
 
     def test_it_commits(self, backend):
         with backend.transaction():
@@ -107,8 +93,54 @@ class TestTransactionHandling(object):
         As far as I know this behavior is PostgreSQL specific. We can't run
         this test in sqlite or oracle as they do not support CREATE DATABASE.
         """
-        from yoyo import read_migrations
         for backend in get_test_backends(exclude={'sqlite', 'oracle'}):
             migrations = read_migrations(tmpdir)
             backend.apply_migrations(migrations)
             backend.rollback_migrations(migrations)
+
+    def test_lock(self, backend):
+        """
+        Test that :meth:`~yoyo.backends.DatabaseBackend.lock`
+        acquires an exclusive lock
+        """
+        if backend.uri.scheme == 'sqlite':
+            pytest.skip("Concurrency tests not supported for sqlite databases")
+
+        lock_duration = 0.2
+
+        def do_something_with_lock():
+            with backend.lock():
+                time.sleep(lock_duration)
+
+        thread = Thread(target=do_something_with_lock)
+        t = time.time()
+        thread.start()
+        # Give the thread time to acquire the lock, but not enough
+        # to complete
+        time.sleep(lock_duration * 0.2)
+        with backend.lock():
+            delta = time.time() - t
+            assert delta >= lock_duration
+
+        thread.join()
+
+    def test_lock_times_out(self, backend):
+
+        if backend.uri.scheme == 'sqlite':
+            pytest.skip("Concurrency tests not supported for sqlite databases")
+
+        def do_something_with_lock():
+            with backend.lock():
+                time.sleep(lock_duration)
+
+        lock_duration = 2
+        thread = Thread(target=do_something_with_lock)
+        thread.start()
+        # Give the thread time to acquire the lock, but not enough
+        # to complete
+        time.sleep(lock_duration * 0.1)
+        with pytest.raises(exceptions.LockTimeout):
+            with backend.lock(timeout=lock_duration * 0.1):
+                assert False, "Execution should never reach this point"
+
+        thread.join()
