@@ -244,6 +244,13 @@ class DatabaseBackend(object):
         """
 
         pid = os.getpid()
+        self._insert_lock_row(pid, timeout)
+        try:
+            yield
+        finally:
+            self._delete_lock_row(pid)
+
+    def _insert_lock_row(self, pid, timeout, poll_interval=0.5):
         started = time.time()
         while True:
             try:
@@ -262,17 +269,18 @@ class DatabaseBackend(object):
                             "(run yoyo break-lock to remove this lock)"
                             .format(row[0]))
                     else:
-                        raise
-                time.sleep(0.1)
+                        raise exceptions.LockTimeout(
+                            "Database locked "
+                            "(run yoyo break-lock to remove this lock)")
+                time.sleep(poll_interval)
             else:
-                break
-        try:
-            yield
-        finally:
-            with self.transaction():
-                self.execute("DELETE FROM {} WHERE pid=?"
-                             .format(self.lock_table),
-                             (pid,))
+                return
+
+    def _delete_lock_row(self, pid):
+        with self.transaction():
+            self.execute("DELETE FROM {} WHERE pid=?"
+                         .format(self.lock_table),
+                         (pid,))
 
     def break_lock(self):
         with self.transaction():
