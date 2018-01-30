@@ -108,24 +108,29 @@ class DatabaseBackend(object):
     connection = None
     lock_table = 'yoyo_lock'
     create_migration_table_sql = """
-        CREATE TABLE "{table_name}" (
+        CREATE TABLE {table_name_quoted} (
             id VARCHAR(255) NOT NULL PRIMARY KEY,
             ctime TIMESTAMP
         )"""
     create_lock_table_sql = """
-        CREATE TABLE {table_name} (
+        CREATE TABLE {table_name_quoted} (
             locked INT DEFAULT 1,
             ctime TIMESTAMP,
             pid INT NOT NULL,
             PRIMARY KEY (locked)
         )"""
     list_tables_sql = "SELECT table_name FROM information_schema.tables"
-    is_applied_sql = "SELECT COUNT(1) FROM \"{0.migration_table}\" WHERE id=?"
-    insert_migration_sql = ("INSERT INTO \"{0.migration_table}\" (id, ctime)"
-                            "VALUES (?, ?)")
-    delete_migration_sql = "DELETE FROM \"{0.migration_table}\" WHERE id=?"
-    applied_ids_sql = "SELECT id FROM \"{0.migration_table}\" ORDER by ctime"
-    create_test_table_sql = "CREATE TABLE \"{table_name}\" (id INT PRIMARY KEY)"
+    is_applied_sql = """
+        SELECT COUNT(1) FROM {0.migration_table_quoted}
+        WHERE id=?"""
+    insert_migration_sql = """
+        INSERT INTO {0.migration_table_quoted} (id, ctime)
+        VALUES (?, ?)"""
+    delete_migration_sql = "DELETE FROM {0.migration_table_quoted} WHERE id=?"
+    applied_ids_sql = "SELECT id FROM {0.migration_table_quoted} ORDER by ctime"
+    create_test_table_sql = """
+        CREATE TABLE {table_name_quoted}
+        (id INT PRIMARY KEY)"""
 
     _driver = None
     _in_transaction = False
@@ -157,19 +162,32 @@ class DatabaseBackend(object):
     def connection(self):
         return self._connection
 
+    @property
+    def migration_table_quoted(self):
+        return self.quote_identifier(self.migration_table)
+
+    @property
+    def lock_table_quoted(self):
+        return self.quote_identifier(self.lock_table)
+
+    def quote_identifier(self, s):
+        return '"{}"'.format(s)
+
     def _check_transactional_ddl(self):
         """
         Return True if the database supports committing/rolling back
         DDL statements within a transaction
         """
         table_name = 'yoyo_tmp_{}'.format(utils.get_random_string(10))
-        sql = self.create_test_table_sql.format(table_name=table_name)
+        table_name_quoted = self.quote_identifier(table_name)
+        sql = self.create_test_table_sql.format(
+            table_name_quoted=table_name_quoted)
         with self.transaction() as t:
             self.execute(sql)
             t.rollback()
         try:
             with self.transaction():
-                self.execute("DROP TABLE {}".format(table_name))
+                self.execute("DROP TABLE {}".format(table_name_quoted))
         except self.DatabaseError:
             return True
         return False
@@ -256,12 +274,12 @@ class DatabaseBackend(object):
             try:
                 with self.transaction():
                     self.execute("INSERT INTO {} (locked, ctime, pid) "
-                                 "VALUES (1, ?, ?)".format(self.lock_table),
+                                 "VALUES (1, ?, ?)".format(self.lock_table_quoted),
                                  (datetime.utcnow(), pid))
             except self.DatabaseError:
                 if timeout and time.time() > started + timeout:
                     cursor = self.execute("SELECT pid FROM {}"
-                                        .format(self.lock_table))
+                                        .format(self.lock_table_quoted))
                     row = cursor.fetchone()
                     if row:
                         raise exceptions.LockTimeout(
@@ -279,12 +297,12 @@ class DatabaseBackend(object):
     def _delete_lock_row(self, pid):
         with self.transaction():
             self.execute("DELETE FROM {} WHERE pid=?"
-                         .format(self.lock_table),
+                         .format(self.lock_table_quoted),
                          (pid,))
 
     def break_lock(self):
         with self.transaction():
-            self.execute("DELETE FROM {}" .format(self.lock_table))
+            self.execute("DELETE FROM {}" .format(self.lock_table_quoted))
 
     def execute(self, stmt, args=tuple()):
         """
@@ -300,8 +318,10 @@ class DatabaseBackend(object):
         Create the migrations and lock tables if they do not already exist.
         """
         statements = [
-            self.create_migration_table_sql.format(table_name=self.migration_table),
-            self.create_lock_table_sql.format(table_name=self.lock_table)
+            self.create_migration_table_sql.format(
+                table_name_quoted=self.migration_table_quoted),
+            self.create_lock_table_sql.format(
+                table_name_quoted=self.lock_table_quoted)
         ]
 
         for stmt in statements:
@@ -493,11 +513,8 @@ class MySQLBackend(DatabaseBackend):
         if 'unix_socket' in dburi.args:
             kwargs['unix_socket'] = dburi.args['unix_socket']
         kwargs['db'] = dburi.database
+        return self.driver.connect(**kwargs)
 
-        # Enable ANSI quotes mode to support double-quoted table names
-        con = self.driver.connect(**kwargs)
-        con.cursor().execute("SET sql_mode='ANSI_QUOTES'")
-        return con
 
 class MySQLdbBackend(DatabaseBackend):
 
@@ -514,11 +531,7 @@ class MySQLdbBackend(DatabaseBackend):
         if dburi.port is not None:
             kwargs['port'] = dburi.port
         kwargs['db'] = dburi.database
-
-        # Enable ANSI quotes mode to support double-quoted table names
-        con = self.driver.connect(**kwargs)
-        con.cursor().execute("SET sql_mode='ANSI_QUOTES'")
-        return con
+        return self.driver.connect(**kwargs)
 
 
 class SQLiteBackend(DatabaseBackend):
