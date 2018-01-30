@@ -499,7 +499,6 @@ class MySQLBackend(DatabaseBackend):
         con.cursor().execute("SET sql_mode='ANSI_QUOTES'")
         return con
 
-
 class MySQLdbBackend(DatabaseBackend):
 
     driver_module = 'MySQLdb'
