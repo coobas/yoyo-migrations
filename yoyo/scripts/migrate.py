@@ -176,6 +176,7 @@ def reapply(args, config):
     with backend.lock():
         migrations = get_migrations(args, backend)
         backend.rollback_migrations(migrations, args.force)
+        migrations = backend.to_apply(migrations)
         backend.apply_migrations(migrations, args.force)
 
 
