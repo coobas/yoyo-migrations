@@ -24,7 +24,7 @@ CONFIG_NEW_MIGRATION_COMMAND_KEY = 'post_create_command'
 
 
 def get_interpolation_defaults(path):
-    return {'here': os.path.dirname(path)}
+    return {'here': os.path.dirname(os.path.abspath(path))}
 
 
 def get_configparser(**defaults):
