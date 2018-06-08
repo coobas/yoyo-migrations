@@ -53,7 +53,7 @@ setup(
     install_requires=install_requires,
     extras_require={
         'mysql': ['PyMySQL'],
-        'postgres': ['psycopg2>=2.7'],
+        'postgres': ['psycopg2'],
         'pyodbc': ['pyodbc']
     },
     tests_require=['mock'],
