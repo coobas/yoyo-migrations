@@ -17,6 +17,7 @@ Handle config file and argument parsing
 """
 import os
 import iniherit
+import sys
 
 CONFIG_FILENAME = 'yoyo.ini'
 CONFIG_EDITOR_KEY = 'editor'
@@ -28,7 +29,9 @@ def get_interpolation_defaults(path):
 
 
 def get_configparser(**defaults):
-    return iniherit.SafeConfigParser(defaults=defaults)
+    if sys.version_info < (3, 2, 0):
+        return iniherit.SafeConfigParser(defaults=defaults)
+    return iniherit.ConfigParser(defaults=defaults)
 
 
 def update_argparser_defaults(parser, defaults):
