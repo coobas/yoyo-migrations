@@ -20,12 +20,14 @@ from .migrations import default_migration_table
 from .backends import (PostgresqlBackend,
                        SQLiteBackend,
                        ODBCBackend,
+                       OracleBackend,
                        MySQLBackend,
                        MySQLdbBackend)
 from .compat import urlsplit, urlunsplit, parse_qsl, urlencode, quote, unquote
 
 BACKENDS = {
     'odbc': ODBCBackend,
+    'oracle': OracleBackend,
     'postgresql': PostgresqlBackend,
     'postgres': PostgresqlBackend,
     'psql': PostgresqlBackend,
@@ -57,13 +59,16 @@ class DatabaseURI(_DatabaseURI):
         else:
             return hostpart
 
-    @property
-    def uri(self):
+    def __str__(self):
         return urlunsplit((self.scheme,
                            self.netloc,
                            self.database,
                            urlencode(self.args),
                            ''))
+
+    @property
+    def uri(self):
+        return str(self)
 
 
 class BadConnectionURI(Exception):

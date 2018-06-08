@@ -26,7 +26,7 @@ import subprocess
 import sys
 import traceback
 
-from slugify import slugify
+from text_unidecode import unidecode
 
 from yoyo import default_migration_table
 from yoyo.compat import configparser
@@ -110,6 +110,13 @@ def new_migration(args, config):
         pass
 
     print("Created file", p)
+
+
+def slugify(message):
+    s = unidecode(message)
+    s = re.sub(re.compile(r'[^-a-z0-9]+'), '-', s)
+    s = re.compile(r'-{2,}').sub('-', s).strip('-')
+    return s
 
 
 def make_filename(config, directory, message):
