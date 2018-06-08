@@ -155,8 +155,8 @@ class TestYoyoScript(TestInteractiveScript):
             assert get_backend().rollback_migrations.call_count == 1
             assert get_backend().apply_migrations.call_count == 1
 
-    @with_migrations(m1='step("CREATE TABLE _yoyo_test1 (id INT)")')
-    @with_migrations(m2='step("CREATE TABLE _yoyo_test2 (id INT)")')
+    @with_migrations(m1='step("CREATE TABLE yoyo_test1 (id INT)")')
+    @with_migrations(m2='step("CREATE TABLE yoyo_test2 (id INT)")')
     def test_it_applies_from_multiple_sources(self, t1, t2):
         with patch('yoyo.backends.DatabaseBackend.apply_migrations') \
                 as apply:
@@ -220,11 +220,11 @@ class TestYoyoScript(TestInteractiveScript):
 
         with with_migrations(m1=('import time\n'
                                  'step(lambda conn: time.sleep(0.1))\n'
-                                 'step("INSERT INTO _yoyo_t VALUES (\'A\')")')
+                                 'step("INSERT INTO yoyo_t VALUES (\'A\')")')
                              ) as tmpdir:
-            assert '_yoyo_t' in backend.list_tables()
+            assert 'yoyo_t' in backend.list_tables()
             backend.rollback()
-            backend.execute("SELECT * FROM _yoyo_t")
+            backend.execute("SELECT * FROM yoyo_t")
             run_migrations = partial(
                 main,
                 ['apply', '-b', tmpdir, '--database', str(backend.uri)])
@@ -237,7 +237,7 @@ class TestYoyoScript(TestInteractiveScript):
 
             # Exactly one instance of the migration script should have succeeded
             backend.rollback()
-            cursor = backend.execute('SELECT COUNT(1) from _yoyo_t')
+            cursor = backend.execute('SELECT COUNT(1) from yoyo_t')
             assert cursor.fetchone()[0] == 1
 
 
