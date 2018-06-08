@@ -18,6 +18,9 @@ from importlib import import_module
 from itertools import count
 from logging import getLogger
 
+import os
+import time
+
 from . import exceptions, utils
 from .migrations import topological_sort
 
@@ -104,18 +107,31 @@ class DatabaseBackend(object):
 
     driver_module = None
     connection = None
-    create_table_sql = """
-        CREATE TABLE {table_name} (
+    lock_table = 'yoyo_lock'
+    create_migration_table_sql = """
+        CREATE TABLE {table_name_quoted} (
             id VARCHAR(255) NOT NULL PRIMARY KEY,
             ctime TIMESTAMP
         )"""
+    create_lock_table_sql = """
+        CREATE TABLE {table_name_quoted} (
+            locked INT DEFAULT 1,
+            ctime TIMESTAMP,
+            pid INT NOT NULL,
+            PRIMARY KEY (locked)
+        )"""
     list_tables_sql = "SELECT table_name FROM information_schema.tables"
-    is_applied_sql = "SELECT COUNT(1) FROM {0.migration_table} WHERE id=?"
-    insert_migration_sql = ("INSERT INTO {0.migration_table} (id, ctime) "
-                            "VALUES (?, ?)")
-    delete_migration_sql = "DELETE FROM {0.migration_table} WHERE id=?"
-    applied_ids_sql = "SELECT id FROM {0.migration_table} ORDER by ctime"
-    create_test_table_sql = "CREATE TABLE {table_name} (id INT PRIMARY KEY)"
+    is_applied_sql = """
+        SELECT COUNT(1) FROM {0.migration_table_quoted}
+        WHERE id=?"""
+    insert_migration_sql = """
+        INSERT INTO {0.migration_table_quoted} (id, ctime)
+        VALUES (?, ?)"""
+    delete_migration_sql = "DELETE FROM {0.migration_table_quoted} WHERE id=?"
+    applied_ids_sql = "SELECT id FROM {0.migration_table_quoted} ORDER by ctime"
+    create_test_table_sql = """
+        CREATE TABLE {table_name_quoted}
+        (id INT PRIMARY KEY)"""
 
     _driver = None
     _in_transaction = False
@@ -126,7 +142,7 @@ class DatabaseBackend(object):
         self._connection = self.connect(dburi)
         self.init_connection(self._connection)
         self.migration_table = migration_table
-        self.create_migrations_table()
+        self.create_tables()
         self.has_transactional_ddl = self._check_transactional_ddl()
 
     def _load_driver_module(self):
@@ -154,19 +170,32 @@ class DatabaseBackend(object):
         db specific tasks required to make the connection ready for use.
         """
 
+    @property
+    def migration_table_quoted(self):
+        return self.quote_identifier(self.migration_table)
+
+    @property
+    def lock_table_quoted(self):
+        return self.quote_identifier(self.lock_table)
+
+    def quote_identifier(self, s):
+        return '"{}"'.format(s)
+
     def _check_transactional_ddl(self):
         """
         Return True if the database supports committing/rolling back
         DDL statements within a transaction
         """
-        table_name = '_yoyo_tmp_{}'.format(utils.get_random_string(10))
-        sql = self.create_test_table_sql.format(table_name=table_name)
+        table_name = 'yoyo_tmp_{}'.format(utils.get_random_string(10))
+        table_name_quoted = self.quote_identifier(table_name)
+        sql = self.create_test_table_sql.format(
+            table_name_quoted=table_name_quoted)
         with self.transaction() as t:
             self.execute(sql)
             t.rollback()
         try:
             with self.transaction():
-                self.execute("DROP TABLE {}".format(table_name))
+                self.execute("DROP TABLE {}".format(table_name_quoted))
         except self.DatabaseError:
             return True
         return False
@@ -233,6 +262,57 @@ class DatabaseBackend(object):
         self.rollback()
         yield
 
+    @contextmanager
+    def lock(self, timeout=10):
+        """
+        Create a lock to prevent concurrent migrations.
+
+        :param timeout: duration in seconds before raising a LockTimeout error.
+        """
+
+        pid = os.getpid()
+        self._insert_lock_row(pid, timeout)
+        try:
+            yield
+        finally:
+            self._delete_lock_row(pid)
+
+    def _insert_lock_row(self, pid, timeout, poll_interval=0.5):
+        started = time.time()
+        while True:
+            try:
+                with self.transaction():
+                    self.execute("INSERT INTO {} (locked, ctime, pid) "
+                                 "VALUES (1, ?, ?)".format(self.lock_table_quoted),
+                                 (datetime.utcnow(), pid))
+            except self.DatabaseError:
+                if timeout and time.time() > started + timeout:
+                    cursor = self.execute("SELECT pid FROM {}"
+                                        .format(self.lock_table_quoted))
+                    row = cursor.fetchone()
+                    if row:
+                        raise exceptions.LockTimeout(
+                            "Process {} has locked this database "
+                            "(run yoyo break-lock to remove this lock)"
+                            .format(row[0]))
+                    else:
+                        raise exceptions.LockTimeout(
+                            "Database locked "
+                            "(run yoyo break-lock to remove this lock)")
+                time.sleep(poll_interval)
+            else:
+                return
+
+    def _delete_lock_row(self, pid):
+        with self.transaction():
+            self.execute("DELETE FROM {} WHERE pid=?"
+                         .format(self.lock_table_quoted),
+                         (pid,))
+
+    def break_lock(self):
+        with self.transaction():
+            self.execute("DELETE FROM {}" .format(self.lock_table_quoted))
+
     def execute(self, stmt, args=tuple()):
         """
         Create a new cursor, execute a single statement and return the cursor
@@ -242,24 +322,27 @@ class DatabaseBackend(object):
         cursor.execute(self._with_placeholders(stmt), args)
         return cursor
 
-    def create_migrations_table(self):
+    def create_tables(self):
         """
-        Create the migrations table if it does not already exist.
+        Create the migrations and lock tables if they do not already exist.
         """
-        sql = self.create_table_sql.format(table_name=self.migration_table)
-        try:
-            with self.transaction():
-                self.get_applied_migration_ids()
-            table_exists = True
-        except self.DatabaseError:
-            table_exists = False
+        statements = [
+            self.create_migration_table_sql.format(
+                table_name_quoted=self.migration_table_quoted),
+            self.create_lock_table_sql.format(
+                table_name_quoted=self.lock_table_quoted)
+        ]
 
-        if not table_exists:
-            with self.transaction():
-                self.execute(sql)
+        for stmt in statements:
+            try:
+                with self.transaction():
+                    self.execute(stmt)
+            except self.DatabaseError:
+                pass
 
     def _with_placeholders(self, sql):
         placeholder_gen = {'qmark': '?',
+                           'named': ':s',
                            'format': '%s',
                            'pyformat': '%s'}.get(self.driver.paramstyle)
         if placeholder_gen is None:
@@ -268,7 +351,7 @@ class DatabaseBackend(object):
         return sql.replace('?', placeholder_gen)
 
     def is_applied(self, migration):
-        sql = self._with_placeholders(self.is_applied_sql.format(self))
+        sql = self.is_applied_sql.format(self)
         return self.execute(sql, (migration.id,)).fetchone()[0] > 0
 
     def get_applied_migration_ids(self):
@@ -276,7 +359,7 @@ class DatabaseBackend(object):
         Return the list of migration ids in the order in which they
         were applied
         """
-        sql = self._with_placeholders(self.applied_ids_sql.format(self))
+        sql = self.applied_ids_sql.format(self)
         return [row[0] for row in self.execute(sql).fetchall()]
 
     def to_apply(self, migrations):
@@ -368,12 +451,12 @@ class DatabaseBackend(object):
             self.unmark_one(migration)
 
     def unmark_one(self, migration):
-        sql = self._with_placeholders(self.delete_migration_sql.format(self))
+        sql = self.delete_migration_sql.format(self)
         self.execute(sql, (migration.id,))
 
     def mark_one(self, migration):
         logger.info("Marking %s applied", migration.id)
-        sql = self._with_placeholders(self.insert_migration_sql).format(self)
+        sql = self.insert_migration_sql.format(self)
         self.execute(sql, (migration.id, datetime.utcnow()))
 
 
@@ -391,12 +474,44 @@ class ODBCBackend(DatabaseBackend):
         return self.driver.connect(s)
 
 
+class OracleBackend(DatabaseBackend):
+
+    driver_module = 'cx_Oracle'
+    list_tables_sql = 'SELECT table_name FROM all_tables WHERE owner=user'
+
+    def begin(self):
+        """Oracle is always in a transaction, and has no "BEGIN" statement."""
+        self._in_transaction = True
+
+    def connect(self, dburi):
+        kwargs = dburi.args
+        if dburi.username is not None:
+            kwargs['user'] = dburi.username
+        if dburi.password is not None:
+            kwargs['password'] = dburi.password
+        # Oracle combines the hostname, port and database into a single DSN.
+        # The DSN can also be a "net service name"
+        kwargs['dsn'] = ''
+        if dburi.hostname is not None:
+            kwargs['dsn'] = dburi.hostname
+        if dburi.port is not None:
+            kwargs['dsn'] += ':{0}'.format(dburi.port)
+        if dburi.database is not None:
+            if kwargs['dsn']:
+                kwargs['dsn'] += '/{0}'.format(dburi.database)
+            else:
+                kwargs['dsn'] = dburi.database
+
+        return self.driver.connect(**kwargs)
+
+
 class MySQLBackend(DatabaseBackend):
 
     driver_module = 'pymysql'
 
     def connect(self, dburi):
-        kwargs = dburi.args
+        kwargs = {'db': dburi.database}
+        kwargs.update(dburi.args)
         if dburi.username is not None:
             kwargs['user'] = dburi.username
         if dburi.password is not None:
@@ -408,27 +523,17 @@ class MySQLBackend(DatabaseBackend):
         if 'unix_socket' in dburi.args:
             kwargs['unix_socket'] = dburi.args['unix_socket']
         kwargs['db'] = dburi.database
-
         return self.driver.connect(**kwargs)
 
+    def quote_identifier(self, identifier):
+        sql_mode = self.execute("SHOW VARIABLES LIKE 'sql_mode'").fetchone()[1]
+        if 'ansi_quotes' in sql_mode.lower():
+            return super(MySQLBackend).quote_identifier(identifier)
+        return "`{}`".format(identifier)
 
-class MySQLdbBackend(DatabaseBackend):
 
+class MySQLdbBackend(MySQLBackend):
     driver_module = 'MySQLdb'
-
-    def connect(self, dburi):
-        kwargs = dburi.args
-        if dburi.username is not None:
-            kwargs['user'] = dburi.username
-        if dburi.password is not None:
-            kwargs['passwd'] = dburi.password
-        if dburi.hostname is not None:
-            kwargs['host'] = dburi.hostname
-        if dburi.port is not None:
-            kwargs['port'] = dburi.port
-        kwargs['db'] = dburi.database
-
-        return self.driver.connect(**kwargs)
 
 
 class SQLiteBackend(DatabaseBackend):
@@ -448,19 +553,18 @@ class PostgresqlBackend(DatabaseBackend):
     schema = None
 
     def connect(self, dburi):
-        connargs = []
+        kwargs = {'dbname': dburi.database}
+        kwargs.update(dburi.args)
         if dburi.username is not None:
-            connargs.append('user=%s' % dburi.username)
+            kwargs['user'] = dburi.username
         if dburi.password is not None:
-            connargs.append('password=%s' % dburi.password)
+            kwargs['password'] = dburi.password
         if dburi.port is not None:
-            connargs.append('port=%d' % dburi.port)
+            kwargs['port'] = dburi.port
         if dburi.hostname is not None:
-            connargs.append('host=%s' % dburi.hostname)
-        connargs.append('dbname=%s' % dburi.database)
-        connection = self.driver.connect(' '.join(connargs))
+            kwargs['host'] = dburi.hostname
         self.schema = dburi.args.get('schema')
-        return connection
+        return self.driver.connect(**kwargs)
 
     @contextmanager
     def disable_transactions(self):
