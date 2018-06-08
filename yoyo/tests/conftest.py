@@ -14,25 +14,26 @@ def backend(request):
     backend = get_backend(request.param)
     with backend.transaction():
         if backend.__class__ is backends.MySQLBackend:
-            backend.execute('CREATE TABLE _yoyo_t '
+            backend.execute('CREATE TABLE yoyo_t '
                             '(id CHAR(1) primary key) '
                             'ENGINE=InnoDB')
         else:
-            backend.execute('CREATE TABLE _yoyo_t '
+            backend.execute('CREATE TABLE yoyo_t '
                             '(id CHAR(1) primary key)')
     try:
         yield backend
     finally:
         backend.rollback()
+        drop_yoyo_tables(backend)
+
+
+def drop_yoyo_tables(backend):
         for table in backend.list_tables():
-            if table.startswith('_yoyo'):
+            if table.startswith('yoyo') or table.startswith('_yoyo'):
                 with backend.transaction():
-                    backend.execute('DROP TABLE {}'.format(table))
+                    backend.execute("DROP TABLE {}".format(table))
 
 
 def pytest_configure(config):
     for backend in get_test_backends():
-        for table in backend.list_tables():
-            if table.startswith('_yoyo'):
-                with backend.transaction():
-                    backend.execute("DROP TABLE {}".format(table))
+        drop_yoyo_tables(backend)

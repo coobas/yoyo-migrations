@@ -13,36 +13,36 @@ class TestTransactionHandling(object):
 
     def test_it_commits(self, backend):
         with backend.transaction():
-            backend.execute("INSERT INTO _yoyo_t values ('A')")
+            backend.execute("INSERT INTO yoyo_t values ('A')")
 
         with backend.transaction():
-            rows = list(backend.execute("SELECT * FROM _yoyo_t").fetchall())
+            rows = list(backend.execute("SELECT * FROM yoyo_t").fetchall())
             assert rows == [('A',)]
 
     def test_it_rolls_back(self, backend):
         with pytest.raises(backend.DatabaseError):
             with backend.transaction():
-                backend.execute("INSERT INTO _yoyo_t values ('A')")
+                backend.execute("INSERT INTO yoyo_t values ('A')")
                 # Invalid SQL to produce an error
                 backend.execute("INSERT INTO nonexistant values ('A')")
 
         with backend.transaction():
-            rows = list(backend.execute("SELECT * FROM _yoyo_t").fetchall())
+            rows = list(backend.execute("SELECT * FROM yoyo_t").fetchall())
             assert rows == []
 
     def test_it_nests_transactions(self, backend):
         with backend.transaction():
-            backend.execute("INSERT INTO _yoyo_t values ('A')")
+            backend.execute("INSERT INTO yoyo_t values ('A')")
 
             with backend.transaction() as trans:
-                backend.execute("INSERT INTO _yoyo_t values ('B')")
+                backend.execute("INSERT INTO yoyo_t values ('B')")
                 trans.rollback()
 
             with backend.transaction() as trans:
-                backend.execute("INSERT INTO _yoyo_t values ('C')")
+                backend.execute("INSERT INTO yoyo_t values ('C')")
 
         with backend.transaction():
-            rows = list(backend.execute("SELECT * FROM _yoyo_t").fetchall())
+            rows = list(backend.execute("SELECT * FROM yoyo_t").fetchall())
             assert rows == [('A',), ('C',)]
 
     def test_backend_detects_transactional_ddl(self, backend):
@@ -65,17 +65,17 @@ class TestTransactionHandling(object):
             return
 
         with backend.transaction() as trans:
-            backend.execute("CREATE TABLE _yoyo_a (id INT)")  # implicit commit
-            backend.execute("INSERT INTO _yoyo_a VALUES (1)")
-            backend.execute("CREATE TABLE _yoyo_b (id INT)")  # implicit commit
-            backend.execute("INSERT INTO _yoyo_b VALUES (1)")
+            backend.execute("CREATE TABLE yoyo_a (id INT)")  # implicit commit
+            backend.execute("INSERT INTO yoyo_a VALUES (1)")
+            backend.execute("CREATE TABLE yoyo_b (id INT)")  # implicit commit
+            backend.execute("INSERT INTO yoyo_b VALUES (1)")
             trans.rollback()
 
-        count_a = backend.execute("SELECT COUNT(1) FROM _yoyo_a")\
+        count_a = backend.execute("SELECT COUNT(1) FROM yoyo_a")\
                 .fetchall()[0][0]
         assert count_a == 1
 
-        count_b = backend.execute("SELECT COUNT(1) FROM _yoyo_b")\
+        count_b = backend.execute("SELECT COUNT(1) FROM yoyo_b")\
                 .fetchall()[0][0]
         assert count_b == 0
 
@@ -91,9 +91,9 @@ class TestTransactionHandling(object):
         are run within a transaction block.
 
         As far as I know this behavior is PostgreSQL specific. We can't run
-        this test in sqlite as it does not support CREATE DATABASE.
+        this test in sqlite or oracle as they do not support CREATE DATABASE.
         """
-        for backend in get_test_backends(exclude={'sqlite'}):
+        for backend in get_test_backends(exclude={'sqlite', 'oracle'}):
             migrations = read_migrations(tmpdir)
             backend.apply_migrations(migrations)
             backend.rollback_migrations(migrations)
