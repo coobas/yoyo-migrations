@@ -124,6 +124,7 @@ class DatabaseBackend(object):
         self.uri = dburi
         self.DatabaseError = self.driver.DatabaseError
         self._connection = self.connect(dburi)
+        self.init_connection(self._connection)
         self.migration_table = migration_table
         self.create_migrations_table()
         self.has_transactional_ddl = self._check_transactional_ddl()
@@ -146,6 +147,12 @@ class DatabaseBackend(object):
     @property
     def connection(self):
         return self._connection
+
+    def init_connection(self, connection):
+        """
+        Called when creating a connection or after a rollback. May do any
+        db specific tasks required to make the connection ready for use.
+        """
 
     def _check_transactional_ddl(self):
         """
@@ -189,6 +196,7 @@ class DatabaseBackend(object):
 
     def rollback(self):
         self.connection.rollback()
+        self.init_connection(self.connection)
         self._in_transaction = False
 
     def begin(self):
@@ -437,6 +445,7 @@ class SQLiteBackend(DatabaseBackend):
 class PostgresqlBackend(DatabaseBackend):
 
     driver_module = 'psycopg2'
+    schema = None
 
     def connect(self, dburi):
         connargs = []
@@ -450,8 +459,7 @@ class PostgresqlBackend(DatabaseBackend):
             connargs.append('host=%s' % dburi.hostname)
         connargs.append('dbname=%s' % dburi.database)
         connection = self.driver.connect(' '.join(connargs))
-        if "schema" in dburi.args:
-            connection.cursor().execute("SET search_path TO %s" % dburi.args["schema"])
+        self.schema = dburi.args.get('schema')
         return connection
 
     @contextmanager
@@ -461,3 +469,8 @@ class PostgresqlBackend(DatabaseBackend):
             self.connection.autocommit = True
             yield
             self.connection.autocommit = saved
+
+    def init_connection(self, connection):
+        if self.schema:
+            cursor = connection.cursor()
+            cursor.execute("SET search_path TO {}".format(self.schema))

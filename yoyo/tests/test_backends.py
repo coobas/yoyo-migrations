@@ -1,3 +1,6 @@
+from mock import Mock
+from mock import call
+from mock import patch
 import pytest
 
 from yoyo import backends
@@ -112,3 +115,37 @@ class TestTransactionHandling(object):
             migrations = read_migrations(tmpdir)
             backend.apply_migrations(migrations)
             backend.rollback_migrations(migrations)
+
+
+class TestInitConnection(object):
+
+    class MockBackend(backends.DatabaseBackend):
+        driver = Mock(DatabaseError=Exception, paramstyle='format')
+
+        def connect(self, dburi):
+            return Mock()
+
+    def test_it_calls_init_connection(self):
+
+        with patch.object(self.MockBackend, 'init_connection', Mock()) as mock_init:
+
+            backend = self.MockBackend('', '')
+            connection = backend.connection
+            assert mock_init.call_args == call(connection)
+
+            mock_init.reset_mock()
+            backend.rollback()
+            assert mock_init.call_args_list == [call(connection)]
+
+    def test_postgresql_backend_sets_search_path(self):
+        class MockPGBackend(backends.PostgresqlBackend):
+            driver = Mock(DatabaseError=Exception, paramstyle='format')
+            schema = 'foo'
+
+            def connect(self, dburi):
+                return Mock()
+
+        backend = MockPGBackend('', '')
+        backend.rollback()
+        assert backend.connection.cursor().execute.call_args == \
+                call('SET search_path TO foo')
