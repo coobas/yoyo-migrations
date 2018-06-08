@@ -160,6 +160,9 @@ options::
   # "{}" is expanded to the filename of the new migration
   post_create_command = hg add {}
 
+  # A prefix to use for generated migration filenames
+  prefix = myproject_
+
 
 Config file inheritance may be used to customize configuration per site::
 
@@ -213,6 +216,27 @@ rollbacks happen. For example::
     step("UPDATE employees SET tax_code='B' WHERE pay_grade >= 6")
     step("UPDATE employees SET tax_code='A' WHERE pay_grade >= 8")
 
+Disabling transactions
+~~~~~~~~~~~~~~~~~~~~~~
+
+In PostgreSQL it is an error to run certain statements inside a transaction
+block. These include:
+
+.. code::sql
+
+    CREATE TABLE <foo>
+    ALTER TYPE <enum> ADD ...
+
+Migrations containing such statements should set
+``__transactional__ = False``, eg:
+
+.. code::python
+
+    __transactional__ = False
+
+    step("CREATE DATABASE mydb", "DROP DATABASE mydb")
+
+Note that this feature is implemented for the PostgreSQL backend only.
 
 Post-apply hook
 ---------------
@@ -284,7 +308,7 @@ MySQL
 
 
 MySQL with MySQLdb
-~~~~~
+~~~~~~~~~~~~~~~~~~
 
 ::
 
@@ -308,10 +332,12 @@ Using yoyo from python code
 
 The following example shows how to apply migrations from inside python code::
 
-    from yoyo import read_migrations, get_backend
+    from yoyo import read_migrations
+    from yoyo import get_backend
 
     backend = get_backend('postgres://myuser@localhost/mydatabase')
     migrations = read_migrations('path/to/migrations')
-    backend.apply_migrations(migrations)
+    with backend.lock():
+      backend.apply_migrations(backend.to_apply(migrations))
 
 .. :vim:sw=4:et

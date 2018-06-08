@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import pytest
-from mock import Mock
+from mock import Mock, patch
 
 from yoyo.connections import get_backend
 from yoyo import read_migrations
@@ -27,11 +27,11 @@ from yoyo.scripts import newmigration
 
 @with_migrations(
     """
-    step("CREATE TABLE _yoyo_test (id INT)")
+    step("CREATE TABLE yoyo_test (id INT)")
     """,
     """
-step("INSERT INTO _yoyo_test VALUES (1)")
-step("INSERT INTO _yoyo_test VALUES ('x', 'y')")
+step("INSERT INTO yoyo_test VALUES (1)")
+step("INSERT INTO yoyo_test VALUES ('x', 'y')")
     """)
 def test_transaction_is_not_committed_on_error(tmpdir):
     backend = get_backend(dburi)
@@ -39,15 +39,15 @@ def test_transaction_is_not_committed_on_error(tmpdir):
     with pytest.raises(backend.DatabaseError):
         backend.apply_migrations(migrations)
     cursor = backend.cursor()
-    cursor.execute("SELECT count(1) FROM _yoyo_test")
+    cursor.execute("SELECT count(1) FROM yoyo_test")
     assert cursor.fetchone() == (0,)
 
 
 @with_migrations(
-    'step("CREATE TABLE _yoyo_test (id INT)")',
+    'step("CREATE TABLE yoyo_test (id INT)")',
     '''
-step("INSERT INTO _yoyo_test VALUES (1)", "DELETE FROM _yoyo_test WHERE id=1")
-step("UPDATE _yoyo_test SET id=2 WHERE id=1", "UPDATE _yoyo_test SET id=1 WHERE id=2")
+step("INSERT INTO yoyo_test VALUES (1)", "DELETE FROM yoyo_test WHERE id=1")
+step("UPDATE yoyo_test SET id=2 WHERE id=1", "UPDATE yoyo_test SET id=1 WHERE id=2")
     '''
 )
 def test_rollbacks_happen_in_reverse(tmpdir):
@@ -55,19 +55,19 @@ def test_rollbacks_happen_in_reverse(tmpdir):
     migrations = read_migrations(tmpdir)
     backend.apply_migrations(migrations)
     cursor = backend.cursor()
-    cursor.execute("SELECT * FROM _yoyo_test")
+    cursor.execute("SELECT * FROM yoyo_test")
     assert cursor.fetchall() == [(2,)]
     backend.rollback_migrations(migrations)
-    cursor.execute("SELECT * FROM _yoyo_test")
+    cursor.execute("SELECT * FROM yoyo_test")
     assert cursor.fetchall() == []
 
 
 @with_migrations(
     '''
-    step("CREATE TABLE _yoyo_test (id INT)")
-    step("INSERT INTO _yoyo_test VALUES (1)")
-    step("INSERT INTO _yoyo_test VALUES ('a', 'b')", ignore_errors='all')
-    step("INSERT INTO _yoyo_test VALUES (2)")
+    step("CREATE TABLE yoyo_test (id INT)")
+    step("INSERT INTO yoyo_test VALUES (1)")
+    step("INSERT INTO yoyo_test VALUES ('a', 'b')", ignore_errors='all')
+    step("INSERT INTO yoyo_test VALUES (2)")
     '''
 )
 def test_execution_continues_with_ignore_errors(tmpdir):
@@ -75,20 +75,20 @@ def test_execution_continues_with_ignore_errors(tmpdir):
     migrations = read_migrations(tmpdir)
     backend.apply_migrations(migrations)
     cursor = backend.cursor()
-    cursor.execute("SELECT * FROM _yoyo_test")
+    cursor.execute("SELECT * FROM yoyo_test")
     assert cursor.fetchall() == [(1,), (2,)]
 
 
 @with_migrations(
     '''
     from yoyo import step, group
-    step("CREATE TABLE _yoyo_test (id INT)")
+    step("CREATE TABLE yoyo_test (id INT)")
     group(
-        step("INSERT INTO _yoyo_test VALUES (1)"),
-        step("INSERT INTO _yoyo_test VALUES ('a', 'b')"),
+        step("INSERT INTO yoyo_test VALUES (1)"),
+        step("INSERT INTO yoyo_test VALUES ('a', 'b')"),
         ignore_errors='all'
     )
-    step("INSERT INTO _yoyo_test VALUES (2)")
+    step("INSERT INTO yoyo_test VALUES (2)")
     '''
 )
 def test_execution_continues_with_ignore_errors_in_transaction(tmpdir):
@@ -96,16 +96,16 @@ def test_execution_continues_with_ignore_errors_in_transaction(tmpdir):
     migrations = read_migrations(tmpdir)
     backend.apply_migrations(migrations)
     cursor = backend.cursor()
-    cursor.execute("SELECT * FROM _yoyo_test")
+    cursor.execute("SELECT * FROM yoyo_test")
     assert cursor.fetchall() == [(2,)]
 
 
 @with_migrations(
     '''
-    step("CREATE TABLE _yoyo_test (id INT)")
-    step("INSERT INTO _yoyo_test VALUES (1)",
-         "DELETE FROM _yoyo_test WHERE id=2")
-    step("UPDATE _yoyo_test SET id=2 WHERE id=1",
+    step("CREATE TABLE yoyo_test (id INT)")
+    step("INSERT INTO yoyo_test VALUES (1)",
+         "DELETE FROM yoyo_test WHERE id=2")
+    step("UPDATE yoyo_test SET id=2 WHERE id=1",
          "SELECT nonexistent FROM imaginary", ignore_errors='rollback')
     '''
 )
@@ -114,55 +114,55 @@ def test_rollbackignores_errors(tmpdir):
     migrations = read_migrations(tmpdir)
     backend.apply_migrations(migrations)
     cursor = backend.cursor()
-    cursor.execute("SELECT * FROM _yoyo_test")
+    cursor.execute("SELECT * FROM yoyo_test")
     assert cursor.fetchall() == [(2,)]
 
     backend.rollback_migrations(migrations)
-    cursor.execute("SELECT * FROM _yoyo_test")
+    cursor.execute("SELECT * FROM yoyo_test")
     assert cursor.fetchall() == []
 
 
-def test_migration_is_committed(backend_fixture):
-    with migrations_dir('step("CREATE TABLE _yoyo_test (id INT)")') as tmpdir:
+def test_migration_is_committed(backend):
+    with migrations_dir('step("CREATE TABLE yoyo_test (id INT)")') as tmpdir:
         migrations = read_migrations(tmpdir)
-        backend_fixture.apply_migrations(migrations)
+        backend.apply_migrations(migrations)
 
-    backend_fixture.rollback()
-    rows = backend_fixture.execute("SELECT * FROM _yoyo_test").fetchall()
+    backend.rollback()
+    rows = backend.execute("SELECT * FROM yoyo_test").fetchall()
     assert list(rows) == []
 
 
-def test_rollback_happens_on_step_failure(backend_fixture):
+def test_rollback_happens_on_step_failure(backend):
     with migrations_dir('''
                         step("",
-                             "CREATE TABLE _yoyo_is_rolledback (i INT)"),
-                        step("CREATE TABLE _yoyo_test (s VARCHAR(100))",
-                             "DROP TABLE _yoyo_test")
+                             "CREATE TABLE yoyo_is_rolledback (i INT)"),
+                        step("CREATE TABLE yoyo_test (s VARCHAR(100))",
+                             "DROP TABLE yoyo_test")
                         step("invalid sql!")''') as tmpdir:
         migrations = read_migrations(tmpdir)
-        with pytest.raises(backend_fixture.DatabaseError):
-            backend_fixture.apply_migrations(migrations)
+        with pytest.raises(backend.DatabaseError):
+            backend.apply_migrations(migrations)
 
-    # The _yoyo_test table should have either been deleted (transactional ddl)
+    # The yoyo_test table should have either been deleted (transactional ddl)
     # or dropped (non-transactional-ddl)
-    with pytest.raises(backend_fixture.DatabaseError):
-        backend_fixture.execute("SELECT * FROM _yoyo_test")
+    with pytest.raises(backend.DatabaseError):
+        backend.execute("SELECT * FROM yoyo_test")
 
     # Transactional DDL: rollback steps not executed
-    if backend_fixture.has_transactional_ddl:
-        with pytest.raises(backend_fixture.DatabaseError):
-            backend_fixture.execute("SELECT * FROM _yoyo_is_rolledback")
+    if backend.has_transactional_ddl:
+        with pytest.raises(backend.DatabaseError):
+            backend.execute("SELECT * FROM yoyo_is_rolledback")
 
     # Non-transactional DDL: ensure the rollback steps were executed
     else:
-        cursor = backend_fixture.execute("SELECT * FROM _yoyo_is_rolledback")
+        cursor = backend.execute("SELECT * FROM yoyo_is_rolledback")
         assert list(cursor.fetchall()) == []
 
 
 @with_migrations(
     '''
-    step("CREATE TABLE _yoyo_test (id INT)")
-    step("DROP TABLE _yoyo_test")
+    step("CREATE TABLE yoyo_test (id INT)")
+    step("DROP TABLE yoyo_test")
     '''
 )
 def test_specify_migration_table(tmpdir):
@@ -199,8 +199,8 @@ def test_migration_functions_have_namespace_access(tmpdir):
 @with_migrations(
     '''
     from yoyo import group, step
-    step("CREATE TABLE _yoyo_test (id INT)")
-    group(step("INSERT INTO _yoyo_test VALUES (1)")),
+    step("CREATE TABLE yoyo_test (id INT)")
+    group(step("INSERT INTO yoyo_test VALUES (1)")),
     '''
 )
 def test_migrations_can_import_step_and_group(tmpdir):
@@ -208,24 +208,41 @@ def test_migrations_can_import_step_and_group(tmpdir):
     migrations = read_migrations(tmpdir)
     backend.apply_migrations(migrations)
     cursor = backend.cursor()
-    cursor.execute("SELECT id FROM _yoyo_test")
+    cursor.execute("SELECT id FROM yoyo_test")
     assert cursor.fetchall() == [(1,)]
 
 
-@with_migrations(**{newmigration.tempfile_prefix + 'test': ''})
-def test_read_migrations_ignores_yoyo_new_tmp_files(tmpdir):
-    """
-    The yoyo new command creates temporary files in the migrations directory.
-    These shouldn't be picked up by yoyo apply etc
-    """
-    assert len(read_migrations(tmpdir)) == 0
+@with_migrations(
+    '''
+    step("CREATE TABLE yoyo_test (id INT, c VARCHAR(1))")
+    step("INSERT INTO yoyo_test VALUES (1, 'a')")
+    step("INSERT INTO yoyo_test VALUES (2, 'b')")
+    step("SELECT * FROM yoyo_test")
+    '''
+)
+def test_migrations_display_selected_data(tmpdir):
+    backend = get_backend(dburi)
+    migrations = read_migrations(tmpdir)
+    with patch('yoyo.migrations.stdout') as stdout:
+        backend.apply_migrations(migrations)
+        written = ''.join(a[0] for a, kw in stdout.write.call_args_list)
+        assert written == (' id | c \n'
+                           '----+---\n'
+                           ' 1  | a \n'
+                           ' 2  | b \n'
+                           '(2 rows)\n')
 
 
 class TestTopologicalSort(object):
 
     def get_mock_migrations(self):
-        return [Mock(id='m1', depends=set()), Mock(id='m2', depends=set()),
-                Mock(id='m3', depends=set()), Mock(id='m4', depends=set())]
+        class MockMigration(Mock):
+            def __repr__(self):
+                return "<MockMigration {}>".format(self.id)
+        return [MockMigration(id='m1', depends=set()),
+                MockMigration(id='m2', depends=set()),
+                MockMigration(id='m3', depends=set()),
+                MockMigration(id='m4', depends=set())]
 
     def test_it_keeps_stable_order(self):
         m1, m2, m3, m4 = self.get_mock_migrations()
@@ -252,6 +269,13 @@ class TestTopologicalSort(object):
         m3.depends.add(m3)
         with pytest.raises(exceptions.BadMigration):
             list(topological_sort([m1, m2, m3, m4]))
+
+    def test_it_handles_multiple_edges_to_the_same_node(self):
+        m1, m2, m3, m4 = self.get_mock_migrations()
+        m2.depends.add(m1)
+        m3.depends.add(m1)
+        m4.depends.add(m1)
+        assert list(topological_sort([m1, m2, m3, m4])) == [m1, m2, m3, m4]
 
 
 class TestMigrationList(object):
@@ -318,3 +342,95 @@ class TestAncestorsDescendants(object):
         assert descendants(self.m4, self.migrations) == set()
         assert descendants(self.m5, self.migrations) == {self.m4, self.m3,
                                                          self.m2, self.m1}
+
+
+class TestReadMigrations(object):
+
+    @with_migrations(**{newmigration.tempfile_prefix + 'test': ''})
+    def test_it_ignores_yoyo_new_tmp_files(self, tmpdir):
+        """
+        The yoyo new command creates temporary files in the migrations directory.
+        These shouldn't be picked up by yoyo apply etc
+        """
+        assert len(read_migrations(tmpdir)) == 0
+
+    @with_migrations(**{'post-apply': '''step('SELECT 1')'''})
+    def test_it_loads_post_apply_scripts(self, tmpdir):
+        migrations = read_migrations(tmpdir)
+        assert len(migrations) == 0
+        assert len(migrations.post_apply) == 1
+
+    @with_migrations(**{'a': '''step('SELECT 1')'''})
+    def test_it_does_not_add_duplicate_steps(self, tmpdir):
+        m = read_migrations(tmpdir)[0]
+        m.load()
+        assert len(m.steps) == 1
+
+        m = read_migrations(tmpdir)[0]
+        m.load()
+        assert len(m.steps) == 1
+
+    @with_migrations(**{'a': '''from yoyo import step; step('SELECT 1')'''})
+    def test_it_does_not_add_duplicate_steps_with_imported_symbols(self, tmpdir):
+        m = read_migrations(tmpdir)[0]
+        m.load()
+        assert len(m.steps) == 1
+
+        m = read_migrations(tmpdir)[0]
+        m.load()
+        assert len(m.steps) == 1
+
+
+class TestPostApplyHooks(object):
+
+    def test_post_apply_hooks_are_run_every_time(self):
+
+        backend = get_backend(dburi)
+        migrations = migrations_dir(
+            **{'a': "step('create table postapply (i int)')",
+               'post-apply': "step('insert into postapply values (1)')"})
+
+        with migrations as tmp:
+
+            def count_postapply_calls():
+                cursor = backend.cursor()
+                cursor.execute("SELECT count(1) FROM postapply")
+                return cursor.fetchone()[0]
+
+            def _apply_migrations():
+                backend.apply_migrations(
+                    backend.to_apply(read_migrations(tmp)))
+
+            # Should apply migration 'a' and call the post-apply hook
+            _apply_migrations()
+            assert count_postapply_calls() == 1
+
+            # No outstanding migrations: post-apply hook should not be called
+            _apply_migrations()
+            assert count_postapply_calls() == 1
+
+            # New migration added: post-apply should be called a second time
+            migrations.add_migration('b', '')
+            _apply_migrations()
+            assert count_postapply_calls() == 2
+
+    @with_migrations(**{
+        'a': "step('create table postapply (i int)')",
+        'post-apply': "step('insert into postapply values (1)')",
+        'post-apply2': "step('insert into postapply values (2)')"})
+    def test_it_runs_multiple_post_apply_hooks(self, tmpdir):
+        backend = get_backend(dburi)
+        backend.apply_migrations(backend.to_apply(read_migrations(tmpdir)))
+        cursor = backend.cursor()
+        cursor.execute("SELECT * FROM postapply")
+        assert cursor.fetchall() == [(1,), (2,)]
+
+    @with_migrations(**{
+        'a': "step('create table postapply (i int)')",
+        'post-apply': "step('insert into postapply values (1)')"})
+    def test_apply_migrations_only_does_not_run_hooks(self, tmpdir):
+        backend = get_backend(dburi)
+        backend.apply_migrations_only(backend.to_apply(read_migrations(tmpdir)))
+        cursor = backend.cursor()
+        cursor.execute("SELECT * FROM postapply")
+        assert cursor.fetchall() == []

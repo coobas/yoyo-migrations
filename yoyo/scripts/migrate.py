@@ -14,6 +14,7 @@
 
 import argparse
 import re
+import warnings
 
 from yoyo import (read_migrations,
                   default_migration_table,
@@ -96,6 +97,12 @@ def install_argparsers(global_parser, subparsers):
         help="Unmark applied migrations, without rolling them back")
     parser_unmark.set_defaults(func=unmark, command_name='unmark')
 
+    parser_break_lock = subparsers.add_parser(
+        'break_lock',
+        parents=[global_parser],
+        help="Break migration locks")
+    parser_break_lock.set_defaults(func=break_lock, command_name='break-lock')
+
 
 def get_migrations(args, backend):
 
@@ -121,7 +128,7 @@ def get_migrations(args, backend):
     if args.revision:
         targets = [m for m in migrations if args.revision in m.id]
         if len(targets) == 0:
-            raise InvalidArgument("'{}' doesn't match ay revisions."
+            raise InvalidArgument("'{}' doesn't match any revisions."
                                   .format(args.revision))
         if len(targets) > 1:
             raise InvalidArgument("'{}' matches multiple revisions. "
@@ -148,6 +155,14 @@ def get_migrations(args, backend):
                                        migrations,
                                        args.command_name)
 
+    if args.batch_mode and not args.revision and not args.all and args.func is rollback:
+        if len(migrations) > 1:
+            warnings.warn("Only rolling back a single migration."
+                          "To roll back multiple migrations, "
+                          "either use interactive mode or use "
+                          "--revision or --all")
+            migrations = migrations[:1]
+
     if not args.batch_mode and migrations:
         prompt = '{} {} to {}'.format(
             args.command_name.title(),
@@ -160,33 +175,43 @@ def get_migrations(args, backend):
 
 def apply(args, config):
     backend = get_backend(args, config)
-    migrations = get_migrations(args, backend)
-    backend.apply_migrations(migrations, args.force)
+    with backend.lock():
+        migrations = get_migrations(args, backend)
+        backend.apply_migrations(migrations, args.force)
 
 
 def reapply(args, config):
     backend = get_backend(args, config)
-    migrations = get_migrations(args, backend)
-    backend.rollback_migrations(migrations, args.force)
-    backend.apply_migrations(migrations, args.force)
+    with backend.lock():
+        migrations = get_migrations(args, backend)
+        backend.rollback_migrations(migrations, args.force)
+        backend.apply_migrations(migrations, args.force)
 
 
 def rollback(args, config):
     backend = get_backend(args, config)
-    migrations = get_migrations(args, backend)
-    backend.rollback_migrations(migrations, args.force)
+    with backend.lock():
+        migrations = get_migrations(args, backend)
+        backend.rollback_migrations(migrations, args.force)
 
 
 def mark(args, config):
     backend = get_backend(args, config)
-    migrations = get_migrations(args, backend)
-    backend.mark_migrations(migrations)
+    with backend.lock():
+        migrations = get_migrations(args, backend)
+        backend.mark_migrations(migrations)
 
 
 def unmark(args, config):
     backend = get_backend(args, config)
-    migrations = get_migrations(args, backend)
-    backend.unmark_migrations(migrations)
+    with backend.lock():
+        migrations = get_migrations(args, backend)
+        backend.unmark_migrations(migrations)
+
+
+def break_lock(args, config):
+    backend = get_backend(args, config)
+    backend.break_lock()
 
 
 def prompt_migrations(backend, migrations, direction):

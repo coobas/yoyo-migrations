@@ -19,7 +19,7 @@ import re
 from setuptools import setup, find_packages
 
 VERSIONFILE = "yoyo/__init__.py"
-install_requires = ['python-slugify', 'iniherit']
+install_requires = ['text-unidecode', 'iniherit']
 
 
 def get_version():
@@ -45,6 +45,8 @@ setup(
     author='Oliver Cope',
     author_email='oliver@redgecko.org',
     license='Apache',
+    keywords=['migrations', 'migrate', 'database', 'db', 'alembic', 'south',
+              'mysql', 'postgresql', 'sqlite'],
     packages=find_packages(),
     include_package_data=True,
     zip_safe=False,

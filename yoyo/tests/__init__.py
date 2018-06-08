@@ -29,12 +29,13 @@ config = get_configparser()
 config.read([config_file])
 
 
-def get_test_dburis():
-    return [dburi for _, dburi in config.items('DEFAULT')]
+def get_test_dburis(only=frozenset(), exclude=frozenset()):
+    return [dburi for name, dburi in config.items('DEFAULT')
+            if (only and name in only) or (not only and name not in exclude)]
 
 
-def get_test_backends():
-    return [get_backend(dburi) for dburi in get_test_dburis()]
+def get_test_backends(only=frozenset(), exclude=frozenset()):
+    return [get_backend(dburi) for dburi in get_test_dburis(only, exclude)]
 
 
 class MigrationsContextManager(object):
@@ -49,14 +50,16 @@ class MigrationsContextManager(object):
         self.migrations = migrations
         self.kwmigrations = kwmigrations
 
+    def add_migration(self, id, code):
+        filename = os.path.join(self.tmpdir, '{!s}.py'.format(id))
+        with open(filename, 'w') as f:
+            f.write(dedent(code).strip())
+
     def __enter__(self):
         tmpdir = self.tmpdir = mkdtemp()
         for id, code in chain(enumerate(self.migrations),
                               self.kwmigrations.items()):
-            migfile = os.path.join(tmpdir, '{!s}.py'.format(id))
-            with open(migfile, 'w') as f:
-                f.write(dedent(code).strip())
-
+            self.add_migration(id, code)
         return tmpdir
 
     def __exit__(self, *exc_info):
@@ -67,6 +70,7 @@ class MigrationsContextManager(object):
             with self:
                 return func(*(args + (self.tmpdir,)), **kwargs)
         return decorator
+
 
 with_migrations = MigrationsContextManager
 migrations_dir = MigrationsContextManager

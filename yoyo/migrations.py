@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from collections import (defaultdict, OrderedDict, Counter, MutableSequence,
-                         Iterable)
+                         Iterable, deque)
 from copy import copy
 from itertools import chain, count
 from logging import getLogger
@@ -27,7 +27,6 @@ from yoyo.utils import plural
 
 logger = getLogger('yoyo.migrations')
 default_migration_table = '_yoyo_migration'
-_step_collectors = defaultdict(lambda: StepCollector())
 
 
 class Migration(object):
@@ -39,6 +38,7 @@ class Migration(object):
         self.path = path
         self.steps = None
         self.source = None
+        self.use_transactions = True
         self._depends = None
         self.__all_migrations[id] = self
 
@@ -63,10 +63,11 @@ class Migration(object):
             self.source = source = f.read()
             migration_code = compile(source, f.name, 'exec')
 
-        collector = _step_collectors[f.name]
+        collector = StepCollector(migration=self)
         ns = {'step': collector.add_step,
               'group': collector.add_step_group,
-              'transaction': collector.add_step_group}
+              'transaction': collector.add_step_group,
+              'collector': collector}
         try:
             exec_(migration_code, ns)
         except Exception as e:
@@ -78,11 +79,13 @@ class Migration(object):
             depends = [depends]
         self._depends = {self.__all_migrations.get(id, None)
                          for id in depends}
+        self.use_transactions = ns.get('__transactional__', True)
         if None in self._depends:
             raise exceptions.BadMigration(
                 "Could not resolve dependencies in {}".format(self.path))
+        self.ns = ns
         self.source = source
-        self.steps = list(collector.steps)
+        self.steps = collector.create_steps(self.use_transactions)
 
     def process_steps(self, backend, direction, force=False):
 
@@ -95,24 +98,31 @@ class Migration(object):
             steps = reversed(steps)
 
         executed_steps = []
-        for step in steps:
-            try:
-                getattr(step, direction)(backend, force)
-                executed_steps.append(step)
-            except backend.DatabaseError:
-                exc_info = sys.exc_info()
+        if self.use_transactions:
+            transaction = backend.transaction
+        else:
+            transaction = backend.disable_transactions
 
-                if not backend.has_transactional_ddl:
-                    # Any DDL statements that have been executed have been
-                    # committed. Go through the rollback steps to undo these
-                    # inasmuch is possible.
-                    try:
-                        for step in reversed(executed_steps):
-                            getattr(step, reverse)(backend)
-                    except backend.DatabaseError:
-                        logger.exception('Could not %s step %s',
-                                         direction, step.id)
-                reraise(exc_info[0], exc_info[1], exc_info[2])
+        with transaction():
+            for step in steps:
+                try:
+                    getattr(step, direction)(backend, force)
+                    executed_steps.append(step)
+                except backend.DatabaseError:
+                    exc_info = sys.exc_info()
+
+                    if not backend.has_transactional_ddl or \
+                            not self.use_transactions:
+                        # Any DDL statements that have been executed have been
+                        # committed. Go through the rollback steps to undo
+                        # these inasmuch is possible.
+                        try:
+                            for step in reversed(executed_steps):
+                                getattr(step, reverse)(backend)
+                        except backend.DatabaseError:
+                            logger.exception('Could not %s step %s',
+                                            direction, step.id)
+                    reraise(exc_info[0], exc_info[1], exc_info[2])
 
 
 class PostApplyHookMigration(Migration):
@@ -139,9 +149,9 @@ class StepBase(object):
 
 class TransactionWrapper(StepBase):
     """
-    A ``Transaction`` object causes a step to be run within a
-    single database transaction. Nested transactions are implemented via
-    savepoints.
+    A :class:~`yoyo.migrations.TransactionWrapper` object causes a step to be
+    run within a single database transaction. Nested transactions are
+    implemented via savepoints.
     """
 
     def __init__(self, step, ignore_errors=None):
@@ -168,6 +178,34 @@ class TransactionWrapper(StepBase):
         self.apply(backend, force, 'rollback')
 
 
+class Transactionless(StepBase):
+    """
+    A :class:~`yoyo.migrations.TransactionWrapper` object causes a step to be
+    run outside of a database transaction.
+    """
+
+    def __init__(self, step, ignore_errors=None):
+        assert ignore_errors in (None, 'all', 'apply', 'rollback')
+        self.step = step
+        self.ignore_errors = ignore_errors
+
+    def __repr__(self):
+        return '<TransactionWrapper {!r}>'.format(self.step)
+
+    def apply(self, backend, force=False, direction='apply'):
+        try:
+            getattr(self.step, direction)(backend, force)
+        except backend.DatabaseError:
+            if force or self.ignore_errors in (direction, 'all'):
+                logger.exception("Ignored error in %r", self.step)
+                return
+            else:
+                raise
+
+    def rollback(self, backend, force=False):
+        self.apply(backend, force, 'rollback')
+
+
 class MigrationStep(StepBase):
     """
     Model a single migration.
@@ -181,11 +219,13 @@ class MigrationStep(StepBase):
         self._rollback = rollback
         self._apply = apply
 
-    def _execute(self, cursor, stmt, out=stdout):
+    def _execute(self, cursor, stmt, out=None):
         """
         Execute the given statement. If rows are returned, output these in a
         tabulated format.
         """
+        if out is None:
+            out = stdout
         if isinstance(stmt, ustr):
             logger.debug(" - executing %r", stmt.encode('ascii', 'replace'))
         else:
@@ -202,9 +242,10 @@ class MigrationStep(StepBase):
                     if len(value) > column_sizes[ix]:
                         column_sizes[ix] = len(value)
             format = '|'.join(' %%- %ds ' % size for size in column_sizes)
-            out.write(format % tuple(column_names) + "\n")
-            out.write('+'.join('-' * (size + 2) for size in column_sizes)
-                      + "\n")
+            format += '\n'
+            out.write(format % tuple(column_names))
+            out.write('+'.join('-' * (size + 2) for size in column_sizes) +
+                      '\n')
             for row in result:
                 out.write(format % tuple(row))
             out.write(plural(len(result), '(%d row)', '(%d rows)') + "\n")
@@ -268,10 +309,10 @@ def read_migrations(*directories):
     Return a ``MigrationList`` containing all migrations from ``directory``.
     """
     from yoyo.scripts import newmigration
-    migrations = []
+    migrations = MigrationList()
     for directory in directories:
         paths = [os.path.join(directory, path)
-                for path in os.listdir(directory)
+                 for path in os.listdir(directory)
                  if path.endswith('.py') and
                  not path.startswith(newmigration.tempfile_prefix)]
 
@@ -290,8 +331,7 @@ def read_migrations(*directories):
                 migrations.post_apply.append(migration)
             else:
                 migrations.append(migration)
-
-    return MigrationList(migrations)
+    return migrations
 
 
 class MigrationList(MutableSequence):
@@ -371,7 +411,8 @@ class StepCollector(object):
     Each call to step/transaction updates the StepCollector's ``steps`` list.
     """
 
-    def __init__(self):
+    def __init__(self, migration):
+        self.migration = migration
         self.steps = OrderedDict()
         self.step_id = count(0)
 
@@ -381,16 +422,20 @@ class StepCollector(object):
         to the list of steps.
         Return the transaction-wrapped step.
         """
-        t = MigrationStep(next(self.step_id), apply, rollback)
-        t = TransactionWrapper(t, ignore_errors)
-        self.steps[t] = 1
-        return t
+        def do_add(use_transactions):
+            wrapper = (TransactionWrapper
+                       if use_transactions
+                       else Transactionless)
+            t = MigrationStep(next(self.step_id), apply, rollback)
+            t = wrapper(t, ignore_errors)
+            return t
+        self.steps[do_add] = 1
+        return do_add
 
     def add_step_group(self, *args, **kwargs):
         """
         Create a ``StepGroup`` group of steps.
         """
-        ignore_errors = kwargs.pop('ignore_errors', None)
         if 'steps' in kwargs:
             if args:
                 raise ValueError("steps cannot be called with both keyword "
@@ -403,24 +448,34 @@ class StepCollector(object):
         for s in steps:
             del self.steps[s]
 
-        group = TransactionWrapper(StepGroup(steps), ignore_errors)
-        self.steps[group] = 1
-        return group
+        def do_add(use_transactions):
+            ignore_errors = kwargs.pop('ignore_errors', None)
+            wrapper = (TransactionWrapper
+                       if use_transactions
+                       else Transactionless)
+
+            group = StepGroup([create_step(use_transactions)
+                               for create_step in steps])
+            return wrapper(group, ignore_errors)
+
+        self.steps[do_add] = 1
+        return do_add
+
+    def create_steps(self, use_transactions):
+        return [create_step(use_transactions) for create_step in self.steps]
 
 
 def _get_collector(depth=2):
-    fi = inspect.getframeinfo(inspect.stack()[depth][0])
-    return _step_collectors[fi.filename]
+    return inspect.stack()[depth][0].f_locals['collector']
 
 
 def step(*args, **kwargs):
-    collector = _get_collector()
-    return collector.add_step(*args, **kwargs)
+    return _get_collector().add_step(*args, **kwargs)
 
 
 def group(*args, **kwargs):
-    collector = _get_collector()
-    return collector.add_step_group(*args, **kwargs)
+    return _get_collector().add_step_group(*args, **kwargs)
+
 
 #: Alias for compatibility purposes.
 #: This no longer affects transaction handling.
@@ -507,17 +562,17 @@ def topological_sort(migration_list):
     to_toposort = set(chain(forward_edges, backward_edges))
 
     # Starting migrations: those with no dependencies
-    # This is a reversed list so that popping/pushing from the end maintains
-    # the desired order
-    S = list(reversed([m for m in to_toposort
-                       if not any(n in valid_migrations for n in m.depends)]))
+    # To make this a stable sort we always need to pop from the left end
+    # of this list, hence use a deque.
+    S = deque(m for m in to_toposort
+              if not any(n in valid_migrations for n in m.depends))
 
     while S:
-        n = S.pop()
+        n = S.popleft()
         L.append(n)
 
         # for each node M with an edge E from N to M
-        for m in forward_edges[n]:
+        for m in list(forward_edges[n]):
 
             # remove edge E from the graph
             del forward_edges[n][m]
