@@ -1,7 +1,88 @@
 CHANGELOG
 ---------
 
+5.0.5 (released 2017-01-12)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+* Added support for a ``__transactional__ = False`` flag in migration files,
+  allowing migrations to run commands in PostgreSQL that raise errors
+  if run inside a transaction block (eg "CREATE DATABASE")
+
+* Bugfix: fix the unix_socket option for mysql connections
+
+5.0.4 (released 2016-09-04)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+* Bugfix: fixed crash when mutliple migrations have the same dependency
+  (thanks to smotko for the report)
+
+5.0.3 (released 2016-07-03)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+* Bugfix: fixed exception when creating a new migration interactively
+  with `yoyo new`
+
+5.0.2 (released 2016-06-21)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+* Added ``DatabaseBackend.apply_migrations_only`` and ``run_post_hooks``
+  methods. This allows python code that interfaces with yoyo to run migrations
+  and post_hooks separately if required (thanks to Robi Wan for reporting this
+  and discussing possible fixes)
+* Bugfix: fix duplicate key error when using post-apply hooks (thanks to Robi
+  Wan for the report)
+* Bugfix: migration steps are no longer loaded multiple times if
+  read_migrations is called more than once (thanks to Kyle McChesney for the
+  report)
+* Bugfix: make sure that the migration_table option is read from the config
+  file (thanks to Frederik Holljen for the report and Manolo Micozzi for the
+  fix)
+
+5.0.1 (released 2015-11-13)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+* Bugfix: migration files are now sequentially named when using the prefix
+  option (thanks to Igor Tsarev)
+
+5.0.0 (released 2015-11-13)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**This version introduces backwards incompatible changes**. Please read this
+file carefully before upgrading.
+
+* The configuration file is now stored per-project, not per-migrations source
+  directory. This makes it possible to share a migrations source directory
+  across multiple projects.
+* The api for calling yoyo programmatically has changed. Refer to the
+  README for an up to date example of calling yoyo from python code.
+* Improved url parsing
+* Allow database uris containing usernames with the symbol '@'
+* The command line option ``--no-cache`` has been renamed to
+  ``--no-config-file``. The old name is retained as an alias for backwards
+  compatibility
+* The database must now be supplied using the ``--database/-d`` command line
+  flag. This makes it possible to change the database when calling yoyo without
+  needing to respecify the migration directories.
+* Added a --revision command line option. In the case of apply, this causes
+  the specified migration to be applied, plus any dependencies. In the case
+  of rollback, this removes the specified revision and any other migrations
+  that depend upon it.
+* Added 'mark' and 'unmark' commands to allow migrations to be marked in the
+  database without actually running them
+* Transaction handling has changed. Each migration now always runs in a
+  single transaction, with individual steps running in nested transactions
+  (using savepoints).
+  The ``transaction()`` function is still available
+  for backwards compatibility,
+  but now creates a savepoint rather than a full transaction.
+* The default MySQL driver has been changed to PyMySQL, for Python 3
+  compatbility reasons. MySQLdb can be used by specifying the
+  'mysql+mysqldb://' scheme.
+* Errors encountered while creating the _yoyo_migrations table are now raised
+  rather than being silently ignored (thanks to James Socol).
+
 Version 4.2.5
+~~~~~~~~~~~~~
 
 * Fix for pyscopg2 driver versions >=2.6
 * Faster loading of migration scripts

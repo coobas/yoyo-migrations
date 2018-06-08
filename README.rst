@@ -4,6 +4,9 @@ Yoyo database migrations
 Yoyo is a database schema migration tool using plain SQL and python's builtin
 DB-API.
 
+.. image:: https://drone.io/bitbucket.org/ollyc/yoyo/status.png
+
+
 What does yoyo-migrations do?
 -----------------------------
 
@@ -25,7 +28,8 @@ Install from the PyPI with the command::
 Database support
 ----------------
 
-PostgreSQL, MySQL, ODBC and SQLite databases are supported.
+PostgreSQL, MySQL and SQLite databases are supported.
+An ODBC backend is also available, but is unsupported (patches welcome!)
 
 
 Usage
@@ -33,24 +37,26 @@ Usage
 
 Yoyo is usually invoked as a command line script.
 
-Examples:
+Start a new migration::
 
-Read all migrations from directory ``migrations`` and apply them to a
-PostgreSQL database::
+  yoyo new ./migrations -m "Add column to foo"
 
-   yoyo-migrate apply ./migrations/ postgres://user:password@localhost/database
+
+Apply migrations from directory ``migrations`` to a PostgreSQL database::
+
+   yoyo apply --database postgresql://scott:tiger@localhost/db ./migrations
 
 Rollback migrations previously applied to a MySQL database::
 
-   yoyo-migrate rollback ./migrations/ mysql://user:password@localhost/database
+   yoyo rollback --database mysql://scott:tiger@localhost/database ./migrations
 
 Reapply (ie rollback then apply again) migrations to a SQLite database at
-location ``/home/sheila/important-data.db``::
+location ``/home/sheila/important.db``::
 
-    yoyo-migrate reapply ./migrations/ sqlite:////home/sheila/important-data.db
+    yoyo reapply --database sqlite:////home/sheila/important.db ./migrations
 
 By default, yoyo-migrations starts in an interactive mode, prompting you for
-each migration file before applying it, making it easy to choose which
+each migration file before applying it, making it easy to preview which
 migrations to apply and rollback.
 
 The migrations directory should contain a series of migration scripts. Each
@@ -87,7 +93,7 @@ are applied in filename order, so it's useful to
 name your files using a date (eg '20090115-xyz.py') or some other incrementing
 number.
 
-yoyo-migrate creates a table in your target database, ``_yoyo_migration``, to
+yoyo creates a table in your target database, ``_yoyo_migration``, to
 track which migrations have been applied.
 
 Steps may also take an optional argument ``ignore_errors``, which must be one
@@ -124,29 +130,113 @@ their single argument. For example::
 
     step(do_step)
 
+Configuration file
+------------------
+
+Yoyo looks for a configuration file named ``yoyo.ini`` in the current working
+directory or any ancestor directory. This can contain the following
+options::
+
+  [DEFAULT]
+
+  # List of migration source directories. "%(here)s" is expanded to the
+  # full path of the directory containing this ini file.
+  sources = %(here)s/migrations %(here)s/lib/module/migrations
+
+  # Target database
+  database = postgresql://scott:tiger@localhost/mydb
+
+  # Verbosity level. Goes from 0 (least verbose) to 3 (most verbose)
+  verbosity = 3
+
+  # Disable interactive features
+  batch_mode = on
+
+  # Editor to use when starting new migrations
+  # "{}" is expanded to the filename of the new migration
+  editor = /usr/local/bin/vim -f {}
+
+  # An arbitrary command to run after a migration has been created
+  # "{}" is expanded to the filename of the new migration
+  post_create_command = hg add {}
+
+  # A prefix to use for generated migration filenames
+  prefix = myproject_
+
+
+Config file inheritance may be used to customize configuration per site::
+
+  #
+  # file: yoyo-defaults.ini
+  #
+  [DEFAULT]
+  sources = %(here)s/migrations
+
+
+  #
+  # file: yoyo.ini
+  #
+  [DEFAULT]
+
+  ; Inherit settings from yoyo-defaults.ini
+  %inherit = %(here)s/yoyo-defaults.ini
+
+  ; Use '?' to avoid raising an error if the file does not exist
+  %inherit = ?%(here)s/yoyo-defaults.ini
+
+  database = sqlite:///%(here)s/mydb.sqlite
+
+
+
 Transactions
 ------------
 
-By default each step is run in its own transaction.
-You can run multiple steps within a single transaction by wrapping them in a
-``transaction`` call, like so::
+Each migration is run in a separate transaction and savepoints are used
+to isolate steps within each migration.
 
-  #
-  # file: migrations/0001.create-foo.py
-  #
-  from yoyo import step, transaction
-  transaction(
-    step(
-      "CREATE TABLE foo (id INT, bar VARCHAR(20), PRIMARY KEY (id))",
-      "DROP TABLE foo",
-    ),
-    step("INSERT INTO foo (1, 'baz')"),
-    ignore_errors='all',
-  )
+If an error occurs during a step and the step has ``ignore_errors`` set,
+then that individual step will be rolled back and
+execution will pick up from the next step.
+If ``ignore_errors`` is not set then the entire migration will be rolled back
+and execution stopped.
 
-If this is the case setting ``ignore_errors`` on individual steps makes no
-sense: database errors will always cause the entire transaction to be rolled
-back. The outer ``transaction`` can however have ``ignore_errors`` set.
+Note that some databases (eg MySQL) do not support rollback on DDL statements
+(eg ``CREATE ...`` and ``ALTER ...`` statements). For these databases
+you may need to manually intervene to reset the database state
+should errors occur during your migration.
+
+Using ``group`` allows you to nest steps, giving you control of where
+rollbacks happen. For example::
+
+    group([
+      step("ALTER TABLE employees ADD tax_code TEXT"),
+      step("CREATE INDEX tax_code_idx ON employees (tax_code)")
+    ], ignore_errors='all')
+    step("UPDATE employees SET tax_code='C' WHERE pay_grade < 4")
+    step("UPDATE employees SET tax_code='B' WHERE pay_grade >= 6")
+    step("UPDATE employees SET tax_code='A' WHERE pay_grade >= 8")
+
+Disabling transactions
+~~~~~~~~~~~~~~~~~~~~~~
+
+In PostgreSQL it is an error to run certain statements inside a transaction
+block. These include:
+
+.. code::sql
+
+    CREATE TABLE <foo>
+    ALTER TYPE <enum> ADD ...
+
+Migrations containing such statements should set
+``__transactional__ = False``, eg:
+
+.. code::python
+
+    __transactional__ = False
+
+    step("CREATE DATABASE mydb", "DROP DATABASE mydb")
+
+Note that this feature is implemented for the PostgreSQL backend only.
 
 Post-apply hook
 ---------------
@@ -163,28 +253,79 @@ You normally specify your database username and password as part of the
 database connection string on the command line. On a multi-user machine, other
 users could view your database password in the process list.
 
-The ``-p`` or ``--prompt-password`` flag causes yoyo-migrate to prompt
+The ``-p`` or ``--prompt-password`` flag causes yoyo to prompt
 for a password, ignoring any password specified in the connection string. This
 password will not be available to other users via the system's process list.
 
-Connection string caching
--------------------------
+Configuration file
+------------------
 
-The first time you run ``yoyo-migrate`` on a new set of migrations, you will be
-asked if you want to cache the database connection string in a file
-called ``.yoyo-migrate`` in the migrations directory.
+Yoyo looks for a configuration file called ``yoyo.ini``, in
+the current working directory or any ancestor directory.
 
-This cache is local to the migrations directory, so subsequent runs
-on the same migration set do not need the database connection string to be
-specified.
+If no configuration file is found ``yoyo`` will prompt you to
+create one, popuplated with the current command line args.
 
-This saves typing, avoids your database username and password showing in
-process listings and lessens the risk of accidentally running ``yoyo-migrate``
-on the wrong database (ie by re-running an earlier ``yoyo-migrate`` entry in
+Using a configuration file saves typing,
+avoids your database username and password showing in
+process listings and lessens the risk of accidentally running ``yoyo``
+on the wrong database (ie by re-running an earlier ``yoyo`` entry in
 your command history when you have moved to a different directory).
 
-If you do not want this cache file to be used, add the ``--no-cache`` parameter
-to the command line options.
+If you do not want this config file to be used, add the ``--no-config``
+parameter to the command line options.
+
+Connections
+-----------
+
+Database connections are specified using a URI. Examples:
+
+SQLite
+~~~~~~
+
+::
+
+  # Use 4 slashes for an absolute database path on unix like platforms
+  database = sqlite:////home/user/mydb.sqlite
+
+  # Absolute path on Windows.
+  database = sqlite:///c:\home\user\mydb.sqlite
+
+  # Use 3 slashes for a relative path
+  database = sqlite:///mydb.sqlite
+
+
+MySQL
+~~~~~
+
+::
+
+  # Network database connection
+  database = mysql://scott:tiger@localhost/mydatabase
+
+  # Connect via a unix socket
+  database = mysql://scott:tiger@/mydatabase?unix_socket=/tmp/mysql.sock
+
+
+MySQL with MySQLdb
+~~~~~~~~~~~~~~~~~~
+
+::
+
+  # Use the MySQLdb driver instead of pymysql
+  database = mysql+mysqldb://scott:tiger@localhost/mydatabase
+
+PostgreSQL
+~~~~~~~~~~
+
+::
+
+  # Network database connection
+  database = postgresql://scott:tiger@localhost/mydatabase
+
+  # Omit the host to use a socket connection
+  database = postgresql://scott:tiger@/mydatabase
+
 
 Using yoyo from python code
 ---------------------------
@@ -192,11 +333,11 @@ Using yoyo from python code
 The following example shows how to apply migrations from inside python code::
 
     from yoyo import read_migrations
-    from yoyo.connections import connect
+    from yoyo import get_backend
 
-    conn, paramstyle = connect('postgres://myuser@localhost/mydatabase')
-    migrations = read_migrations(conn, paramstyle, 'path/to/migrations'))
-    migrations.to_apply().apply()
-    conn.commit()
+    backend = get_backend('postgres://myuser@localhost/mydatabase')
+    migrations = read_migrations('path/to/migrations')
+    with backend.lock():
+      backend.apply_migrations(backend.to_apply(migrations))
 
 .. :vim:sw=4:et
