@@ -21,6 +21,7 @@ from tempfile import NamedTemporaryFile
 import glob
 import logging
 import io
+import re
 import shlex
 import subprocess
 import sys
