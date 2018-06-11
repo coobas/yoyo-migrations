@@ -15,6 +15,13 @@ syntax: regexp
 ^\.noseids$
 ^\.tox/
 ~$
+^doc/_build/
+^dist/
+^htmldocs/
+^html/
+^\.pytest_cache/
+.*\.orig$
+^tags
 
 # Mercurial generated files
 .*\.orig$
