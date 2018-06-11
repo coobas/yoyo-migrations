@@ -1,5 +1,5 @@
-5.1.0
------
+5.1.0 (released 2018-07-11)
+---------------------------
 
 * ``yoyo rollback`` now only rolls back a single migration in batch mode (
   unless a --revision or --all is specified) (thanks to
