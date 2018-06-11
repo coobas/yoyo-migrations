@@ -16,6 +16,8 @@
 * Added support for arbitrary keyword parameters in PostgreSQL URLs, allowing
   eg ``sslmode=require`` to be specified.
 * Bugfix: relative paths are correctly resolved in the config file.
+* Bugfix: fixed the ordering when applying migrations with the reapply command
+  (thanks to Goohu)
 
 
 5.0.5 (released 2017-01-12)
