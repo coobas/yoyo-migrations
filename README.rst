@@ -30,3 +30,9 @@ Database support
 
 PostgreSQL, MySQL and SQLite databases are supported.
 ODBC and Oracle backends are available (but unsupported).
+
+Documentation and code
+----------------------
+
+`Yoyo migrations documentation <https://ollycope.com/software/yoyo/>`_
+\| `Repository <https://bitbucket.org/ollyc/yoyo>`_
