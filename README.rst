@@ -1,22 +1,20 @@
 Yoyo database migrations
 ========================
 
-Yoyo is a database schema migration tool using plain SQL and python's builtin
+Yoyo is a database schema migration tool using raw SQL and python's builtin
 DB-API.
-
-.. image:: https://drone.io/bitbucket.org/ollyc/yoyo/status.png
-
 
 What does yoyo-migrations do?
 -----------------------------
 
 As database applications evolve, changes to the database schema are often
-required. These can usually be written as one-off SQL scripts containing
-CREATE/ALTER table statements (although any SQL or python script may be used
-with yoyo).
+required. Yoyo lets you write SQL migration scripts containing SQL DDL
+statements (eg CREATE TABLE, ALTER TABLE etc), or arbitrary python
+functions to perform your database migrations.
 
-Yoyo provides a command line tool for reading a directory of such
-scripts and applying them to your database as required.
+Yoyo manages these migration scripts,
+gives you command line tools to apply and rollback migrations,
+and manages dependencies between migrations.
 
 Installation
 ------------
@@ -29,22 +27,18 @@ Database support
 ----------------
 
 PostgreSQL, MySQL and SQLite databases are supported.
-An ODBC backend is also available, but is unsupported (patches welcome!)
+ODBC and Oracle backends are available (but unsupported).
 
-
-Usage
------
-
-Yoyo is usually invoked as a command line script.
+Command line usage
+------------------
 
 Start a new migration::
 
   yoyo new ./migrations -m "Add column to foo"
 
-
 Apply migrations from directory ``migrations`` to a PostgreSQL database::
 
-   yoyo apply --database postgresql://scott:tiger@localhost/db?schema=some_schema ./migrations
+   yoyo apply --database postgresql://scott:tiger@localhost/db ./migrations
 
 Rollback migrations previously applied to a MySQL database::
 
@@ -59,10 +53,12 @@ By default, yoyo-migrations starts in an interactive mode, prompting you for
 each migration file before applying it, making it easy to preview which
 migrations to apply and rollback.
 
-The migrations directory should contain a series of migration scripts. Each
+Migration files
+---------------
+
+The migrations directory contains a series of migration scripts. Each
 migration script is a python file (``.py``) containing a series of steps. Each
-step should comprise a migration query and (optionally) a rollback query. For
-example::
+step should comprise a migration query and (optionally) a rollback query::
 
     #
     # file: migrations/0001.create-foo.py
@@ -79,7 +75,7 @@ Migrations may also declare dependencies on previous migrations via the
     #
     # file: migrations/0002.modify-foo.py
     #
-    __depends__ = ['0001.create-foo']
+    __depends__ = {'0001.create-foo'}
 
     step(
         "CREATE TABLE foo (id INT, bar VARCHAR(20), PRIMARY KEY (id))",
@@ -87,11 +83,10 @@ Migrations may also declare dependencies on previous migrations via the
     )
 
 
-The filename of each file (without the .py extension) is used as the identifier
-for each migration. In the absence of a ``__depends__`` attribute, migrations
-are applied in filename order, so it's useful to
-name your files using a date (eg '20090115-xyz.py') or some other incrementing
-number.
+The filename of each file (without the .py extension) is used as migration's
+identifier. In the absence of a ``__depends__`` attribute, migrations
+are applied in filename order, so it's useful to name your files using a date
+(eg '20090115-xyz.py') or some other incrementing number.
 
 yoyo creates a table in your target database, ``_yoyo_migration``, to
 track which migrations have been applied.
@@ -112,8 +107,8 @@ regardless::
         ignore_errors='apply',
     )
 
-Steps can also be python callable objects that take a database connection as
-their single argument. For example::
+Steps can also be python functions taking a database connection as
+their only argument::
 
     #
     # file: migrations/0002.update-keys.py
@@ -172,7 +167,6 @@ Config file inheritance may be used to customize configuration per site::
   [DEFAULT]
   sources = %(here)s/migrations
 
-
   #
   # file: yoyo.ini
   #
@@ -186,12 +180,10 @@ Config file inheritance may be used to customize configuration per site::
 
   database = sqlite:///%(here)s/mydb.sqlite
 
-
-
 Transactions
 ------------
 
-Each migration is run in a separate transaction and savepoints are used
+Each migration runs in a separate transaction. Savepoints are used
 to isolate steps within each migration.
 
 If an error occurs during a step and the step has ``ignore_errors`` set,
@@ -203,7 +195,7 @@ and execution stopped.
 Note that some databases (eg MySQL) do not support rollback on DDL statements
 (eg ``CREATE ...`` and ``ALTER ...`` statements). For these databases
 you may need to manually intervene to reset the database state
-should errors occur during your migration.
+should errors occur in your migration.
 
 Using ``group`` allows you to nest steps, giving you control of where
 rollbacks happen. For example::
@@ -250,8 +242,8 @@ Password security
 -----------------
 
 You normally specify your database username and password as part of the
-database connection string on the command line. On a multi-user machine, other
-users could view your database password in the process list.
+database connection string on the command line, exposing your database
+password in the process list.
 
 The ``-p`` or ``--prompt-password`` flag causes yoyo to prompt
 for a password, ignoring any password specified in the connection string. This
@@ -260,7 +252,7 @@ password will not be available to other users via the system's process list.
 Configuration file
 ------------------
 
-Yoyo looks for a configuration file called ``yoyo.ini``, in
+Yoyo looks for a configuration file called ``yoyo.ini`` in
 the current working directory or any ancestor directory.
 
 If no configuration file is found ``yoyo`` will prompt you to
@@ -268,63 +260,44 @@ create one, popuplated with the current command line args.
 
 Using a configuration file saves typing,
 avoids your database username and password showing in
-process listings and lessens the risk of accidentally running ``yoyo``
-on the wrong database (ie by re-running an earlier ``yoyo`` entry in
+process listings and lessens the risk of accidentally running your migrations
+against the wrong database (ie by re-running an earlier ``yoyo`` entry in
 your command history when you have moved to a different directory).
 
-If you do not want this config file to be used, add the ``--no-config``
+If you do not want this config file to be used add the ``--no-config``
 parameter to the command line options.
 
 Connections
 -----------
 
-Database connections are specified using a URI. Examples:
+Database connections are specified using a URL. Examples::
 
-SQLite
-~~~~~~
-
-::
-
-  # Use 4 slashes for an absolute database path on unix like platforms
+  # SQLite: use 4 slashes for an absolute database path on unix like platforms
   database = sqlite:////home/user/mydb.sqlite
 
-  # Absolute path on Windows.
-  database = sqlite:///c:\home\user\mydb.sqlite
-
-  # Use 3 slashes for a relative path
+  # SQLite: use 3 slashes for a relative path
   database = sqlite:///mydb.sqlite
 
+  # SQLite: absolute path on Windows.
+  database = sqlite:///c:\home\user\mydb.sqlite
 
-MySQL
-~~~~~
-
-::
-
-  # Network database connection
+  # MySQL: Network database connection
   database = mysql://scott:tiger@localhost/mydatabase
 
-  # Connect via a unix socket
+  # MySQL: unix socket connection
   database = mysql://scott:tiger@/mydatabase?unix_socket=/tmp/mysql.sock
 
-
-MySQL with MySQLdb
-~~~~~~~~~~~~~~~~~~
-
-::
-
-  # Use the MySQLdb driver instead of pymysql
+  # MySQL with the MySQLdb driver (instead of pymysql)
   database = mysql+mysqldb://scott:tiger@localhost/mydatabase
 
-PostgreSQL
-~~~~~~~~~~
-
-::
-
-  # Network database connection
+  # PostgreSQL: database connection
   database = postgresql://scott:tiger@localhost/mydatabase
 
-  # Omit the host to use a socket connection
+  # PostgreSQL: unix socket connection
   database = postgresql://scott:tiger@/mydatabase
+
+  # PostgreSQL: changing the schema (via set search_path)
+  database = postgresql://scott:tiger@/mydatabase?schema=some_schema
 
 
 Using yoyo from python code
@@ -338,6 +311,6 @@ The following example shows how to apply migrations from inside python code::
     backend = get_backend('postgres://myuser@localhost/mydatabase')
     migrations = read_migrations('path/to/migrations')
     with backend.lock():
-      backend.apply_migrations(backend.to_apply(migrations))
+        backend.apply_migrations(backend.to_apply(migrations))
 
 .. :vim:sw=4:et
