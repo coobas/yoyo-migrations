@@ -1,6 +1,26 @@
 CHANGELOG
 ---------
 
+5.1.0
+~~~~~
+
+* ``yoyo rollback`` now only rolls back a single migration in batch mode (
+  unless a --revision or --all is specified) (thanks to
+  `A A <https://bitbucket.org/linuxnotes/>`_ for the idea and initial
+  implementation)
+* Added support for Oracle via cx_Oracle backend (thanks to Donald Sarratt)
+* Added support for locking migration tables during operations to prevent
+  conflicts if multiple yoyo processes run at the same time (thanks to Artimi
+  NA for proposal and initial implementation)
+* Removed dependency on python-slugify to avoid pulling in GPL'd code
+  (thanks to Olivier Chédru)
+* Added support for a ``schema`` parameter for PostgreSQL databases (thanks to
+  Tobiáš Štancel)
+* Added support for arbitrary keyword parameters in PostgreSQL URLs, allowing
+  eg ``sslmode=require`` to be specified.
+* Bugfix: relative paths are correctly resolved in the config file.
+
+
 5.0.5 (released 2017-01-12)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
