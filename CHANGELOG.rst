@@ -1,8 +1,5 @@
-CHANGELOG
----------
-
 5.1.0
-~~~~~
+-----
 
 * ``yoyo rollback`` now only rolls back a single migration in batch mode (
   unless a --revision or --all is specified) (thanks to
@@ -22,7 +19,7 @@ CHANGELOG
 
 
 5.0.5 (released 2017-01-12)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
+---------------------------
 
 * Added support for a ``__transactional__ = False`` flag in migration files,
   allowing migrations to run commands in PostgreSQL that raise errors
@@ -31,19 +28,19 @@ CHANGELOG
 * Bugfix: fix the unix_socket option for mysql connections
 
 5.0.4 (released 2016-09-04)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
+---------------------------
 
 * Bugfix: fixed crash when mutliple migrations have the same dependency
   (thanks to smotko for the report)
 
 5.0.3 (released 2016-07-03)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
+---------------------------
 
 * Bugfix: fixed exception when creating a new migration interactively
   with `yoyo new`
 
 5.0.2 (released 2016-06-21)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
+---------------------------
 
 * Added ``DatabaseBackend.apply_migrations_only`` and ``run_post_hooks``
   methods. This allows python code that interfaces with yoyo to run migrations
@@ -59,13 +56,13 @@ CHANGELOG
   fix)
 
 5.0.1 (released 2015-11-13)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
+---------------------------
 
 * Bugfix: migration files are now sequentially named when using the prefix
   option (thanks to Igor Tsarev)
 
 5.0.0 (released 2015-11-13)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
+---------------------------
 
 **This version introduces backwards incompatible changes**. Please read this
 file carefully before upgrading.
@@ -102,7 +99,7 @@ file carefully before upgrading.
   rather than being silently ignored (thanks to James Socol).
 
 Version 4.2.5
-~~~~~~~~~~~~~
+-------------
 
 * Fix for pyscopg2 driver versions >=2.6
 * Faster loading of migration scripts
@@ -111,16 +108,19 @@ Version 4.2.5
 * Dropped support for python 2.6
 
 Version 4.2.4
+-------------
 
 * Fix for mismanaged 4.2.3 release
 
 Version 4.2.3
+-------------
 
 * Migrations are now datestamped with a UTC date (thanks to robi wan)
 
 * Fixes for installation and use under python 3
 
 Version 4.2.2
+-------------
 
 * Migration scripts can start with ``from yoyo import step, transaction``.
   This prevents linters (eg flake8) throwing errors over undefined names.
@@ -129,10 +129,12 @@ Version 4.2.2
   namespace
 
 Version 4.2.1
+-------------
 
 * Bugfix for previous release, which omitted critical files
 
 Version 4.2.0
+-------------
 
 * Removed yoyo.migrate namespace package. Any code that uses the yoyo api
   directly needs have any imports modified, eg this::
@@ -152,10 +154,12 @@ Version 4.2.0
   causing the value to be ignored
 
 Version 4.1.6
+-------------
 
 * Added windows support (thanks to Peter Shinners)
 
 Version 4.1.5
+-------------
 
 * Configure logging handlers so that the -v switch causes output to go to the
   console (thanks to Andrew Nelis).
@@ -165,22 +169,27 @@ Version 4.1.5
   retains the old behaviour.
 
 Version 4.1.4
+-------------
 
 * Bugfix for post apply hooks
 
 Version 4.1.3
+-------------
 
 * Changed default migration table name back to '_yoyo_migration'
 
 Version 4.1.2
+-------------
 
 * Bugfix for error when running in interactive mode
 
 Version 4.1.1
+-------------
 
 * Introduced configuration option for migration table name
 
 Version 4.1.0
+-------------
 
 * Introduced ability to run steps within a transaction (thanks to Ryan Williams
   for suggesting this functionality along with assorted bug fixes.)
@@ -192,19 +201,23 @@ Version 4.1.0
 * Switched to <major>.<minor> version numbering convention
 
 Version 4
+-------------
 
 * Fixed problem installing due to missing manifest entry
 
 Version 3
+-------------
 
 * Use the console_scripts entry_point in preference to scripts=[] in
   setup.py, this provides better interoperability with buildout
 
 Version 2
+-------------
 
 * Fixed error when reading dburi from config file
 
 Version 1
+-------------
 
 * Initial release
 
