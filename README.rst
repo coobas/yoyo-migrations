@@ -1,16 +1,17 @@
 Yoyo database migrations
 ========================
 
-Yoyo is a Python database schema migration tool. You write migrations as Python
-scripts containing raw SQL statements or Python functions.
+Yoyo is a database schema migration tool. You write database migrations
+as Python scripts containing raw SQL statements or Python functions.
 
 What does yoyo-migrations do?
 -----------------------------
 
-As your database applications evolves, changes to the database schema may be
+As your database application evolves, changes to the database schema may be
 required. Yoyo lets you write migration scripts in Python containing
-SQL statements to migrate your database schema. A simple migration script
-looks like this:
+SQL statements to migrate your database schema to a new version.
+
+A simple migration script looks like this:
 
 .. code::python
 
@@ -29,10 +30,10 @@ Database support
 ----------------
 
 PostgreSQL, MySQL and SQLite databases are supported.
-ODBC and Oracle backends are available (but unsupported).
+ODBC and Oracle database backends are available (but unsupported).
 
 Documentation and code
 ----------------------
 
 `Yoyo migrations documentation <https://ollycope.com/software/yoyo/>`_
-\| `Repository <https://bitbucket.org/ollyc/yoyo>`_
+\| `Repository <https://bitbucket.org/ollyc/yoyo/>`_
