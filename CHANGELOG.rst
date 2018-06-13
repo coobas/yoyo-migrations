@@ -1,5 +1,5 @@
-5.1.5
------
+5.1.5 (released 2018-06-13)
+---------------------------
 
 * Bugfix: adding a ``schema`` parameter to PostgreSQL connection strings
   no longer raises an exception (thanks to Mohamed Habib for the report)
