@@ -563,7 +563,7 @@ class PostgresqlBackend(DatabaseBackend):
             kwargs['port'] = dburi.port
         if dburi.hostname is not None:
             kwargs['host'] = dburi.hostname
-        self.schema = dburi.args.get('schema')
+        self.schema = kwargs.pop('schema', None)
         return self.driver.connect(**kwargs)
 
     @contextmanager

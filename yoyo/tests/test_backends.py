@@ -8,7 +8,9 @@ import time
 from yoyo import backends
 from yoyo import read_migrations
 from yoyo import exceptions
+from yoyo.connections import get_backend
 from yoyo.tests import get_test_backends
+from yoyo.tests import get_test_dburis
 from yoyo.tests import with_migrations
 
 
@@ -181,3 +183,17 @@ class TestInitConnection(object):
         backend.rollback()
         assert backend.connection.cursor().execute.call_args == \
                 call('SET search_path TO foo')
+
+    def test_postgresql_connects_with_schema(self):
+        dburi = next(iter(get_test_dburis(only={'postgresql'})), None)
+        if dburi is None:
+            pytest.skip("PostgreSQL backend not available")
+        backend = get_backend(dburi)
+        with backend.transaction():
+            backend.execute("CREATE SCHEMA foo")
+        try:
+            assert get_backend(dburi + '?schema=foo')\
+                    .execute("SHOW search_path").fetchone() == ('foo',)
+        finally:
+            with backend.transaction():
+                backend.execute("DROP SCHEMA foo CASCADE")
