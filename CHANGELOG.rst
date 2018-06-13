@@ -1,3 +1,9 @@
+5.1.5
+-----
+
+* Bugfix: adding a ``schema`` parameter to PostgreSQL connection strings
+  no longer raises an exception (thanks to Mohamed Habib for the report)
+
 5.1.0 (released 2018-07-11)
 ---------------------------
 
