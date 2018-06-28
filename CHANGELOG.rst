@@ -1,5 +1,5 @@
-5.1.6
-------
+5.1.6 (released 2018-06-28)
+---------------------------
 
 * Bugfix: fix problems running on Python 3 on Windows
 
