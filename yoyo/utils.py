@@ -45,11 +45,11 @@ try:
         return a
 
 except ImportError:
-    # some non Windows environments don't have termios (google cloud)
-    # running yoyo through the python sdk should not require `getch`
     try:
-        from msvcrt import getch
-    except:
+        from msvcrt import getwch as getch
+    except ImportError:
+        # some non Windows environments don't have termios (google cloud)
+        # running yoyo through the python sdk should not require `getch`
         pass
 
 
@@ -62,7 +62,7 @@ def prompt(prompt, options):
         sys.stdout.write("%s [%s]: " % (prompt, options))
         sys.stdout.flush()
         ch = getch()
-        if ch == '\n':
+        if ch == os.linesep:
             ch = ([o.lower() for o in options if 'A' <= o <= 'Z'] +
                   list(options.lower()))[0]
         print(ch)
