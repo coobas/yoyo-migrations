@@ -115,7 +115,7 @@ def new_migration(args, config):
 
 def slugify(message):
     s = unidecode(message)
-    s = re.sub(re.compile(r'[^-a-z0-9]+'), '-', s)
+    s = re.sub(re.compile(r'[^-a-z0-9]+'), '-', s.lower())
     s = re.compile(r'-{2,}').sub('-', s).strip('-')
     return s
 
