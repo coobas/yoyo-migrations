@@ -1,3 +1,9 @@
+5.1.7
+-----
+
+* Bugfix: fix uppercase letters being excluded from generated filenames 
+  (thanks to Romain Godefroy)
+
 5.1.6 (released 2018-06-28)
 ---------------------------
 
