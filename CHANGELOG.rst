@@ -1,5 +1,5 @@
-5.1.7
------
+5.1.7 (released 2018-07-30)
+---------------------------
 
 * Bugfix: fix uppercase letters being excluded from generated filenames 
   (thanks to Romain Godefroy)
