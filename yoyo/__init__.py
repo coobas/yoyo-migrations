@@ -24,4 +24,4 @@ from yoyo.migrations import (read_migrations,  # noqa
 
 from yoyo.connections import get_backend  # noqa
 
-__version__ = '5.1.7'
+__version__ = '5.1.8.dev0'
