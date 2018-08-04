@@ -13,8 +13,10 @@
 # limitations under the License.
 
 from __future__ import print_function
+from itertools import count
 import os
 import random
+import re
 import string
 import sys
 
@@ -118,3 +120,47 @@ def get_random_string(length, chars=(string.ascii_letters + string.digits)):
     """
     rng = random.SystemRandom()
     return ''.join(rng.choice(chars) for i in range(length))
+
+
+def change_param_style(target_style, sql, bind_parameters):
+    """
+    :param target_style: A DBAPI paramstyle value (eg 'qmark', 'format', etc)
+    :param sql: An SQL str
+    :bind_parameters: A dict of bind parameters for the query
+
+    :return: tuple of `(sql, bind_parameters)`. ``sql`` will be rewritten with
+             the target paramstyle; ``bind_parameters`` will be a tuple or
+             dict as required.
+    """
+    if target_style == 'named':
+        return sql, bind_parameters
+    positional = target_style in {'qmark', 'numeric', 'format'}
+    if not bind_parameters:
+        return (sql, (tuple() if positional else {}))
+
+    param_gen = {
+        'qmark': lambda name: '?',
+        'numeric': lambda name, c=count(1): ':{}'.format(next(c)),
+        'format': lambda name: '%s',
+        'pyformat': lambda name: '%({})s'.format(name)
+    }[target_style]
+
+    pattern = re.compile(
+        # Don't match if preceded by backslash (an escape)
+        # or ':' (an SQL cast, eg '::INT')
+        r'(?<![:\\])'
+
+        # one of the given bind_parameters
+        r':(' + '|'.join(re.escape(k) for k in bind_parameters) + r')'
+
+        # followed by a non-word char, or end of string
+        r'(?=\W|$)')
+
+    transformed_sql = pattern.sub(lambda match: param_gen(match.group(1)), sql)
+    if positional:
+        positional_params = []
+        for match in pattern.finditer(sql):
+            param_name = match.group(1)
+            positional_params.append(bind_parameters[param_name])
+        return transformed_sql, tuple(positional_params)
+    return transformed_sql, bind_parameters

@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections import Mapping
 from datetime import datetime
 from contextlib import contextmanager
 from importlib import import_module
@@ -123,11 +124,11 @@ class DatabaseBackend(object):
     list_tables_sql = "SELECT table_name FROM information_schema.tables"
     is_applied_sql = """
         SELECT COUNT(1) FROM {0.migration_table_quoted}
-        WHERE id=?"""
+        WHERE id=:id"""
     insert_migration_sql = """
         INSERT INTO {0.migration_table_quoted} (id, ctime)
-        VALUES (?, ?)"""
-    delete_migration_sql = "DELETE FROM {0.migration_table_quoted} WHERE id=?"
+        VALUES (:id, :when)"""
+    delete_migration_sql = "DELETE FROM {0.migration_table_quoted} WHERE id=:id"
     applied_ids_sql = "SELECT id FROM {0.migration_table_quoted} ORDER by ctime"
     create_test_table_sql = """
         CREATE TABLE {table_name_quoted}
@@ -283,8 +284,9 @@ class DatabaseBackend(object):
             try:
                 with self.transaction():
                     self.execute("INSERT INTO {} (locked, ctime, pid) "
-                                 "VALUES (1, ?, ?)".format(self.lock_table_quoted),
-                                 (datetime.utcnow(), pid))
+                                 "VALUES (1, :when, :pid)".format(self.lock_table_quoted),
+                                 {'when': datetime.utcnow(),
+                                  'pid': pid})
             except self.DatabaseError:
                 if timeout and time.time() > started + timeout:
                     cursor = self.execute("SELECT pid FROM {}"
@@ -305,21 +307,30 @@ class DatabaseBackend(object):
 
     def _delete_lock_row(self, pid):
         with self.transaction():
-            self.execute("DELETE FROM {} WHERE pid=?"
+            self.execute("DELETE FROM {} WHERE pid=:pid"
                          .format(self.lock_table_quoted),
-                         (pid,))
+                         {'pid': pid})
 
     def break_lock(self):
         with self.transaction():
             self.execute("DELETE FROM {}" .format(self.lock_table_quoted))
 
-    def execute(self, stmt, args=tuple()):
+    def execute(self, sql, params=None):
         """
         Create a new cursor, execute a single statement and return the cursor
-        object
+        object.
+
+        :param sql: A single SQL statement, optionally with named parameters
+                    (eg 'SELECT * FROM foo WHERE :bar IS NULL')
+        :param params: A dictionary of parameters
         """
+        if params and not isinstance(params, Mapping):
+            raise TypeError("Expected dict or other mapping object")
+
         cursor = self.cursor()
-        cursor.execute(self._with_placeholders(stmt), args)
+        sql, params = utils.change_param_style(
+            self.driver.paramstyle, sql, params)
+        cursor.execute(sql, params)
         return cursor
 
     def create_tables(self):
@@ -340,19 +351,9 @@ class DatabaseBackend(object):
             except self.DatabaseError:
                 pass
 
-    def _with_placeholders(self, sql):
-        placeholder_gen = {'qmark': '?',
-                           'named': ':s',
-                           'format': '%s',
-                           'pyformat': '%s'}.get(self.driver.paramstyle)
-        if placeholder_gen is None:
-            raise ValueError("Unsupported paramstyle: %r" %
-                             (self.driver.paramstyle,))
-        return sql.replace('?', placeholder_gen)
-
     def is_applied(self, migration):
         sql = self.is_applied_sql.format(self)
-        return self.execute(sql, (migration.id,)).fetchone()[0] > 0
+        return self.execute(sql, {'id': migration.id}).fetchone()[0] > 0
 
     def get_applied_migration_ids(self):
         """
@@ -452,12 +453,12 @@ class DatabaseBackend(object):
 
     def unmark_one(self, migration):
         sql = self.delete_migration_sql.format(self)
-        self.execute(sql, (migration.id,))
+        self.execute(sql, {'id': migration.id})
 
     def mark_one(self, migration):
         logger.info("Marking %s applied", migration.id)
         sql = self.insert_migration_sql.format(self)
-        self.execute(sql, (migration.id, datetime.utcnow()))
+        self.execute(sql, {'id': migration.id, 'when': datetime.utcnow()})
 
 
 class ODBCBackend(DatabaseBackend):
