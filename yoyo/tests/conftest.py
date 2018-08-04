@@ -28,10 +28,10 @@ def backend(request):
 
 
 def drop_yoyo_tables(backend):
-        for table in backend.list_tables():
-            if table.startswith('yoyo') or table.startswith('_yoyo'):
-                with backend.transaction():
-                    backend.execute("DROP TABLE {}".format(table))
+    for table in backend.list_tables():
+        if table.startswith('yoyo') or table.startswith('_yoyo'):
+            with backend.transaction():
+                backend.execute("DROP TABLE {}".format(table))
 
 
 def pytest_configure(config):
