@@ -121,7 +121,8 @@ class DatabaseBackend(object):
             pid INT NOT NULL,
             PRIMARY KEY (locked)
         )"""
-    list_tables_sql = "SELECT table_name FROM information_schema.tables"
+    list_tables_sql = ("SELECT table_name FROM information_schema.tables "
+                       "WHERE table_schema = :database")
     is_applied_sql = """
         SELECT COUNT(1) FROM {0.migration_table_quoted}
         WHERE id=:id"""
@@ -207,7 +208,8 @@ class DatabaseBackend(object):
         This is used by the test suite to clean up tables
         generated during testing
         """
-        cursor = self.execute(self.list_tables_sql)
+        cursor = self.execute(self.list_tables_sql,
+                              {'database': self.uri.database})
         return [row[0] for row in cursor.fetchall()]
 
     def transaction(self):
