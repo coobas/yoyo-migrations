@@ -121,8 +121,7 @@ class DatabaseBackend(object):
             pid INT NOT NULL,
             PRIMARY KEY (locked)
         )"""
-    list_tables_sql = ("SELECT table_name FROM information_schema.tables "
-                       "WHERE table_schema = :database")
+    list_tables_sql = "SELECT table_name FROM information_schema.tables"
     is_applied_sql = """
         SELECT COUNT(1) FROM {0.migration_table_quoted}
         WHERE id=:id"""
@@ -202,14 +201,14 @@ class DatabaseBackend(object):
             return True
         return False
 
-    def list_tables(self):
+    def list_tables(self, **kwargs):
         """
         Return a list of tables present in the backend.
         This is used by the test suite to clean up tables
         generated during testing
         """
         cursor = self.execute(self.list_tables_sql,
-                              {'database': self.uri.database})
+                              dict({'database': self.uri.database}, **kwargs))
         return [row[0] for row in cursor.fetchall()]
 
     def transaction(self):
@@ -511,6 +510,8 @@ class OracleBackend(DatabaseBackend):
 class MySQLBackend(DatabaseBackend):
 
     driver_module = 'pymysql'
+    list_tables_sql = ("SELECT table_name FROM information_schema.tables "
+                       "WHERE table_schema = :database")
 
     def connect(self, dburi):
         kwargs = {'db': dburi.database}
@@ -554,6 +555,8 @@ class PostgresqlBackend(DatabaseBackend):
 
     driver_module = 'psycopg2'
     schema = None
+    list_tables_sql = ("SELECT table_name FROM information_schema.tables "
+                       "WHERE table_schema = :schema")
 
     def connect(self, dburi):
         kwargs = {'dbname': dburi.database}
@@ -581,3 +584,7 @@ class PostgresqlBackend(DatabaseBackend):
         if self.schema:
             cursor = connection.cursor()
             cursor.execute("SET search_path TO {}".format(self.schema))
+
+    def list_tables(self):
+        return super(PostgresqlBackend, self).list_tables(
+            schema=(self.schema if self.schema else 'public'))
