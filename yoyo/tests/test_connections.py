@@ -61,10 +61,10 @@ class TestParseURI:
 @pytest.mark.skipif(sys.version_info < (2, 7, 4),
                     reason="Requires python>=2.7.4 "
                     "(http://bugs.python.org/issue7904)")
-@patch('yoyo.backends.import_module',
+@patch('yoyo.backends.get_dbapi_module',
        return_value=MagicMock(DatabaseError=MockDatabaseError,
                               paramstyle='qmark'))
-def test_connections(import_module):
+def test_connections(get_dbapi_module):
 
     from yoyo import backends
     u = parse_uri('odbc://scott:tiger@db.example.org:42/northwind?foo=bar')
@@ -83,5 +83,5 @@ def test_connections(import_module):
     ]
     for cls, driver_module, connect_args in cases:
         cls(u, '_yoyo_migration')
-        assert import_module.call_args == call(driver_module)
-        assert import_module().connect.call_args == connect_args
+        assert get_dbapi_module.call_args == call(driver_module)
+        assert get_dbapi_module().connect.call_args == connect_args

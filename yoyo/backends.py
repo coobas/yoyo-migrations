@@ -150,7 +150,7 @@ class DatabaseBackend(object):
         """
         Load the dbapi driver module and register the base exception class
         """
-        driver = import_module(self.driver_module)
+        driver = get_dbapi_module(self.driver_module)
         exceptions.register(driver.DatabaseError)
         return driver
 
@@ -588,3 +588,10 @@ class PostgresqlBackend(DatabaseBackend):
     def list_tables(self):
         return super(PostgresqlBackend, self).list_tables(
             schema=(self.schema if self.schema else 'public'))
+
+
+def get_dbapi_module(name):
+    """
+    Import and return the named DB-API driver module
+    """
+    return import_module(name)
