@@ -1,0 +1,67 @@
+"""
+Migrate yoyo's internal table structure
+"""
+
+from datetime import datetime
+
+from . import v1
+
+
+#: Mapping of {schema version number: module}
+schema_versions = {
+    1: v1,
+}
+
+
+#: First schema version that supports the yoyo_versions table
+USE_VERSION_TABLE_FROM = 2
+
+
+def upgrade(backend, version=None):
+    """
+    Check the currently installed yoyo migrations version and update the
+    internal schema
+    """
+    if version is None:
+        desired_version = max(schema_versions)
+    else:
+        desired_version = version
+    current_version = get_current_version(backend)
+    if current_version is None:
+        current_version = 0
+    with backend.transaction():
+        while current_version < desired_version:
+            next_version = current_version + 1
+            schema_versions[next_version].upgrade(backend)
+            current_version = next_version
+            mark_schema_version(backend, current_version)
+
+
+def get_current_version(backend):
+    """
+    Return the currently installed yoyo migrations schema version
+    """
+    tables = set(backend.list_tables())
+    version_table = backend.version_table
+    if backend.migration_table not in tables:
+        return None
+    if version_table not in tables:
+        return 1
+    with backend.transaction():
+        cursor = backend.execute("SELECT max(version) FROM {} "
+                                 .format(backend.quote_identifier(version_table)))
+        version = cursor.fetchone()[0]
+        assert version in schema_versions
+        return version
+
+
+def mark_schema_version(backend, version):
+    """
+    Mark the given version as having been applied
+    """
+    assert version in schema_versions
+    if version < USE_VERSION_TABLE_FROM:
+        return
+    backend.execute("INSERT INTO {0.version_table_quoted} VALUES (:version, :when)"
+                    .format(backend),
+                    {'version': version, 'when': datetime.utcnow()})

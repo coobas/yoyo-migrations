@@ -22,7 +22,9 @@ from logging import getLogger
 import os
 import time
 
-from . import exceptions, utils
+from . import exceptions
+from . import internalmigrations
+from . import utils
 from .migrations import topological_sort
 
 logger = getLogger('yoyo.migrations')
@@ -109,18 +111,6 @@ class DatabaseBackend(object):
     driver_module = None
     connection = None
     lock_table = 'yoyo_lock'
-    create_migration_table_sql = """
-        CREATE TABLE {table_name_quoted} (
-            id VARCHAR(255) NOT NULL PRIMARY KEY,
-            ctime TIMESTAMP
-        )"""
-    create_lock_table_sql = """
-        CREATE TABLE {table_name_quoted} (
-            locked INT DEFAULT 1,
-            ctime TIMESTAMP,
-            pid INT NOT NULL,
-            PRIMARY KEY (locked)
-        )"""
     list_tables_sql = "SELECT table_name FROM information_schema.tables"
     is_applied_sql = """
         SELECT COUNT(1) FROM {0.migration_table_quoted}
@@ -133,10 +123,19 @@ class DatabaseBackend(object):
     create_test_table_sql = """
         CREATE TABLE {table_name_quoted}
         (id INT PRIMARY KEY)"""
+    version_table = '_yoyo_version'
+    migration_table = '_yoyo_migrations'
+
+    create_lock_table_sql = ("CREATE TABLE {0.lock_table_quoted} ("
+                             "locked INT DEFAULT 1, "
+                             "ctime TIMESTAMP,"
+                             "pid INT NOT NULL,"
+                             "PRIMARY KEY (locked))")
 
     _driver = None
     _is_locked = False
     _in_transaction = False
+    _internal_schema_updated = False
 
     def __init__(self, dburi, migration_table):
         self.uri = dburi
@@ -144,7 +143,7 @@ class DatabaseBackend(object):
         self._connection = self.connect(dburi)
         self.init_connection(self._connection)
         self.migration_table = migration_table
-        self.create_tables()
+        self.create_lock_table()
         self.has_transactional_ddl = self._check_transactional_ddl()
 
     def _load_driver_module(self):
@@ -340,25 +339,30 @@ class DatabaseBackend(object):
         cursor.execute(sql, params)
         return cursor
 
-    def create_tables(self):
+    def create_lock_table(self):
         """
-        Create the migrations and lock tables if they do not already exist.
+        Create the lock table if it does not already exist.
         """
-        statements = [
-            self.create_migration_table_sql.format(
-                table_name_quoted=self.migration_table_quoted),
-            self.create_lock_table_sql.format(
-                table_name_quoted=self.lock_table_quoted)
-        ]
+        try:
+            with self.transaction():
+                self.execute(self.create_lock_table_sql.format(self))
+        except self.DatabaseError:
+            pass
 
-        for stmt in statements:
-            try:
-                with self.transaction():
-                    self.execute(stmt)
-            except self.DatabaseError:
-                pass
+    def ensure_internal_schema_updated(self):
+        """
+        Check and upgrade yoyo's internal schema.
+        """
+        if self._internal_schema_updated:
+            return
+        assert not self._in_transaction
+        with self.lock():
+            internalmigrations.upgrade(self)
+            self.connection.commit()
+            self._internal_schema_updated = True
 
     def is_applied(self, migration):
+        self.ensure_internal_schema_updated()
         sql = self.is_applied_sql.format(self)
         return self.execute(sql, {'id': migration.id}).fetchone()[0] > 0
 
@@ -367,6 +371,7 @@ class DatabaseBackend(object):
         Return the list of migration ids in the order in which they
         were applied
         """
+        self.ensure_internal_schema_updated()
         sql = self.applied_ids_sql.format(self)
         return [row[0] for row in self.execute(sql).fetchall()]
 
@@ -415,6 +420,7 @@ class DatabaseBackend(object):
             self.apply_one(m, mark=False, force=force)
 
     def rollback_migrations(self, migrations, force=False):
+        self.ensure_internal_schema_updated()
         if not migrations:
             return
         for m in migrations:
@@ -424,6 +430,7 @@ class DatabaseBackend(object):
                 continue
 
     def mark_migrations(self, migrations):
+        self.ensure_internal_schema_updated()
         with self.transaction():
             for m in migrations:
                 try:
@@ -432,6 +439,7 @@ class DatabaseBackend(object):
                     continue
 
     def unmark_migrations(self, migrations):
+        self.ensure_internal_schema_updated()
         with self.transaction():
             for m in migrations:
                 try:
@@ -444,6 +452,7 @@ class DatabaseBackend(object):
         Apply a single migration
         """
         logger.info("Applying %s", migration.id)
+        self.ensure_internal_schema_updated()
         migration.process_steps(self, 'apply', force=force)
         if mark:
             with self.transaction():
@@ -454,6 +463,7 @@ class DatabaseBackend(object):
         Rollback a single migration
         """
         logger.info("Rolling back %s", migration.id)
+        self.ensure_internal_schema_updated()
         migration.process_steps(self, 'rollback', force=force)
         with self.transaction():
             self.unmark_one(migration)
@@ -461,8 +471,10 @@ class DatabaseBackend(object):
     def unmark_one(self, migration):
         sql = self.delete_migration_sql.format(self)
         self.execute(sql, {'id': migration.id})
+        self.ensure_internal_schema_updated()
 
     def mark_one(self, migration):
+        self.ensure_internal_schema_updated()
         logger.info("Marking %s applied", migration.id)
         sql = self.insert_migration_sql.format(self)
         self.execute(sql, {'id': migration.id, 'when': datetime.utcnow()})

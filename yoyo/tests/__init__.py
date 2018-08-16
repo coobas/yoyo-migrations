@@ -38,6 +38,12 @@ def get_test_backends(only=frozenset(), exclude=frozenset()):
     return [get_backend(dburi) for dburi in get_test_dburis(only, exclude)]
 
 
+def clear_database(backend):
+    for table in backend.list_tables():
+        with backend.transaction():
+            backend.execute("DROP TABLE {}".format(table))
+
+
 class MigrationsContextManager(object):
     """
     Decorator/contextmanager taking a list of migrations.

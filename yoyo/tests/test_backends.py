@@ -156,12 +156,16 @@ class TestInitConnection(object):
     class MockBackend(backends.DatabaseBackend):
         driver = Mock(DatabaseError=Exception, paramstyle='format')
 
+        def list_tables(self):
+            return []
+
         def connect(self, dburi):
             return Mock()
 
     def test_it_calls_init_connection(self):
 
-        with patch.object(self.MockBackend, 'init_connection', Mock()) as mock_init:
+        with patch('yoyo.internalmigrations.upgrade'), \
+                patch.object(self.MockBackend, 'init_connection', Mock()) as mock_init:
 
             backend = self.MockBackend('', '')
             connection = backend.connection
@@ -179,10 +183,11 @@ class TestInitConnection(object):
             def connect(self, dburi):
                 return Mock()
 
-        backend = MockPGBackend('', '')
-        backend.rollback()
-        assert backend.connection.cursor().execute.call_args == \
-                call('SET search_path TO foo')
+        with patch('yoyo.internalmigrations.upgrade'):
+            backend = MockPGBackend('', '')
+            backend.rollback()
+            assert backend.connection.cursor().execute.call_args == \
+                    call('SET search_path TO foo')
 
     def test_postgresql_connects_with_schema(self):
         dburi = next(iter(get_test_dburis(only={'postgresql'})), None)
