@@ -589,7 +589,8 @@ class SQLiteBackend(DatabaseBackend):
     list_tables_sql = "SELECT name FROM sqlite_master WHERE type = 'table'"
 
     def connect(self, dburi):
-        conn = self.driver.connect(dburi.database)
+        conn = self.driver.connect(dburi.database,
+                                   detect_types=self.driver.PARSE_DECLTYPES)
         conn.isolation_level = None
         return conn
 
