@@ -135,6 +135,7 @@ class DatabaseBackend(object):
         (id INT PRIMARY KEY)"""
 
     _driver = None
+    _is_locked = False
     _in_transaction = False
 
     def __init__(self, dburi, migration_table):
@@ -271,11 +272,16 @@ class DatabaseBackend(object):
 
         :param timeout: duration in seconds before raising a LockTimeout error.
         """
+        if self._is_locked:
+            yield
+            return
 
         pid = os.getpid()
         self._insert_lock_row(pid, timeout)
         try:
+            self._is_locked = True
             yield
+            self._is_locked = False
         finally:
             self._delete_lock_row(pid)
 
