@@ -360,11 +360,12 @@ class DatabaseBackend(object):
         """
         if self._internal_schema_updated:
             return
-        assert not self._in_transaction
-        with self.lock():
-            internalmigrations.upgrade(self)
-            self.connection.commit()
-            self._internal_schema_updated = True
+        if internalmigrations.needs_upgrading(self):
+            assert not self._in_transaction
+            with self.lock():
+                internalmigrations.upgrade(self)
+                self.connection.commit()
+                self._internal_schema_updated = True
 
     def is_applied(self, migration):
         return migration.hash in self.get_applied_migration_hashes()

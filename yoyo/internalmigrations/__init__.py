@@ -10,6 +10,7 @@ from . import v2
 
 #: Mapping of {schema version number: module}
 schema_versions = {
+    0: None,
     1: v1,
     2: v2,
 }
@@ -17,6 +18,10 @@ schema_versions = {
 
 #: First schema version that supports the yoyo_versions table
 USE_VERSION_TABLE_FROM = 2
+
+
+def needs_upgrading(backend):
+    return get_current_version(backend) < max(schema_versions)
 
 
 def upgrade(backend, version=None):
@@ -29,8 +34,6 @@ def upgrade(backend, version=None):
     else:
         desired_version = version
     current_version = get_current_version(backend)
-    if current_version is None:
-        current_version = 0
     with backend.transaction():
         while current_version < desired_version:
             next_version = current_version + 1
@@ -46,7 +49,7 @@ def get_current_version(backend):
     tables = set(backend.list_tables())
     version_table = backend.version_table
     if backend.migration_table not in tables:
-        return None
+        return 0
     if version_table not in tables:
         return 1
     with backend.transaction():
