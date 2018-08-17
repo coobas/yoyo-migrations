@@ -27,6 +27,14 @@ def backend(request):
         drop_yoyo_tables(backend)
 
 
+@pytest.fixture(params=get_test_dburis())
+def dburi(request):
+    try:
+        yield request.param
+    finally:
+        drop_yoyo_tables(get_backend(request.param))
+
+
 def drop_yoyo_tables(backend):
     for table in backend.list_tables():
         if table.startswith('yoyo') or table.startswith('_yoyo'):

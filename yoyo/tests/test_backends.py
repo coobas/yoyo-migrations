@@ -1,9 +1,11 @@
+from functools import partial
+from threading import Thread
+import time
+
 from mock import Mock
 from mock import call
 from mock import patch
 import pytest
-from threading import Thread
-import time
 
 from yoyo import backends
 from yoyo import read_migrations
@@ -103,49 +105,59 @@ class TestTransactionHandling(object):
             backend.apply_migrations(migrations)
             backend.rollback_migrations(migrations)
 
-    def test_lock(self, backend):
+
+class TestConcurrency(object):
+
+    # How long to lock for: long enough to allow a migration to be loaded and
+    lock_duration = 0.2
+    # started without unduly slowing down the test suite
+
+    def do_something_with_lock(self, dburi):
+        with get_backend(dburi).lock():
+            time.sleep(self.lock_duration)
+
+    def skip_if_not_concurrency_safe(self, backend):
+        if 'sqlite' in backend.uri.scheme and backend.uri.database == ':memory:':
+            pytest.skip("Concurrency tests not supported for SQLite "
+                        "in-memory databases, which cannot be shared "
+                        "between threads")
+        if backend.driver.threadsafety < 1:
+            pytest.skip("Concurrency tests not supported for "
+                        "non-threadsafe backends")
+
+    def test_lock(self, dburi):
         """
         Test that :meth:`~yoyo.backends.DatabaseBackend.lock`
         acquires an exclusive lock
         """
-        if backend.uri.scheme == 'sqlite':
-            pytest.skip("Concurrency tests not supported for sqlite databases")
-
-        lock_duration = 0.2
-
-        def do_something_with_lock():
-            with backend.lock():
-                time.sleep(lock_duration)
-
-        thread = Thread(target=do_something_with_lock)
+        backend = get_backend(dburi)
+        self.skip_if_not_concurrency_safe(backend)
+        thread = Thread(target=partial(self.do_something_with_lock, dburi))
         t = time.time()
         thread.start()
+
         # Give the thread time to acquire the lock, but not enough
         # to complete
-        time.sleep(lock_duration * 0.2)
+        time.sleep(self.lock_duration * 0.6)
+
         with backend.lock():
             delta = time.time() - t
-            assert delta >= lock_duration
+            assert delta >= self.lock_duration
 
         thread.join()
 
-    def test_lock_times_out(self, backend):
+    def test_lock_times_out(self, dburi):
 
-        if backend.uri.scheme == 'sqlite':
-            pytest.skip("Concurrency tests not supported for sqlite databases")
+        backend = get_backend(dburi)
+        self.skip_if_not_concurrency_safe(backend)
 
-        def do_something_with_lock():
-            with backend.lock():
-                time.sleep(lock_duration)
-
-        lock_duration = 2
-        thread = Thread(target=do_something_with_lock)
+        thread = Thread(target=partial(self.do_something_with_lock, dburi))
         thread.start()
         # Give the thread time to acquire the lock, but not enough
         # to complete
-        time.sleep(lock_duration * 0.1)
+        time.sleep(self.lock_duration * 0.6)
         with pytest.raises(exceptions.LockTimeout):
-            with backend.lock(timeout=lock_duration * 0.1):
+            with backend.lock(timeout=0.001):
                 assert False, "Execution should never reach this point"
 
         thread.join()
