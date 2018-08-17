@@ -170,7 +170,7 @@ def test_specify_migration_table(tmpdir):
     migrations = read_migrations(tmpdir)
     backend.apply_migrations(migrations)
     cursor = backend.cursor()
-    cursor.execute("SELECT id FROM another_migration_table")
+    cursor.execute("SELECT migration_id FROM another_migration_table")
     assert cursor.fetchall() == [('0',)]
 
 

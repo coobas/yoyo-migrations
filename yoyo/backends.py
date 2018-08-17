@@ -19,8 +19,11 @@ from importlib import import_module
 from itertools import count
 from logging import getLogger
 
+import getpass
 import os
+import socket
 import time
+import uuid
 
 from . import exceptions
 from . import internalmigrations
@@ -110,19 +113,23 @@ class DatabaseBackend(object):
 
     driver_module = None
     connection = None
+
+    log_table = '_yoyo_log'
     lock_table = 'yoyo_lock'
     list_tables_sql = "SELECT table_name FROM information_schema.tables"
     is_applied_sql = """
         SELECT COUNT(1) FROM {0.migration_table_quoted}
         WHERE id=:id"""
-    insert_migration_sql = """
-        INSERT INTO {0.migration_table_quoted} (id, ctime)
-        VALUES (:id, :when)"""
-    delete_migration_sql = "DELETE FROM {0.migration_table_quoted} WHERE id=:id"
-    applied_ids_sql = "SELECT id FROM {0.migration_table_quoted} ORDER by ctime"
-    create_test_table_sql = """
-        CREATE TABLE {table_name_quoted}
-        (id INT PRIMARY KEY)"""
+    mark_migration_sql = ("INSERT INTO {0.migration_table_quoted} "
+                          "(migration_hash, migration_id, applied_at_utc) "
+                          "VALUES (:migration_hash, :migration_id, :when)")
+    unmark_migration_sql = ("DELETE FROM {0.migration_table_quoted} WHERE "
+                            "migration_hash = :migration_hash")
+    applied_migrations_sql = ("SELECT migration_hash FROM "
+                              "{0.migration_table_quoted} "
+                              "ORDER by applied_at_utc")
+    create_test_table_sql = ("CREATE TABLE {table_name_quoted} "
+                             "(id INT PRIMARY KEY)")
     version_table = '_yoyo_version'
     migration_table = '_yoyo_migrations'
 
@@ -171,13 +178,11 @@ class DatabaseBackend(object):
         db specific tasks required to make the connection ready for use.
         """
 
-    @property
-    def migration_table_quoted(self):
-        return self.quote_identifier(self.migration_table)
-
-    @property
-    def lock_table_quoted(self):
-        return self.quote_identifier(self.lock_table)
+    def __getattr__(self, attrname):
+        if attrname.endswith('_quoted'):
+            unquoted = getattr(self, attrname.rsplit('_quoted')[0])
+            return self.quote_identifier(unquoted)
+        raise AttributeError(attrname)
 
     def quote_identifier(self, s):
         return '"{}"'.format(s)
@@ -362,24 +367,23 @@ class DatabaseBackend(object):
             self._internal_schema_updated = True
 
     def is_applied(self, migration):
-        self.ensure_internal_schema_updated()
-        sql = self.is_applied_sql.format(self)
-        return self.execute(sql, {'id': migration.id}).fetchone()[0] > 0
+        return migration.hash in self.get_applied_migration_hashes()
 
-    def get_applied_migration_ids(self):
+    def get_applied_migration_hashes(self):
         """
-        Return the list of migration ids in the order in which they
+        Return the list of migration hashes in the order in which they
         were applied
         """
         self.ensure_internal_schema_updated()
-        sql = self.applied_ids_sql.format(self)
+        sql = self.applied_migrations_sql.format(self)
         return [row[0] for row in self.execute(sql).fetchall()]
 
     def to_apply(self, migrations):
         """
         Return the subset of migrations not already applied.
         """
-        ms = (m for m in migrations if not self.is_applied(m))
+        applied = self.get_applied_migration_hashes()
+        ms = (m for m in migrations if m.hash not in applied)
         return migrations.__class__(topological_sort(ms),
                                     migrations.post_apply)
 
@@ -390,7 +394,8 @@ class DatabaseBackend(object):
 
         The order of migrations will be reversed.
         """
-        ms = (m for m in migrations if self.is_applied(m))
+        applied = self.get_applied_migration_hashes()
+        ms = (m for m in migrations if m.hash in applied)
         return migrations.__class__(reversed(topological_sort(ms)),
                                     migrations.post_apply)
 
@@ -469,15 +474,33 @@ class DatabaseBackend(object):
             self.unmark_one(migration)
 
     def unmark_one(self, migration):
-        sql = self.delete_migration_sql.format(self)
-        self.execute(sql, {'id': migration.id})
         self.ensure_internal_schema_updated()
+        sql = self.unmark_migration_sql.format(self)
+        self.execute(sql, {'migration_hash': migration.hash})
 
     def mark_one(self, migration):
         self.ensure_internal_schema_updated()
         logger.info("Marking %s applied", migration.id)
-        sql = self.insert_migration_sql.format(self)
-        self.execute(sql, {'id': migration.id, 'when': datetime.utcnow()})
+        sql = self.mark_migration_sql.format(self)
+        self.execute(sql, {'migration_hash': migration.hash,
+                           'migration_id': migration.id,
+                           'when': datetime.utcnow()})
+
+    def get_log_data(self, migration=None, operation='apply', comment=None):
+        """
+        Return a dict of data for insertion into the ``_yoyo_log`` table
+        """
+        assert operation in {'apply', 'rollback', 'mark', 'unmark'}
+        return {
+            'id': str(uuid.uuid1()),
+            'migration_id': migration.id if migration else None,
+            'migration_hash': migration.hash if migration else None,
+            'username': getpass.getuser(),
+            'hostname': socket.getfqdn(),
+            'created_at_utc': datetime.utcnow(),
+            'operation': operation,
+            'comment': comment,
+        }
 
 
 class ODBCBackend(DatabaseBackend):

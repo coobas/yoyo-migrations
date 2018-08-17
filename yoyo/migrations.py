@@ -17,6 +17,7 @@ from collections import (defaultdict, OrderedDict, Counter, MutableSequence,
 from copy import copy
 from itertools import chain, count
 from logging import getLogger
+import hashlib
 import os
 import sys
 import inspect
@@ -28,6 +29,21 @@ from yoyo.utils import plural
 logger = getLogger('yoyo.migrations')
 default_migration_table = '_yoyo_migration'
 
+hash_function = hashlib.sha256
+
+
+def get_migration_hash(migration_id):
+    """
+    Return a unique hash given a migration_id, that can be used as a database
+    key.
+
+    :param migration_id: a migration id (ie filename without extension), or
+                         ``None`` if this is a new migration
+    """
+    if migration_id is None:
+        return None
+    return hash_function(migration_id.encode('utf-8')).hexdigest()
+
 
 class Migration(object):
 
@@ -35,6 +51,7 @@ class Migration(object):
 
     def __init__(self, id, path):
         self.id = id
+        self.hash = get_migration_hash(id)
         self.path = path
         self.steps = None
         self.source = None

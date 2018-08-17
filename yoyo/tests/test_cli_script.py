@@ -322,6 +322,7 @@ class TestUnmarkCommand(TestInteractiveScript):
         migrations = read_migrations(tmpdir)
         backend = get_backend(self.dburi)
         backend.apply_migrations(migrations[:2])
+        assert len(backend.get_applied_migration_hashes()) == 2
 
         with patch('yoyo.scripts.migrate.prompt_migrations') \
                 as prompt_migrations:

@@ -5,11 +5,13 @@ Migrate yoyo's internal table structure
 from datetime import datetime
 
 from . import v1
+from . import v2
 
 
 #: Mapping of {schema version number: module}
 schema_versions = {
     1: v1,
+    2: v2,
 }
 
 
