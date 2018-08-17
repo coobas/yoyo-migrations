@@ -100,7 +100,9 @@ step should comprise a migration query and (optionally) a rollback query:
     )
 
 Migrations may also declare dependencies on earlier migrations via the
-``__depends__`` attribute::
+``__depends__`` attribute:
+
+.. code:: python
 
     #
     # file: migrations/0002.modify-foo.py
@@ -125,7 +127,9 @@ Steps may also take an optional argument ``ignore_errors``, which must be one
 of ``apply``, ``rollback``, or ``all``. If in the previous example the table
 foo might have already been created by another means, we could add
 ``ignore_errors='apply'`` to the step to allow the migrations to continue
-regardless::
+regardless:
+
+.. code:: python
 
     #
     # file: migrations/0001.create-foo.py
@@ -138,7 +142,9 @@ regardless::
     )
 
 Steps can also be python functions taking a database connection as
-their only argument::
+their only argument:
+
+.. code:: python
 
     #
     # file: migrations/0002.update-keys.py
@@ -251,7 +257,9 @@ you may need to manually intervene to reset the database state
 should errors occur in your migration.
 
 Using ``group`` allows you to nest steps, giving you control of where
-rollbacks happen. For example::
+rollbacks happen. For example:
+
+.. code:: python
 
     group([
       step("ALTER TABLE employees ADD tax_code TEXT"),
@@ -275,7 +283,7 @@ block. These include:
 Migrations containing such statements should set
 ``__transactional__ = False``, eg:
 
-.. code::python
+.. code:: python
 
     __transactional__ = False
 
@@ -287,7 +295,9 @@ Note that this feature is implemented for the PostgreSQL backend only.
 Using yoyo from python code
 ===========================
 
-The following example shows how to apply migrations from inside python code::
+The following example shows how to apply migrations from inside python code:
+
+.. code:: python
 
     from yoyo import read_migrations
     from yoyo import get_backend
