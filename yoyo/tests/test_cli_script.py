@@ -348,11 +348,12 @@ class TestUnmarkCommand(TestInteractiveScript):
 class TestNewMigration(TestInteractiveScript):
 
     def setup(self):
+        def mockstat(f, c=count()):
+            return Mock(st_mtime=next(c))
         super(TestNewMigration, self).setup()
         self.subprocess_patch = patch('yoyo.scripts.newmigration.subprocess')
         self.subprocess = self.subprocess_patch.start()
         self.subprocess.call.return_value = 0
-        mockstat = lambda f, c=count(): Mock(st_mtime=next(c))
         self.stat_patch = patch('yoyo.scripts.newmigration.stat', mockstat)
         self.stat_patch.start()
 
