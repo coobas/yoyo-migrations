@@ -290,6 +290,7 @@ class DatabaseBackend(object):
             self._delete_lock_row(pid)
 
     def _insert_lock_row(self, pid, timeout, poll_interval=0.5):
+        poll_interval = min(poll_interval, timeout)
         started = time.time()
         while True:
             try:
