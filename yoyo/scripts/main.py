@@ -259,14 +259,15 @@ def main(argv=None):
     verbosity = min(max_verbosity, max(min_verbosity, verbosity))
     configure_logging(verbosity)
 
-    if args.sources:
+    if vars(args).get('sources'):
         config.set('DEFAULT', 'sources', ' '.join(args.sources))
     if args.database:
         # ConfigParser requires that any percent signs in the db uri be escaped.
         config.set('DEFAULT', 'database', args.database.replace('%', '%%'))
-    config.set('DEFAULT', 'migration_table', args.migration_table)
-    config.set('DEFAULT', 'batch_mode', 'on' if args.batch_mode else 'off')
-    config.set('DEFAULT', 'verbosity', str(args.verbosity))
+    config.set('DEFAULT', 'migration_table', vars(args).get('migration_table',
+                                                            default_migration_table))
+    config.set('DEFAULT', 'batch_mode', 'on' if vars(args).get('batch_mode') else 'off')
+    config.set('DEFAULT', 'verbosity', str(vars(args).get('verbosity')))
 
     if sources:
         if upgrade_legacy_config(args, config, sources):

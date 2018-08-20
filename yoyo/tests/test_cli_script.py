@@ -32,6 +32,7 @@ import tms
 from yoyo import read_migrations
 from yoyo.config import get_configparser
 from yoyo.tests import with_migrations, dburi
+from yoyo.tests import get_backend
 from yoyo.scripts.main import main, parse_args, LEGACY_CONFIG_FILENAME
 from yoyo.scripts import newmigration
 
@@ -239,6 +240,15 @@ class TestYoyoScript(TestInteractiveScript):
             backend.rollback()
             cursor = backend.execute('SELECT COUNT(1) from yoyo_t')
             assert cursor.fetchone()[0] == 1
+
+    def test_it_breaks_lock(self, dburi):
+        backend = get_backend(dburi)
+        backend.execute("INSERT INTO yoyo_lock (locked, ctime, pid) "
+                        "VALUES (1, now(), 1)")
+        backend.commit()
+        main(['break-lock', '--database', dburi])
+        assert backend.execute("SELECT COUNT(1) FROM yoyo_lock").fetchone()[0] \
+                == 0
 
 
 class TestArgParsing(TestInteractiveScript):

@@ -98,10 +98,15 @@ def install_argparsers(global_parser, subparsers):
     parser_unmark.set_defaults(func=unmark, command_name='unmark')
 
     parser_break_lock = subparsers.add_parser(
-        'break_lock',
+        'break-lock',
         parents=[global_parser],
         help="Break migration locks")
     parser_break_lock.set_defaults(func=break_lock, command_name='break-lock')
+    parser_break_lock.add_argument("-d",
+                                   "--database",
+                                   default=None,
+                                   help="Database, eg 'sqlite:///path/to/sqlite.db' "
+                                   "or 'postgresql://user@host/db'")
 
 
 def get_migrations(args, backend):
