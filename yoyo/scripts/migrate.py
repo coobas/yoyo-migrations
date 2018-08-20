@@ -164,9 +164,13 @@ def get_migrations(args, backend):
             migrations = migrations[:1]
 
     if not args.batch_mode and migrations:
+        print("")
+        print("Selected", utils.plural(len(migrations), "%d migration:", "%d migrations:"))
+        for m in migrations:
+            print('  [{m.id}]'.format(m=m))
         prompt = '{} {} to {}'.format(
             args.command_name.title(),
-            utils.plural(len(migrations), " %d migration", " %d migrations"),
+            utils.plural(len(migrations), "this migration", "these %d migrations"),
             dburi)
         if not utils.confirm(prompt, default='y'):
             return migrations.replace([])
