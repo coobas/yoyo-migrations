@@ -117,6 +117,8 @@ class DatabaseBackend(object):
     log_table = '_yoyo_log'
     lock_table = 'yoyo_lock'
     list_tables_sql = "SELECT table_name FROM information_schema.tables"
+    version_table = '_yoyo_version'
+    migration_table = '_yoyo_migrations'
     is_applied_sql = """
         SELECT COUNT(1) FROM {0.migration_table_quoted}
         WHERE id=:id"""
@@ -130,9 +132,11 @@ class DatabaseBackend(object):
                               "ORDER by applied_at_utc")
     create_test_table_sql = ("CREATE TABLE {table_name_quoted} "
                              "(id INT PRIMARY KEY)")
-    version_table = '_yoyo_version'
-    migration_table = '_yoyo_migrations'
-
+    log_migration_sql = ("INSERT INTO {0.log_table_quoted} "
+                         "(id, migration_hash, migration_id, operation, "
+                         "username, hostname, created_at_utc) "
+                         "VALUES (:id, :migration_hash, :migration_id, "
+                         ":operation, :username, :hostname, :created_at_utc)")
     create_lock_table_sql = ("CREATE TABLE {0.lock_table_quoted} ("
                              "locked INT DEFAULT 1, "
                              "ctime TIMESTAMP,"
@@ -461,9 +465,10 @@ class DatabaseBackend(object):
         logger.info("Applying %s", migration.id)
         self.ensure_internal_schema_updated()
         migration.process_steps(self, 'apply', force=force)
+        self.log_migration(migration, 'apply')
         if mark:
             with self.transaction():
-                self.mark_one(migration)
+                self.mark_one(migration, log=False)
 
     def rollback_one(self, migration, force=False):
         """
@@ -472,21 +477,30 @@ class DatabaseBackend(object):
         logger.info("Rolling back %s", migration.id)
         self.ensure_internal_schema_updated()
         migration.process_steps(self, 'rollback', force=force)
+        self.log_migration(migration, 'rollback')
         with self.transaction():
-            self.unmark_one(migration)
+            self.unmark_one(migration, log=False)
 
-    def unmark_one(self, migration):
+    def unmark_one(self, migration, log=True):
         self.ensure_internal_schema_updated()
         sql = self.unmark_migration_sql.format(self)
         self.execute(sql, {'migration_hash': migration.hash})
+        if log:
+            self.log_migration(migration, 'unmark')
 
-    def mark_one(self, migration):
+    def mark_one(self, migration, log=True):
         self.ensure_internal_schema_updated()
         logger.info("Marking %s applied", migration.id)
         sql = self.mark_migration_sql.format(self)
         self.execute(sql, {'migration_hash': migration.hash,
                            'migration_id': migration.id,
                            'when': datetime.utcnow()})
+        if log:
+            self.log_migration(migration, 'mark')
+
+    def log_migration(self, migration, operation, comment=None):
+        sql = self.log_migration_sql.format(self)
+        self.execute(sql, self.get_log_data(migration, operation, comment))
 
     def get_log_data(self, migration=None, operation='apply', comment=None):
         """
