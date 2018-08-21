@@ -1,3 +1,26 @@
+6.0
+-----------
+
+**This version introduces backwards incompatible changes**. Please read this
+file carefully before upgrading.
+
+* Bugfix: now works on MySQL+utf8mb4 databases. This requires a new 
+  internal schema for recording applied migrations, and your database will be
+  automatically updated when you first run this version. After upgrading, your
+  database will no longer be compatible with older versions of yoyo migrations.
+  (thanks to James Socol and others for the report and discussion of the
+  implementation)
+
+* Bugfix: The `yoyo break-lock` command is no longer broken
+
+* All migration operations (``apply``, ``rollback``, ``mark``, ``unmark``) are
+  now logged in a table ``_yoyo_log`` (thanks to Matt Williams for the
+  suggestion).
+
+* The CLI script now displays the list of selected migrations before
+  asking for final confirmation when in interactive mode.
+
+
 5.1.7 (released 2018-07-30)
 ---------------------------
 
