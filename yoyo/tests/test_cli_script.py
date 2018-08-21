@@ -243,6 +243,8 @@ class TestYoyoScript(TestInteractiveScript):
             assert cursor.fetchone()[0] == 1
 
     def test_it_breaks_lock(self, dburi):
+        if dburi.startswith('sqlite'):
+            pytest.skip("Test not supported for sqlite databases")
         backend = get_backend(dburi)
         backend.execute("INSERT INTO yoyo_lock (locked, ctime, pid) "
                         "VALUES (1, :now, 1)", {'now': datetime.utcnow()})
