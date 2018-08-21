@@ -15,6 +15,7 @@
 from __future__ import unicode_literals
 
 from shutil import rmtree
+from datetime import datetime
 from tempfile import mkdtemp
 from functools import partial
 from itertools import count
@@ -244,7 +245,7 @@ class TestYoyoScript(TestInteractiveScript):
     def test_it_breaks_lock(self, dburi):
         backend = get_backend(dburi)
         backend.execute("INSERT INTO yoyo_lock (locked, ctime, pid) "
-                        "VALUES (1, now(), 1)")
+                        "VALUES (1, :now, 1)", {'now': datetime.utcnow()})
         backend.commit()
         main(['break-lock', '--database', dburi])
         assert backend.execute("SELECT COUNT(1) FROM yoyo_lock").fetchone()[0] \
