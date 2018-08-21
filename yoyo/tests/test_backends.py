@@ -1,4 +1,5 @@
 from functools import partial
+from tempfile import NamedTemporaryFile
 from threading import Thread
 import time
 
@@ -104,6 +105,36 @@ class TestTransactionHandling(object):
             migrations = read_migrations(tmpdir)
             backend.apply_migrations(migrations)
             backend.rollback_migrations(migrations)
+
+    @with_migrations(a="""
+        __transactional__ = False
+        def reopen_db(conn):
+            import sqlite3
+            for _, db, filename in conn.execute('PRAGMA database_list'):
+                if db == 'main':
+                     reconn = sqlite3.connect(filename)
+                     reconn.execute("CREATE TABLE yoyo_test_b (id int)")
+                     break
+            else:
+                raise AssertionError("sqlite main database not found")
+
+        step('CREATE TABLE yoyo_test_a (id int)')
+        step(reopen_db)
+        step('CREATE TABLE yoyo_test_c (id int)')
+    """)
+    def test_disabling_transactions_in_sqlite(self, tmpdir):
+        """
+        Transactions cause sqlite databases to become locked, preventing
+        other tools from accessing them:
+
+        https://bitbucket.org/ollyc/yoyo/issues/43/run-step-outside-of-transaction
+        """
+        with NamedTemporaryFile() as tmp:
+            backend = get_backend('sqlite:///' + tmp.name)
+            backend.apply_migrations(read_migrations(tmpdir))
+            assert 'yoyo_test_a' in backend.list_tables()
+            assert 'yoyo_test_b' in backend.list_tables()
+            assert 'yoyo_test_c' in backend.list_tables()
 
 
 class TestConcurrency(object):

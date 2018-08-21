@@ -20,6 +20,8 @@ file carefully before upgrading.
 * The CLI script now displays the list of selected migrations before
   asking for final confirmation when in interactive mode.
 
+* Added support for ``__transactional__`` flag in sqlite migrations
+
 
 5.1.7 (released 2018-07-30)
 ---------------------------
