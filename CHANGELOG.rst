@@ -1,5 +1,5 @@
-6.0.0
------------
+6.0.0 (released 2018-08-21)
+---------------------------
 
 **This version introduces backwards incompatible changes**. Please read this
 file carefully before upgrading.
