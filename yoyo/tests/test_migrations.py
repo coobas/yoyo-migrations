@@ -444,9 +444,9 @@ class TestLogging(object):
         cursor = backend.execute("SELECT migration_id, operation, "
                                  "created_at_utc, username, hostname "
                                  "from _yoyo_log "
-                                 "ORDER BY created_at_utc DESC LIMIT 1")
-        return dict((d.name, value)
-                    for d, value in zip(cursor.description, cursor.fetchone()))
+                                 "ORDER BY id DESC LIMIT 1")
+        return {d[0]: value
+                for d, value in zip(cursor.description, cursor.fetchone())}
 
     def get_log_count(self, backend):
         return backend.execute("SELECT count(1) FROM _yoyo_log").fetchone()[0]
@@ -459,7 +459,7 @@ class TestLogging(object):
             logged = self.get_last_log_entry(backend)
             assert logged['migration_id'] == 'a'
             assert logged['operation'] == 'apply'
-            assert logged['created_at_utc'] >= datetime.utcnow() - timedelta(seconds=1)
+            assert logged['created_at_utc'] >= datetime.utcnow() - timedelta(seconds=2)
             apply_time = logged['created_at_utc']
 
             backend.rollback_migrations(migrations)
@@ -467,7 +467,7 @@ class TestLogging(object):
             logged = self.get_last_log_entry(backend)
             assert logged['migration_id'] == 'a'
             assert logged['operation'] == 'rollback'
-            assert logged['created_at_utc'] > apply_time
+            assert logged['created_at_utc'] >= apply_time
 
     def test_it_logs_mark_and_unmark(self, backend):
         with with_migrations(a='step("CREATE TABLE yoyo_test (id INT)")') as tmpdir:
@@ -477,7 +477,7 @@ class TestLogging(object):
             logged = self.get_last_log_entry(backend)
             assert logged['migration_id'] == 'a'
             assert logged['operation'] == 'mark'
-            assert logged['created_at_utc'] >= datetime.utcnow() - timedelta(seconds=1)
+            assert logged['created_at_utc'] >= datetime.utcnow() - timedelta(seconds=2)
             marked_time = logged['created_at_utc']
 
             backend.unmark_migrations(migrations)
@@ -485,4 +485,4 @@ class TestLogging(object):
             logged = self.get_last_log_entry(backend)
             assert logged['migration_id'] == 'a'
             assert logged['operation'] == 'unmark'
-            assert logged['created_at_utc'] > marked_time
+            assert logged['created_at_utc'] >= marked_time
