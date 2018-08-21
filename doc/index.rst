@@ -272,15 +272,7 @@ rollbacks happen. For example:
 Disabling transactions
 ----------------------
 
-In PostgreSQL it is an error to run certain statements inside a transaction
-block. These include:
-
-.. code::sql
-
-    CREATE TABLE <foo>
-    ALTER TYPE <enum> ADD ...
-
-Migrations containing such statements should set
+You can disable transaction handling within a migration by setting
 ``__transactional__ = False``, eg:
 
 .. code:: python
@@ -289,7 +281,26 @@ Migrations containing such statements should set
 
     step("CREATE DATABASE mydb", "DROP DATABASE mydb")
 
-Note that this feature is implemented for the PostgreSQL backend only.
+This feature is only tested against the PostgreSQL and SQLite backends. 
+
+PostgreSQL
+``````````
+In PostgreSQL it is an error to run certain statements inside a transaction
+block. These include:
+
+.. code:: sql
+
+    CREATE DATABASE ...
+    CREATE TABLE <foo>
+    ALTER TYPE <enum> ...
+
+Using ``__transactional__ = False`` allows you to run these within a migration
+
+SQLite
+```````
+In SQLite, the default transactional behavior may prevent other tools from
+accessing the database for the duration of the migration. Using
+``__transactional__ = False`` allows you to work around this limitation.
 
 
 Using yoyo from python code
