@@ -239,6 +239,25 @@ Config file inheritance may be used to customize configuration per site::
 
   database = sqlite:///%(here)s/mydb.sqlite
 
+Sources
+--------
+
+Yoyo reads migration scripts from the directories specified in the ``sources``
+config option. Paths may include glob patterns, for example::
+
+    [DEFAULT]
+    sources =
+        %(here)s/migrations
+        %(here)s/src/*/migrations
+
+You may also read migrations from installed python packages, by supplying a
+path in the special form ``package:<package-name>:<path-to-migrations-dir>``,
+for example::
+
+    [DEFAULT]
+    sources = package:myapplication:data/migrations
+
+
 Transactions
 ============
 
@@ -281,7 +300,7 @@ You can disable transaction handling within a migration by setting
 
     step("CREATE DATABASE mydb", "DROP DATABASE mydb")
 
-This feature is only tested against the PostgreSQL and SQLite backends. 
+This feature is only tested against the PostgreSQL and SQLite backends.
 
 PostgreSQL
 ``````````
