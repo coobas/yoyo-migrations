@@ -14,8 +14,10 @@
 
 from datetime import datetime
 from datetime import timedelta
-import pytest
 from mock import Mock, patch
+import io
+import os
+import pytest
 
 from yoyo.connections import get_backend
 from yoyo import read_migrations
@@ -23,6 +25,7 @@ from yoyo import exceptions
 from yoyo import ancestors, descendants
 
 from yoyo.tests import with_migrations, migrations_dir, dburi
+from yoyo.tests import tempdir
 from yoyo.migrations import topological_sort, MigrationList
 from yoyo.scripts import newmigration
 
@@ -381,6 +384,30 @@ class TestReadMigrations(object):
         m = read_migrations(tmpdir)[0]
         m.load()
         assert len(m.steps) == 1
+
+    def test_it_reads_from_package_data(self):
+        migrations = read_migrations('package:yoyo:tests/migrations')
+        assert len(migrations) == 1
+        assert migrations[0].id == 'test-pkg-migration'
+
+    def test_it_globs_directory_names(self):
+
+        def touch(f):
+            io.open(f, 'w').close()
+
+        with tempdir() as t:
+            os.mkdir(os.path.join(t, 'aa'))
+            os.mkdir(os.path.join(t, 'ab'))
+            os.mkdir(os.path.join(t, 'b'))
+            touch(os.path.join(t, 'aa', '1.py'))
+            touch(os.path.join(t, 'ab', '2.py'))
+            touch(os.path.join(t, 'b', '3.py'))
+
+            migrations = read_migrations('{}/a*'.format(t))
+            migration_ids = [m.id for m in migrations]
+            assert '1' in migration_ids
+            assert '2' in migration_ids
+            assert '3' not in migration_ids
 
 
 class TestPostApplyHooks(object):

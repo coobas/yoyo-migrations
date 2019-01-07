@@ -16,6 +16,7 @@ from itertools import chain
 from tempfile import mkdtemp
 from textwrap import dedent
 from shutil import rmtree
+import contextlib
 import os.path
 
 from yoyo.config import get_configparser
@@ -76,6 +77,15 @@ class MigrationsContextManager(object):
             with self:
                 return func(*(args + (self.tmpdir,)), **kwargs)
         return decorator
+
+
+@contextlib.contextmanager
+def tempdir():
+    tmpdir = mkdtemp()
+    try:
+        yield tmpdir
+    finally:
+        rmtree(tmpdir)
 
 
 with_migrations = MigrationsContextManager

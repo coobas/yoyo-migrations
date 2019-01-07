@@ -15,21 +15,34 @@
 from collections import (defaultdict, OrderedDict, Counter, MutableSequence,
                          Iterable, deque)
 from copy import copy
+from glob import glob
 from itertools import chain, count
 from logging import getLogger
 import hashlib
 import os
+import re
 import sys
 import inspect
 
-from yoyo.compat import reraise, exec_, ustr, stdout
+import pkg_resources
+
 from yoyo import exceptions
+from yoyo.compat import reraise, exec_, ustr, stdout
 from yoyo.utils import plural
 
 logger = getLogger('yoyo.migrations')
 default_migration_table = '_yoyo_migration'
 
 hash_function = hashlib.sha256
+
+
+def _is_migration_file(path):
+    """
+    Return True if the given path matches a migration file pattern
+    """
+    from yoyo.scripts import newmigration
+    return (path.endswith('.py') and
+            not path.startswith(newmigration.tempfile_prefix))
 
 
 def get_migration_hash(migration_id):
@@ -321,20 +334,32 @@ class StepGroup(MigrationStep):
             item.apply(backend, force)
 
 
-def read_migrations(*directories):
+def read_migrations(*sources):
     """
     Return a ``MigrationList`` containing all migrations from ``directory``.
     """
-    from yoyo.scripts import newmigration
     migrations = MigrationList()
-    for directory in directories:
-        paths = [os.path.join(directory, path)
-                 for path in os.listdir(directory)
-                 if path.endswith('.py') and
-                 not path.startswith(newmigration.tempfile_prefix)]
+    for source in sources:
+        package_match = re.match(r'^package:([^\s\/:]+):(.*)$', source)
+
+        if package_match:
+            package_name = package_match.group(1)
+            resource_dir = package_match.group(2)
+            paths = [
+                pkg_resources.resource_filename(package_name,
+                                                '{}/{}'.format(resource_dir, f))
+                for f in pkg_resources.resource_listdir(package_name,
+                                                        resource_dir)
+                if _is_migration_file(f)
+            ]
+
+        else:
+            paths = [os.path.join(directory, path)
+                     for directory in glob(source)
+                     for path in os.listdir(directory)
+                     if _is_migration_file(path)]
 
         for path in sorted(paths):
-
             filename = os.path.splitext(os.path.basename(path))[0]
 
             if filename.startswith('post-apply'):
