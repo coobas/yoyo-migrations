@@ -330,8 +330,8 @@ class StepGroup(MigrationStep):
             item.apply(backend, force)
 
     def rollback(self, backend, force=False):
-        for item in self.steps:
-            item.apply(backend, force)
+        for item in reversed(self.steps):
+            item.rollback(backend, force)
 
 
 def read_migrations(*sources):

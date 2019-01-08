@@ -238,6 +238,32 @@ def test_migrations_display_selected_data(tmpdir):
                            '(2 rows)\n')
 
 
+def test_grouped_migrations_can_be_rolled_back(backend):
+    with with_migrations(a='from yoyo import step\n'
+                         'steps = [step("CREATE TABLE p (n INT)",'
+                         '              "DROP TABLE p")]') as t1:
+        backend.apply_migrations(read_migrations(t1))
+
+        with with_migrations(b='from yoyo import group\n'
+                             'from yoyo import step\n'
+                             'steps = [\n'
+                             '    group(\n'
+                             '        step("INSERT INTO p VALUES (3)", \n'
+                             '             "DELETE FROM p WHERE n=3"),\n'
+                             '        step("UPDATE p SET n = n * 2", \n'
+                             '             "UPDATE p SET n = n / 2"),\n'
+                             '        step("UPDATE p SET n = n + 1", \n'
+                             '             "UPDATE p SET n = n - 1"),\n'
+                             '   )\n'
+                             ']\n') as t2:
+            migrations = read_migrations(t2)
+            backend.apply_migrations(migrations)
+            backend.rollback_migrations(migrations)
+            cursor = backend.execute("SELECT count(1) FROM p")
+            assert cursor.fetchone() == (0,)
+        backend.rollback_migrations(read_migrations(t1))
+
+
 class TestTopologicalSort(object):
 
     def get_mock_migrations(self):
