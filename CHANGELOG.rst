@@ -1,10 +1,19 @@
+Unreleased changes
+------------------
+
+* The ``sources`` configuration option can now contain glob patterns and
+  references to migrations installed in python packages.
+
+* Bugfix: rolling back a group of steps now works as expected (thanks to Jon
+  Sorensen)
+
 6.0.0 (released 2018-08-21)
 ---------------------------
 
 **This version introduces backwards incompatible changes**. Please read this
 file carefully before upgrading.
 
-* Bugfix: now works on MySQL+utf8mb4 databases. This requires a new 
+* Bugfix: now works on MySQL+utf8mb4 databases. This requires a new
   internal schema for recording applied migrations, and your database will be
   automatically updated when you first run this version. After upgrading, your
   database will no longer be compatible with older versions of yoyo migrations.
@@ -26,7 +35,7 @@ file carefully before upgrading.
 5.1.7 (released 2018-07-30)
 ---------------------------
 
-* Bugfix: fix uppercase letters being excluded from generated filenames 
+* Bugfix: fix uppercase letters being excluded from generated filenames
   (thanks to Romain Godefroy)
 
 5.1.6 (released 2018-06-28)
