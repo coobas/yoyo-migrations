@@ -1,5 +1,5 @@
-6.1.0
-------------------
+6.1.0 (released 2019-02-13)
+---------------------------
 
 * The ``sources`` configuration option can now contain glob patterns and
   references to migrations installed in python packages.
