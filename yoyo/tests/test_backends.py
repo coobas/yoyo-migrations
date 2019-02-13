@@ -80,11 +80,11 @@ class TestTransactionHandling(object):
             trans.rollback()
 
         count_a = backend.execute("SELECT COUNT(1) FROM yoyo_a")\
-                .fetchall()[0][0]
+            .fetchall()[0][0]
         assert count_a == 1
 
         count_b = backend.execute("SELECT COUNT(1) FROM yoyo_b")\
-                .fetchall()[0][0]
+            .fetchall()[0][0]
         assert count_b == 0
 
     @with_migrations(a="""
@@ -230,7 +230,7 @@ class TestInitConnection(object):
             backend = MockPGBackend('', '')
             backend.rollback()
             assert backend.connection.cursor().execute.call_args == \
-                    call('SET search_path TO foo')
+                call('SET search_path TO foo')
 
     def test_postgresql_connects_with_schema(self):
         dburi = next(iter(get_test_dburis(only={'postgresql'})), None)
@@ -241,7 +241,7 @@ class TestInitConnection(object):
             backend.execute("CREATE SCHEMA foo")
         try:
             assert get_backend(dburi + '?schema=foo')\
-                    .execute("SHOW search_path").fetchone() == ('foo',)
+                .execute("SHOW search_path").fetchone() == ('foo',)
         finally:
             with backend.transaction():
                 backend.execute("DROP SCHEMA foo CASCADE")

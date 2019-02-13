@@ -43,8 +43,8 @@ def update_argparser_defaults(parser, defaults):
     """
     known_args = {action.dest for action in parser._actions}
     parser.set_defaults(**{k: v
-                            for k, v in defaults.items()
-                            if k in known_args})
+                           for k, v in defaults.items()
+                           if k in known_args})
 
 
 def read_config(path):

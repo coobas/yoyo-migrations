@@ -39,8 +39,8 @@ from yoyo.scripts import newmigration
 
 
 def is_tmpfile(p, directory=None):
-    return ((p.startswith(directory) if directory else True) and
-            os.path.basename(p).startswith(newmigration.tempfile_prefix))
+    return ((p.startswith(directory) if directory else True)
+            and os.path.basename(p).startswith(newmigration.tempfile_prefix))
 
 
 class TestInteractiveScript(object):
@@ -179,7 +179,7 @@ class TestYoyoScript(TestInteractiveScript):
         self.confirm.return_value = True
         main(['apply', tmpdir])
         prompts = [args[0].lower()
-                    for args, kwargs in self.confirm.call_args_list]
+                   for args, kwargs in self.confirm.call_args_list]
         assert len(prompts) == 2
         assert prompts[0].startswith('move legacy configuration')
         assert prompts[1].startswith('delete legacy configuration')
@@ -250,8 +250,9 @@ class TestYoyoScript(TestInteractiveScript):
                         "VALUES (1, :now, 1)", {'now': datetime.utcnow()})
         backend.commit()
         main(['break-lock', '--database', dburi])
-        assert backend.execute("SELECT COUNT(1) FROM yoyo_lock").fetchone()[0] \
-                == 0
+        lock_count = backend.execute("SELECT COUNT(1) FROM yoyo_lock")\
+            .fetchone()[0]
+        assert lock_count == 0
 
 
 class TestArgParsing(TestInteractiveScript):
@@ -416,13 +417,13 @@ class TestNewMigration(TestInteractiveScript):
         with patch('os.environ', {'EDITOR': 'ed', 'VISUAL': 'visualed'}):
             main(['new', tmpdir, '--database', dburi])
             assert self.subprocess.call.call_args == \
-                    call(['visualed', tms.Unicode()])
+                call(['visualed', tms.Unicode()])
 
         # fallback to $EDITOR
         with patch('os.environ', {'EDITOR': 'ed'}):
             main(['new', tmpdir, '--database', dburi])
             assert self.subprocess.call.call_args == \
-                    call(['ed', tms.Unicode()])
+                call(['ed', tms.Unicode()])
 
         # Otherwise, vi
         with patch('os.environ', {}):

@@ -67,8 +67,7 @@ def parse_args(argv=None):
     global_args, _ = globalparser.parse_known_args(argv)
 
     # Read the config file and create a dictionary of defaults for argparser
-    config = read_config(global_args.config or
-                         find_config()
+    config = read_config((global_args.config or find_config())
                          if global_args.use_config_file
                          else None)
 
@@ -197,7 +196,7 @@ def upgrade_legacy_config(args, config, sources):
                 save_config(config, config_path)
                 try:
                     if utils.confirm("Delete legacy configuration file {!r}"
-                                    .format(path)):
+                                     .format(path)):
                         os.unlink(path)
                 except OSError:
                     logger.warn("Could not remove %r. Manually remove this file "
@@ -210,13 +209,13 @@ def upgrade_legacy_config(args, config, sources):
 
             try:
                 args.database = (
-                        args.database or legacy_config.get('DEFAULT', 'dburi'))
+                    args.database or legacy_config.get('DEFAULT', 'dburi'))
             except configparser.NoOptionError:
                 pass
             try:
                 args.migration_table = (
-                    args.migration_table or
-                    legacy_config.get('DEFAULT', 'migration_table'))
+                    args.migration_table
+                    or legacy_config.get('DEFAULT', 'migration_table'))
             except configparser.NoOptionError:
                 pass
 
@@ -250,8 +249,8 @@ def get_backend(args, config):
 
 def main(argv=None):
     config, argparser, args = parse_args(argv)
-    config_is_empty = (config.sections() == [] and
-                       config.items('DEFAULT') == [])
+    config_is_empty = (config.sections() == []
+                       and config.items('DEFAULT') == [])
 
     sources = getattr(args, 'sources', None)
 

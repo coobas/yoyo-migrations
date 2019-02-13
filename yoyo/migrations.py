@@ -41,8 +41,8 @@ def _is_migration_file(path):
     Return True if the given path matches a migration file pattern
     """
     from yoyo.scripts import newmigration
-    return (path.endswith('.py') and
-            not path.startswith(newmigration.tempfile_prefix))
+    return (path.endswith('.py')
+            and not path.startswith(newmigration.tempfile_prefix))
 
 
 def get_migration_hash(migration_id):
@@ -74,8 +74,8 @@ class Migration(object):
 
     def __repr__(self):
         return '<{} {!r} from {}>'.format(self.__class__.__name__,
-                                        self.id,
-                                        self.path)
+                                          self.id,
+                                          self.path)
 
     @property
     def loaded(self):
@@ -151,7 +151,7 @@ class Migration(object):
                                 getattr(step, reverse)(backend)
                         except backend.DatabaseError:
                             logger.exception('Could not %s step %s',
-                                            direction, step.id)
+                                             direction, step.id)
                     reraise(exc_info[0], exc_info[1], exc_info[2])
 
 
@@ -274,8 +274,8 @@ class MigrationStep(StepBase):
             format = '|'.join(' %%- %ds ' % size for size in column_sizes)
             format += '\n'
             out.write(format % tuple(column_names))
-            out.write('+'.join('-' * (size + 2) for size in column_sizes) +
-                      '\n')
+            out.write('+'.join('-' * (size + 2) for size in column_sizes)
+                      + '\n')
             for row in result:
                 out.write(format % tuple(row))
             out.write(plural(len(result), '(%d row)', '(%d rows)') + "\n")
@@ -308,7 +308,7 @@ class MigrationStep(StepBase):
         if isinstance(self._rollback, (ustr, str)):
             cursor = backend.cursor()
             try:
-                    self._execute(cursor, self._rollback)
+                self._execute(cursor, self._rollback)
             finally:
                 cursor.close()
         else:

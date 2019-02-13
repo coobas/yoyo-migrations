@@ -268,7 +268,7 @@ def prompt_migrations(backend, migrations, direction):
             print("v: view this migration in full")
             print("")
             print("d: %s the selected migrations, skipping any remaining" %
-                    (direction,))
+                  (direction,))
             print("a: %s all the remaining migrations" % (direction,))
             print("q: cancel without making any changes")
             print("")

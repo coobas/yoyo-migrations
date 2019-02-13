@@ -306,7 +306,7 @@ class DatabaseBackend(object):
             except self.DatabaseError:
                 if timeout and time.time() > started + timeout:
                     cursor = self.execute("SELECT pid FROM {}"
-                                        .format(self.lock_table_quoted))
+                                          .format(self.lock_table_quoted))
                     row = cursor.fetchone()
                     if row:
                         raise exceptions.LockTimeout(

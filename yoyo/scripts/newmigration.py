@@ -59,15 +59,15 @@ migration_template = dedent('''\
 
 def install_argparsers(global_parser, subparsers):
     parser_new = subparsers.add_parser('new',
-                                        parents=[global_parser],
-                                        help="Create a new migration")
+                                       parents=[global_parser],
+                                       help="Create a new migration")
     parser_new.set_defaults(func=new_migration)
     parser_new.add_argument('--message', '-m', help='Message', default='')
     parser_new.add_argument("--migration-table", dest="migration_table",
-                                  action="store",
-                                  default=default_migration_table,
-                                  help="Name of table to use for storing "
-                                  "migration metadata")
+                            action="store",
+                            default=default_migration_table,
+                            help="Name of table to use for storing "
+                            "migration metadata")
     parser_new.add_argument('sources',
                             nargs="*",
                             help="Source directory of migration scripts")
@@ -89,8 +89,8 @@ def new_migration(args, config):
     migrations = read_migrations(directory)
     depends = sorted(heads(migrations), key=lambda m: m.id)
     migration_source = migration_template.format(
-                message=message,
-                depends=', '.join('{!r}'.format(m.id) for m in depends))
+        message=message,
+        depends=', '.join('{!r}'.format(m.id) for m in depends))
 
     if args.batch_mode:
         p = make_filename(config, directory, message)

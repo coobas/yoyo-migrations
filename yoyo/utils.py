@@ -65,8 +65,8 @@ def prompt(prompt, options):
         sys.stdout.flush()
         ch = getch()
         if ch == os.linesep:
-            ch = ([o.lower() for o in options if 'A' <= o <= 'Z'] +
-                  list(options.lower()))[0]
+            ch = ([o.lower() for o in options if 'A' <= o <= 'Z']
+                  + list(options.lower()))[0]
         print(ch)
         if ch.lower() not in options.lower():
             print("Invalid response, please try again!")
