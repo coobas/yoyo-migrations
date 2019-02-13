@@ -1,4 +1,4 @@
-Unreleased changes
+6.1.0
 ------------------
 
 * The ``sources`` configuration option can now contain glob patterns and
