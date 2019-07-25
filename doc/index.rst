@@ -334,8 +334,14 @@ The following example shows how to apply migrations from inside python code:
 
     backend = get_backend('postgres://myuser@localhost/mydatabase')
     migrations = read_migrations('path/to/migrations')
+
     with backend.lock():
+
+        # Apply any outstanding migrations
         backend.apply_migrations(backend.to_apply(migrations))
+
+        # Rollback all migrations
+        backend.rollback_migrations(backend.to_rollback(migrations))
 
 .. :vim:sw=4:et
 
