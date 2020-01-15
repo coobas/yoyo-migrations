@@ -151,13 +151,6 @@ def get_migrations(args, backend):
             lambda m: re.search(args.match, m.id) is not None
         )
 
-    if not args.all:
-        if args.func in {apply, mark}:
-            migrations = backend.to_apply(migrations)
-
-        elif args.func in {rollback, reapply, unmark}:
-            migrations = backend.to_rollback(migrations)
-
     if args.revision:
         targets = [m for m in migrations if args.revision in m.id]
         if len(targets) == 0:
@@ -185,6 +178,12 @@ def get_migrations(args, backend):
             deps = descendants(target, migrations)
             target_plus_deps = deps | {target}
             migrations = migrations.filter(lambda m: m in target_plus_deps)
+    else:
+        if args.func in {apply, mark}:
+            migrations = backend.to_apply(migrations)
+
+        elif args.func in {rollback, reapply, unmark}:
+            migrations = backend.to_rollback(migrations)
 
     if not args.batch_mode and not args.revision:
         migrations = prompt_migrations(backend, migrations, args.command_name)
