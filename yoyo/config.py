@@ -19,13 +19,13 @@ import os
 import iniherit
 import sys
 
-CONFIG_FILENAME = 'yoyo.ini'
-CONFIG_EDITOR_KEY = 'editor'
-CONFIG_NEW_MIGRATION_COMMAND_KEY = 'post_create_command'
+CONFIG_FILENAME = "yoyo.ini"
+CONFIG_EDITOR_KEY = "editor"
+CONFIG_NEW_MIGRATION_COMMAND_KEY = "post_create_command"
 
 
 def get_interpolation_defaults(path):
-    return {'here': os.path.dirname(os.path.abspath(path))}
+    return {"here": os.path.dirname(os.path.abspath(path))}
 
 
 def get_configparser(**defaults):
@@ -42,9 +42,9 @@ def update_argparser_defaults(parser, defaults):
     arguments the parser has configured.
     """
     known_args = {action.dest for action in parser._actions}
-    parser.set_defaults(**{k: v
-                           for k, v in defaults.items()
-                           if k in known_args})
+    parser.set_defaults(
+        **{k: v for k, v in defaults.items() if k in known_args}
+    )
 
 
 def read_config(path):
@@ -64,7 +64,7 @@ def save_config(config, path):
     Write the configuration file to ``path``.
     """
     os.umask(0o77)
-    f = open(path, 'w')
+    f = open(path, "w")
     try:
         return config.write(f)
     finally:

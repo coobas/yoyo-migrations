@@ -18,14 +18,13 @@ from yoyo.tests import with_migrations
 
 
 class TestTransactionHandling(object):
-
     def test_it_commits(self, backend):
         with backend.transaction():
             backend.execute("INSERT INTO yoyo_t values ('A')")
 
         with backend.transaction():
             rows = list(backend.execute("SELECT * FROM yoyo_t").fetchall())
-            assert rows == [('A',)]
+            assert rows == [("A",)]
 
     def test_it_rolls_back(self, backend):
         with pytest.raises(backend.DatabaseError):
@@ -51,12 +50,14 @@ class TestTransactionHandling(object):
 
         with backend.transaction():
             rows = list(backend.execute("SELECT * FROM yoyo_t").fetchall())
-            assert rows == [('A',), ('C',)]
+            assert rows == [("A",), ("C",)]
 
     def test_backend_detects_transactional_ddl(self, backend):
-        expected = {backends.PostgresqlBackend: True,
-                    backends.SQLiteBackend: True,
-                    backends.MySQLBackend: False}
+        expected = {
+            backends.PostgresqlBackend: True,
+            backends.SQLiteBackend: True,
+            backends.MySQLBackend: False,
+        }
         if backend.__class__ in expected:
             assert backend.has_transactional_ddl is expected[backend.__class__]
 
@@ -79,20 +80,24 @@ class TestTransactionHandling(object):
             backend.execute("INSERT INTO yoyo_b VALUES (1)")
             trans.rollback()
 
-        count_a = backend.execute("SELECT COUNT(1) FROM yoyo_a")\
-            .fetchall()[0][0]
+        count_a = backend.execute("SELECT COUNT(1) FROM yoyo_a").fetchall()[0][
+            0
+        ]
         assert count_a == 1
 
-        count_b = backend.execute("SELECT COUNT(1) FROM yoyo_b")\
-            .fetchall()[0][0]
+        count_b = backend.execute("SELECT COUNT(1) FROM yoyo_b").fetchall()[0][
+            0
+        ]
         assert count_b == 0
 
-    @with_migrations(a="""
+    @with_migrations(
+        a="""
         __transactional__ = False
         step('CREATE DATABASE yoyo_test_tmp',
              'DROP DATABASE yoyo_test_tmp',
              )
-    """)
+    """
+    )
     def test_statements_requiring_no_transaction(self, tmpdir):
         """
         PostgreSQL will error if certain statements (eg CREATE DATABASE)
@@ -101,12 +106,13 @@ class TestTransactionHandling(object):
         As far as I know this behavior is PostgreSQL specific. We can't run
         this test in sqlite or oracle as they do not support CREATE DATABASE.
         """
-        for backend in get_test_backends(exclude={'sqlite', 'oracle'}):
+        for backend in get_test_backends(exclude={"sqlite", "oracle"}):
             migrations = read_migrations(tmpdir)
             backend.apply_migrations(migrations)
             backend.rollback_migrations(migrations)
 
-    @with_migrations(a="""
+    @with_migrations(
+        a="""
         __transactional__ = False
         def reopen_db(conn):
             import sqlite3
@@ -121,7 +127,8 @@ class TestTransactionHandling(object):
         step('CREATE TABLE yoyo_test_a (id int)')
         step(reopen_db)
         step('CREATE TABLE yoyo_test_c (id int)')
-    """)
+    """
+    )
     def test_disabling_transactions_in_sqlite(self, tmpdir):
         """
         Transactions cause sqlite databases to become locked, preventing
@@ -130,11 +137,11 @@ class TestTransactionHandling(object):
         https://bitbucket.org/ollyc/yoyo/issues/43/run-step-outside-of-transaction
         """
         with NamedTemporaryFile() as tmp:
-            backend = get_backend('sqlite:///' + tmp.name)
+            backend = get_backend("sqlite:///" + tmp.name)
             backend.apply_migrations(read_migrations(tmpdir))
-            assert 'yoyo_test_a' in backend.list_tables()
-            assert 'yoyo_test_b' in backend.list_tables()
-            assert 'yoyo_test_c' in backend.list_tables()
+            assert "yoyo_test_a" in backend.list_tables()
+            assert "yoyo_test_b" in backend.list_tables()
+            assert "yoyo_test_c" in backend.list_tables()
 
 
 class TestConcurrency(object):
@@ -148,13 +155,20 @@ class TestConcurrency(object):
             time.sleep(self.lock_duration)
 
     def skip_if_not_concurrency_safe(self, backend):
-        if 'sqlite' in backend.uri.scheme and backend.uri.database == ':memory:':
-            pytest.skip("Concurrency tests not supported for SQLite "
-                        "in-memory databases, which cannot be shared "
-                        "between threads")
+        if (
+            "sqlite" in backend.uri.scheme
+            and backend.uri.database == ":memory:"
+        ):
+            pytest.skip(
+                "Concurrency tests not supported for SQLite "
+                "in-memory databases, which cannot be shared "
+                "between threads"
+            )
         if backend.driver.threadsafety < 1:
-            pytest.skip("Concurrency tests not supported for "
-                        "non-threadsafe backends")
+            pytest.skip(
+                "Concurrency tests not supported for "
+                "non-threadsafe backends"
+            )
 
     def test_lock(self, dburi):
         """
@@ -195,9 +209,8 @@ class TestConcurrency(object):
 
 
 class TestInitConnection(object):
-
     class MockBackend(backends.DatabaseBackend):
-        driver = Mock(DatabaseError=Exception, paramstyle='format')
+        driver = Mock(DatabaseError=Exception, paramstyle="format")
 
         def list_tables(self):
             return []
@@ -207,10 +220,11 @@ class TestInitConnection(object):
 
     def test_it_calls_init_connection(self):
 
-        with patch('yoyo.internalmigrations.upgrade'), \
-                patch.object(self.MockBackend, 'init_connection', Mock()) as mock_init:
+        with patch("yoyo.internalmigrations.upgrade"), patch.object(
+            self.MockBackend, "init_connection", Mock()
+        ) as mock_init:
 
-            backend = self.MockBackend('', '')
+            backend = self.MockBackend("", "")
             connection = backend.connection
             assert mock_init.call_args == call(connection)
 
@@ -220,28 +234,30 @@ class TestInitConnection(object):
 
     def test_postgresql_backend_sets_search_path(self):
         class MockPGBackend(backends.PostgresqlBackend):
-            driver = Mock(DatabaseError=Exception, paramstyle='format')
-            schema = 'foo'
+            driver = Mock(DatabaseError=Exception, paramstyle="format")
+            schema = "foo"
 
             def connect(self, dburi):
                 return Mock()
 
-        with patch('yoyo.internalmigrations.upgrade'):
-            backend = MockPGBackend('', '')
+        with patch("yoyo.internalmigrations.upgrade"):
+            backend = MockPGBackend("", "")
             backend.rollback()
-            assert backend.connection.cursor().execute.call_args == \
-                call('SET search_path TO foo')
+            assert backend.connection.cursor().execute.call_args == call(
+                "SET search_path TO foo"
+            )
 
     def test_postgresql_connects_with_schema(self):
-        dburi = next(iter(get_test_dburis(only={'postgresql'})), None)
+        dburi = next(iter(get_test_dburis(only={"postgresql"})), None)
         if dburi is None:
             pytest.skip("PostgreSQL backend not available")
         backend = get_backend(dburi)
         with backend.transaction():
             backend.execute("CREATE SCHEMA foo")
         try:
-            assert get_backend(dburi + '?schema=foo')\
-                .execute("SHOW search_path").fetchone() == ('foo',)
+            assert get_backend(dburi + "?schema=foo").execute(
+                "SHOW search_path"
+            ).fetchone() == ("foo",)
         finally:
             with backend.transaction():
                 backend.execute("DROP SCHEMA foo CASCADE")

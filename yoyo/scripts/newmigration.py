@@ -38,11 +38,12 @@ from .main import InvalidArgument
 
 from os import path, stat, unlink, rename
 
-logger = logging.getLogger('yoyo.migrations')
+logger = logging.getLogger("yoyo.migrations")
 
-tempfile_prefix = '_tmp_yoyonew'
+tempfile_prefix = "_tmp_yoyonew"
 
-migration_template = dedent('''\
+migration_template = dedent(
+    '''\
     """
     {message}
     """
@@ -54,28 +55,33 @@ migration_template = dedent('''\
     steps = [
         step("")
     ]
-    ''')
+    '''
+)
 
 
 def install_argparsers(global_parser, subparsers):
-    parser_new = subparsers.add_parser('new',
-                                       parents=[global_parser],
-                                       help="Create a new migration")
+    parser_new = subparsers.add_parser(
+        "new", parents=[global_parser], help="Create a new migration"
+    )
     parser_new.set_defaults(func=new_migration)
-    parser_new.add_argument('--message', '-m', help='Message', default='')
-    parser_new.add_argument("--migration-table", dest="migration_table",
-                            action="store",
-                            default=default_migration_table,
-                            help="Name of table to use for storing "
-                            "migration metadata")
-    parser_new.add_argument('sources',
-                            nargs="*",
-                            help="Source directory of migration scripts")
-    parser_new.add_argument("-d",
-                            "--database",
-                            default=None,
-                            help="Database, eg 'sqlite:///path/to/sqlite.db' "
-                            "or 'postgresql://user@host/db'")
+    parser_new.add_argument("--message", "-m", help="Message", default="")
+    parser_new.add_argument(
+        "--migration-table",
+        dest="migration_table",
+        action="store",
+        default=default_migration_table,
+        help="Name of table to use for storing " "migration metadata",
+    )
+    parser_new.add_argument(
+        "sources", nargs="*", help="Source directory of migration scripts"
+    )
+    parser_new.add_argument(
+        "-d",
+        "--database",
+        default=None,
+        help="Database, eg 'sqlite:///path/to/sqlite.db' "
+        "or 'postgresql://user@host/db'",
+    )
 
 
 def new_migration(args, config):
@@ -90,11 +96,12 @@ def new_migration(args, config):
     depends = sorted(heads(migrations), key=lambda m: m.id)
     migration_source = migration_template.format(
         message=message,
-        depends=', '.join('{!r}'.format(m.id) for m in depends))
+        depends=", ".join("{!r}".format(m.id) for m in depends),
+    )
 
     if args.batch_mode:
         p = make_filename(config, directory, message)
-        with io.open(p, 'w', encoding='UTF-8') as f:
+        with io.open(p, "w", encoding="UTF-8") as f:
             f.write(migration_source)
     else:
         p = create_with_editor(config, directory, migration_source)
@@ -102,10 +109,9 @@ def new_migration(args, config):
             return
 
     try:
-        command = config.get('DEFAULT',
-                             CONFIG_NEW_MIGRATION_COMMAND_KEY)
+        command = config.get("DEFAULT", CONFIG_NEW_MIGRATION_COMMAND_KEY)
         command = [part.format(p) for part in shlex.split(command)]
-        logger.info("Running command: %s", ' '.join(command))
+        logger.info("Running command: %s", " ".join(command))
         subprocess.call(command)
     except configparser.NoOptionError:
         pass
@@ -115,32 +121,32 @@ def new_migration(args, config):
 
 def slugify(message):
     s = unidecode(message)
-    s = re.sub(re.compile(r'[^-a-z0-9]+'), '-', s.lower())
-    s = re.compile(r'-{2,}').sub('-', s).strip('-')
+    s = re.sub(re.compile(r"[^-a-z0-9]+"), "-", s.lower())
+    s = re.compile(r"-{2,}").sub("-", s).strip("-")
     return s
 
 
 def make_filename(config, directory, message):
-    lines = (l.strip() for l in message.split('\n'))
+    lines = (l.strip() for l in message.split("\n"))
     lines = (l for l in lines if l)
     message = next(lines, None)
 
     if message:
-        slug = '-' + slugify(message)
+        slug = "-" + slugify(message)
     else:
-        slug = ''
+        slug = ""
 
-    datestr = date.today().strftime('%Y%m%d')
-    number = '01'
+    datestr = date.today().strftime("%Y%m%d")
+    number = "01"
     rand = utils.get_random_string(5)
 
     try:
-        prefix = config.get('DEFAULT', 'prefix')
+        prefix = config.get("DEFAULT", "prefix")
     except configparser.NoOptionError:
-        prefix = ''
+        prefix = ""
 
-    for p in glob.glob(path.join(directory, '{}{}_*'.format(prefix, datestr))):
-        n = path.basename(p)[len(prefix) + len(datestr) + 1:].split('_')[0]
+    for p in glob.glob(path.join(directory, "{}{}_*".format(prefix, datestr))):
+        n = path.basename(p)[len(prefix) + len(datestr) + 1 :].split("_")[0]
 
         try:
             if number <= n:
@@ -148,18 +154,19 @@ def make_filename(config, directory, message):
         except ValueError:
             continue
 
-    return path.join(directory, '{}{}_{}_{}{}.py'.format(
-        prefix, datestr, number, rand, slug))
+    return path.join(
+        directory,
+        "{}{}_{}_{}{}.py".format(prefix, datestr, number, rand, slug),
+    )
 
 
 def create_with_editor(config, directory, migration_source):
     editor = utils.get_editor(config)
-    tmpfile = NamedTemporaryFile(dir=directory,
-                                 prefix=tempfile_prefix,
-                                 suffix='.py',
-                                 delete=False)
+    tmpfile = NamedTemporaryFile(
+        dir=directory, prefix=tempfile_prefix, suffix=".py", delete=False
+    )
     try:
-        with io.open(tmpfile.name, 'w', encoding='UTF-8') as f:
+        with io.open(tmpfile.name, "w", encoding="UTF-8") as f:
             f.write(migration_source)
 
         editor = [part.format(tmpfile.name) for part in shlex.split(editor)]
@@ -184,18 +191,18 @@ def create_with_editor(config, directory, migration_source):
                 message = migration.ns['__doc__']
                 break
             except Exception:
-                message = ''
+                message = ""
                 print("Error loading migration")
                 print(traceback.format_exc())
                 print()
                 r = utils.prompt("Retry editing?", "Ynq?")
-                if r == 'q':
+                if r == "q":
                     return None
-                elif r == 'y':
+                elif r == "y":
                     continue
-                elif r == 'n':
+                elif r == "n":
                     break
-                elif r == '?':
+                elif r == "?":
                     print("")
                     print("y: reopen the migration file in your editor")
                     print("n: save the migration as-is, without re-editing")

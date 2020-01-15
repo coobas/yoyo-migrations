@@ -46,6 +46,7 @@ try:
             termios.tcsetattr(fd, termios.TCSANOW, saved_attributes)
         return a
 
+
 except ImportError:
     try:
         from msvcrt import getwch as getch
@@ -65,8 +66,10 @@ def prompt(prompt, options):
         sys.stdout.flush()
         ch = getch()
         if ch == os.linesep:
-            ch = ([o.lower() for o in options if 'A' <= o <= 'Z']
-                  + list(options.lower()))[0]
+            ch = (
+                [o.lower() for o in options if "A" <= o <= "Z"]
+                + list(options.lower())
+            )[0]
         print(ch)
         if ch.lower() not in options.lower():
             print("Invalid response, please try again!")
@@ -77,14 +80,14 @@ def prompt(prompt, options):
 
 
 def confirm(s, default=None):
-    options = 'yn'
+    options = "yn"
     if default:
         default = default.lower()
-        if default == 'y':
-            options = 'Yn'
-        elif default == 'n':
-            options = 'yN'
-    return prompt(s, options) == 'y'
+        if default == "y":
+            options = "Yn"
+        elif default == "n":
+            options = "yN"
+    return prompt(s, options) == "y"
 
 
 def plural(quantity, one, plural):
@@ -95,8 +98,8 @@ def plural(quantity, one, plural):
     '2 dead frogs'
     """
     if quantity == 1:
-        return one.replace('%d', '%d' % quantity)
-    return plural.replace('%d', '%d' % quantity)
+        return one.replace("%d", "%d" % quantity)
+    return plural.replace("%d", "%d" % quantity)
 
 
 def get_editor(config):
@@ -104,14 +107,14 @@ def get_editor(config):
     Return the user's preferred visual editor
     """
     try:
-        return config.get('DEFAULT', CONFIG_EDITOR_KEY)
+        return config.get("DEFAULT", CONFIG_EDITOR_KEY)
     except configparser.NoOptionError:
         pass
-    for key in ['VISUAL', 'EDITOR']:
+    for key in ["VISUAL", "EDITOR"]:
         editor = os.environ.get(key, None)
         if editor:
             return editor
-    return 'vi'
+    return "vi"
 
 
 def get_random_string(length, chars=(string.ascii_letters + string.digits)):
@@ -119,7 +122,7 @@ def get_random_string(length, chars=(string.ascii_letters + string.digits)):
     Return a random string of ``length`` characters
     """
     rng = random.SystemRandom()
-    return ''.join(rng.choice(chars) for i in range(length))
+    return "".join(rng.choice(chars) for i in range(length))
 
 
 def change_param_style(target_style, sql, bind_parameters):
@@ -132,29 +135,30 @@ def change_param_style(target_style, sql, bind_parameters):
              the target paramstyle; ``bind_parameters`` will be a tuple or
              dict as required.
     """
-    if target_style == 'named':
+    if target_style == "named":
         return sql, bind_parameters
-    positional = target_style in {'qmark', 'numeric', 'format'}
+    positional = target_style in {"qmark", "numeric", "format"}
     if not bind_parameters:
         return (sql, (tuple() if positional else {}))
 
     param_gen = {
-        'qmark': lambda name: '?',
-        'numeric': lambda name, c=count(1): ':{}'.format(next(c)),
-        'format': lambda name: '%s',
-        'pyformat': lambda name: '%({})s'.format(name)
+        "qmark": lambda name: "?",
+        "numeric": lambda name, c=count(1): ":{}".format(next(c)),
+        "format": lambda name: "%s",
+        "pyformat": lambda name: "%({})s".format(name),
     }[target_style]
 
     pattern = re.compile(
         # Don't match if preceded by backslash (an escape)
         # or ':' (an SQL cast, eg '::INT')
-        r'(?<![:\\])'
-
+        r"(?<![:\\])"
         # one of the given bind_parameters
-        r':(' + '|'.join(re.escape(k) for k in bind_parameters) + r')'
-
+        r":("
+        + "|".join(re.escape(k) for k in bind_parameters)
+        + r")"
         # followed by a non-word char, or end of string
-        r'(?=\W|$)')
+        r"(?=\W|$)"
+    )
 
     transformed_sql = pattern.sub(lambda match: param_gen(match.group(1)), sql)
     if positional:

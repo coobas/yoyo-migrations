@@ -17,54 +17,56 @@ from __future__ import absolute_import
 from collections import namedtuple
 
 from .migrations import default_migration_table
-from .backends import (PostgresqlBackend,
-                       SQLiteBackend,
-                       ODBCBackend,
-                       OracleBackend,
-                       MySQLBackend,
-                       MySQLdbBackend)
-from .compat import urlsplit, urlunsplit, parse_qsl, urlencode, quote, unquote
+from .backends import PostgresqlBackend
+from .backends import SQLiteBackend
+from .backends import ODBCBackend
+from .backends import OracleBackend
+from .backends import MySQLBackend
+from .backends import MySQLdbBackend
+from .compat import parse_qsl
+from .compat import quote
+from .compat import unquote
+from .compat import urlencode
+from .compat import urlsplit
+from .compat import urlunsplit
 
 BACKENDS = {
-    'odbc': ODBCBackend,
-    'oracle': OracleBackend,
-    'postgresql': PostgresqlBackend,
-    'postgres': PostgresqlBackend,
-    'psql': PostgresqlBackend,
-    'mysql': MySQLBackend,
-    'mysql+mysqldb': MySQLdbBackend,
-    'sqlite': SQLiteBackend,
+    "odbc": ODBCBackend,
+    "oracle": OracleBackend,
+    "postgresql": PostgresqlBackend,
+    "postgres": PostgresqlBackend,
+    "psql": PostgresqlBackend,
+    "mysql": MySQLBackend,
+    "mysql+mysqldb": MySQLdbBackend,
+    "sqlite": SQLiteBackend,
 }
 
 
-_DatabaseURI = namedtuple('_DatabaseURI',
-                          'scheme username password hostname port database '
-                          'args')
+_DatabaseURI = namedtuple(
+    "_DatabaseURI", "scheme username password hostname port database " "args"
+)
 
 
 class DatabaseURI(_DatabaseURI):
-
     @property
     def netloc(self):
-        hostname = self.hostname or ''
+        hostname = self.hostname or ""
         if self.port:
-            hostpart = '{}:{}'.format(hostname, self.port)
+            hostpart = "{}:{}".format(hostname, self.port)
         else:
             hostpart = hostname
 
         if self.username:
-            return '{}:{}@{}'.format(quote(self.username),
-                                     quote(self.password or ''),
-                                     hostpart)
+            return "{}:{}@{}".format(
+                quote(self.username), quote(self.password or ""), hostpart
+            )
         else:
             return hostpart
 
     def __str__(self):
-        return urlunsplit((self.scheme,
-                           self.netloc,
-                           self.database,
-                           urlencode(self.args),
-                           ''))
+        return urlunsplit(
+            (self.scheme, self.netloc, self.database, urlencode(self.args), "")
+        )
 
     @property
     def uri(self):
@@ -87,8 +89,9 @@ def get_backend(uri, migration_table=default_migration_table):
     try:
         backend_class = BACKENDS[parsed.scheme.lower()]
     except KeyError:
-        raise BadConnectionURI('Unrecognised database connection scheme %r' %
-                               parsed.scheme)
+        raise BadConnectionURI(
+            "Unrecognised database connection scheme %r" % parsed.scheme
+        )
     return backend_class(parsed, migration_table)
 
 
@@ -108,14 +111,16 @@ def parse_uri(s):
     if not result.scheme:
         raise BadConnectionURI("No scheme specified in connection URI %r" % s)
 
-    return DatabaseURI(scheme=result.scheme,
-                       username=(unquote(result.username)
-                                 if result.username is not None
-                                 else None),
-                       password=(unquote(result.password)
-                                 if result.password is not None
-                                 else None),
-                       hostname=result.hostname,
-                       port=result.port,
-                       database=result.path[1:] if result.path else None,
-                       args=dict(parse_qsl(result.query)))
+    return DatabaseURI(
+        scheme=result.scheme,
+        username=(
+            unquote(result.username) if result.username is not None else None
+        ),
+        password=(
+            unquote(result.password) if result.password is not None else None
+        ),
+        hostname=result.hostname,
+        port=result.port,
+        database=result.path[1:] if result.path else None,
+        args=dict(parse_qsl(result.query)),
+    )

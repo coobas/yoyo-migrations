@@ -15,14 +15,21 @@
 import codecs
 import locale
 import sys
+
 try:
     import configparser
 except ImportError:
     import ConfigParser as configparser  # noqa
 
 try:
-    from urllib.parse import (urlsplit, urlunsplit, urlencode, parse_qsl,
-                              quote, unquote)
+    from urllib.parse import (
+        urlsplit,
+        urlunsplit,
+        urlencode,
+        parse_qsl,
+        quote,
+        unquote,
+    )
 except ImportError:
     from urlparse import urlsplit, urlunsplit, parse_qsl  # noqa
     from urllib import urlencode, quote, unquote  # noqa
@@ -36,21 +43,22 @@ else:
     ustr = str
 
 if PY2:
-    exec('def reraise(tp, value, tb):\n raise tp, value, tb')
+    exec("def reraise(tp, value, tb):\n raise tp, value, tb")
 else:
+
     def reraise(tp, value, tb):
         raise value.with_traceback(tb)
 
 
 if PY2:
-    exec('def exec_(code, globals_):\n '
-         'exec code in globals_')
+    exec("def exec_(code, globals_):\n " "exec code in globals_")
 else:
+
     def exec_(code, globals_):
         exec(code, globals_)
 
 
-if PY2 and hasattr(sys.stdout, 'isatty'):
+if PY2 and hasattr(sys.stdout, "isatty"):
     # In python2 sys.stdout is a byte stream.
     # Convert it to a unicode stream using the environment's preferred encoding
     if sys.stdout.isatty():

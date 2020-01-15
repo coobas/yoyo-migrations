@@ -24,15 +24,19 @@ from yoyo.connections import get_backend
 
 dburi = "sqlite:///:memory:"
 
-config_file = os.path.join(os.path.dirname(__file__),
-                           *('../../test_databases.ini'.split('/')))
+config_file = os.path.join(
+    os.path.dirname(__file__), *("../../test_databases.ini".split("/"))
+)
 config = get_configparser()
 config.read([config_file])
 
 
 def get_test_dburis(only=frozenset(), exclude=frozenset()):
-    return [dburi for name, dburi in config.items('DEFAULT')
-            if (only and name in only) or (not only and name not in exclude)]
+    return [
+        dburi
+        for name, dburi in config.items("DEFAULT")
+        if (only and name in only) or (not only and name not in exclude)
+    ]
 
 
 def get_test_backends(only=frozenset(), exclude=frozenset()):
@@ -53,19 +57,21 @@ class MigrationsContextManager(object):
     decorated function with the directory name as the first argument, and
     cleans up the temporary directory on exit.
     """
+
     def __init__(self, *migrations, **kwmigrations):
         self.migrations = migrations
         self.kwmigrations = kwmigrations
 
     def add_migration(self, id, code):
-        filename = os.path.join(self.tmpdir, '{!s}.py'.format(id))
-        with open(filename, 'w') as f:
+        filename = os.path.join(self.tmpdir, "{!s}.py".format(id))
+        with open(filename, "w") as f:
             f.write(dedent(code).strip())
 
     def __enter__(self):
         tmpdir = self.tmpdir = mkdtemp()
-        for id, code in chain(enumerate(self.migrations),
-                              self.kwmigrations.items()):
+        for id, code in chain(
+            enumerate(self.migrations), self.kwmigrations.items()
+        ):
             self.add_migration(id, code)
         return tmpdir
 
@@ -76,6 +82,7 @@ class MigrationsContextManager(object):
         def decorator(*args, **kwargs):
             with self:
                 return func(*(args + (self.tmpdir,)), **kwargs)
+
         return decorator
 
 

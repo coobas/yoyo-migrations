@@ -30,7 +30,7 @@ from . import internalmigrations
 from . import utils
 from .migrations import topological_sort
 
-logger = getLogger('yoyo.migrations')
+logger = getLogger("yoyo.migrations")
 
 
 class TransactionManager(object):
@@ -93,7 +93,7 @@ class SavepointTransactionManager(TransactionManager):
 
     def _do_begin(self):
         assert self.id is None
-        self.id = 'sp_{}'.format(next(self.id_generator))
+        self.id = "sp_{}".format(next(self.id_generator))
         self.backend.savepoint(self.id)
 
     def _do_commit(self):
@@ -114,34 +114,45 @@ class DatabaseBackend(object):
     driver_module = None
     connection = None
 
-    log_table = '_yoyo_log'
-    lock_table = 'yoyo_lock'
+    log_table = "_yoyo_log"
+    lock_table = "yoyo_lock"
     list_tables_sql = "SELECT table_name FROM information_schema.tables"
-    version_table = '_yoyo_version'
-    migration_table = '_yoyo_migrations'
+    version_table = "_yoyo_version"
+    migration_table = "_yoyo_migrations"
     is_applied_sql = """
         SELECT COUNT(1) FROM {0.migration_table_quoted}
         WHERE id=:id"""
-    mark_migration_sql = ("INSERT INTO {0.migration_table_quoted} "
-                          "(migration_hash, migration_id, applied_at_utc) "
-                          "VALUES (:migration_hash, :migration_id, :when)")
-    unmark_migration_sql = ("DELETE FROM {0.migration_table_quoted} WHERE "
-                            "migration_hash = :migration_hash")
-    applied_migrations_sql = ("SELECT migration_hash FROM "
-                              "{0.migration_table_quoted} "
-                              "ORDER by applied_at_utc")
-    create_test_table_sql = ("CREATE TABLE {table_name_quoted} "
-                             "(id INT PRIMARY KEY)")
-    log_migration_sql = ("INSERT INTO {0.log_table_quoted} "
-                         "(id, migration_hash, migration_id, operation, "
-                         "username, hostname, created_at_utc) "
-                         "VALUES (:id, :migration_hash, :migration_id, "
-                         ":operation, :username, :hostname, :created_at_utc)")
-    create_lock_table_sql = ("CREATE TABLE {0.lock_table_quoted} ("
-                             "locked INT DEFAULT 1, "
-                             "ctime TIMESTAMP,"
-                             "pid INT NOT NULL,"
-                             "PRIMARY KEY (locked))")
+    mark_migration_sql = (
+        "INSERT INTO {0.migration_table_quoted} "
+        "(migration_hash, migration_id, applied_at_utc) "
+        "VALUES (:migration_hash, :migration_id, :when)"
+    )
+    unmark_migration_sql = (
+        "DELETE FROM {0.migration_table_quoted} WHERE "
+        "migration_hash = :migration_hash"
+    )
+    applied_migrations_sql = (
+        "SELECT migration_hash FROM "
+        "{0.migration_table_quoted} "
+        "ORDER by applied_at_utc"
+    )
+    create_test_table_sql = (
+        "CREATE TABLE {table_name_quoted} " "(id INT PRIMARY KEY)"
+    )
+    log_migration_sql = (
+        "INSERT INTO {0.log_table_quoted} "
+        "(id, migration_hash, migration_id, operation, "
+        "username, hostname, created_at_utc) "
+        "VALUES (:id, :migration_hash, :migration_id, "
+        ":operation, :username, :hostname, :created_at_utc)"
+    )
+    create_lock_table_sql = (
+        "CREATE TABLE {0.lock_table_quoted} ("
+        "locked INT DEFAULT 1, "
+        "ctime TIMESTAMP,"
+        "pid INT NOT NULL,"
+        "PRIMARY KEY (locked))"
+    )
 
     _driver = None
     _is_locked = False
@@ -183,8 +194,8 @@ class DatabaseBackend(object):
         """
 
     def __getattr__(self, attrname):
-        if attrname.endswith('_quoted'):
-            unquoted = getattr(self, attrname.rsplit('_quoted')[0])
+        if attrname.endswith("_quoted"):
+            unquoted = getattr(self, attrname.rsplit("_quoted")[0])
             return self.quote_identifier(unquoted)
         raise AttributeError(attrname)
 
@@ -196,10 +207,11 @@ class DatabaseBackend(object):
         Return True if the database supports committing/rolling back
         DDL statements within a transaction
         """
-        table_name = 'yoyo_tmp_{}'.format(utils.get_random_string(10))
+        table_name = "yoyo_tmp_{}".format(utils.get_random_string(10))
         table_name_quoted = self.quote_identifier(table_name)
         sql = self.create_test_table_sql.format(
-            table_name_quoted=table_name_quoted)
+            table_name_quoted=table_name_quoted
+        )
         with self.transaction() as t:
             self.execute(sql)
             t.rollback()
@@ -216,8 +228,10 @@ class DatabaseBackend(object):
         This is used by the test suite to clean up tables
         generated during testing
         """
-        cursor = self.execute(self.list_tables_sql,
-                              dict({'database': self.uri.database}, **kwargs))
+        cursor = self.execute(
+            self.list_tables_sql,
+            dict({"database": self.uri.database}, **kwargs),
+        )
         return [row[0] for row in cursor.fetchall()]
 
     def transaction(self):
@@ -299,37 +313,45 @@ class DatabaseBackend(object):
         while True:
             try:
                 with self.transaction():
-                    self.execute("INSERT INTO {} (locked, ctime, pid) "
-                                 "VALUES (1, :when, :pid)".format(self.lock_table_quoted),
-                                 {'when': datetime.utcnow(),
-                                  'pid': pid})
+                    self.execute(
+                        "INSERT INTO {} (locked, ctime, pid) "
+                        "VALUES (1, :when, :pid)".format(
+                            self.lock_table_quoted
+                        ),
+                        {"when": datetime.utcnow(), "pid": pid},
+                    )
             except self.DatabaseError:
                 if timeout and time.time() > started + timeout:
-                    cursor = self.execute("SELECT pid FROM {}"
-                                          .format(self.lock_table_quoted))
+                    cursor = self.execute(
+                        "SELECT pid FROM {}".format(self.lock_table_quoted)
+                    )
                     row = cursor.fetchone()
                     if row:
                         raise exceptions.LockTimeout(
                             "Process {} has locked this database "
-                            "(run yoyo break-lock to remove this lock)"
-                            .format(row[0]))
+                            "(run yoyo break-lock to remove this lock)".format(
+                                row[0]
+                            )
+                        )
                     else:
                         raise exceptions.LockTimeout(
                             "Database locked "
-                            "(run yoyo break-lock to remove this lock)")
+                            "(run yoyo break-lock to remove this lock)"
+                        )
                 time.sleep(poll_interval)
             else:
                 return
 
     def _delete_lock_row(self, pid):
         with self.transaction():
-            self.execute("DELETE FROM {} WHERE pid=:pid"
-                         .format(self.lock_table_quoted),
-                         {'pid': pid})
+            self.execute(
+                "DELETE FROM {} WHERE pid=:pid".format(self.lock_table_quoted),
+                {"pid": pid},
+            )
 
     def break_lock(self):
         with self.transaction():
-            self.execute("DELETE FROM {}" .format(self.lock_table_quoted))
+            self.execute("DELETE FROM {}".format(self.lock_table_quoted))
 
     def execute(self, sql, params=None):
         """
@@ -345,7 +367,8 @@ class DatabaseBackend(object):
 
         cursor = self.cursor()
         sql, params = utils.change_param_style(
-            self.driver.paramstyle, sql, params)
+            self.driver.paramstyle, sql, params
+        )
         cursor.execute(sql, params)
         return cursor
 
@@ -390,8 +413,9 @@ class DatabaseBackend(object):
         """
         applied = self.get_applied_migration_hashes()
         ms = (m for m in migrations if m.hash not in applied)
-        return migrations.__class__(topological_sort(ms),
-                                    migrations.post_apply)
+        return migrations.__class__(
+            topological_sort(ms), migrations.post_apply
+        )
 
     def to_rollback(self, migrations):
         """
@@ -402,8 +426,9 @@ class DatabaseBackend(object):
         """
         applied = self.get_applied_migration_hashes()
         ms = (m for m in migrations if m.hash in applied)
-        return migrations.__class__(reversed(topological_sort(ms)),
-                                    migrations.post_apply)
+        return migrations.__class__(
+            reversed(topological_sort(ms)), migrations.post_apply
+        )
 
     def apply_migrations(self, migrations, force=False):
         if migrations:
@@ -464,8 +489,8 @@ class DatabaseBackend(object):
         """
         logger.info("Applying %s", migration.id)
         self.ensure_internal_schema_updated()
-        migration.process_steps(self, 'apply', force=force)
-        self.log_migration(migration, 'apply')
+        migration.process_steps(self, "apply", force=force)
+        self.log_migration(migration, "apply")
         if mark:
             with self.transaction():
                 self.mark_one(migration, log=False)
@@ -476,67 +501,74 @@ class DatabaseBackend(object):
         """
         logger.info("Rolling back %s", migration.id)
         self.ensure_internal_schema_updated()
-        migration.process_steps(self, 'rollback', force=force)
-        self.log_migration(migration, 'rollback')
+        migration.process_steps(self, "rollback", force=force)
+        self.log_migration(migration, "rollback")
         with self.transaction():
             self.unmark_one(migration, log=False)
 
     def unmark_one(self, migration, log=True):
         self.ensure_internal_schema_updated()
         sql = self.unmark_migration_sql.format(self)
-        self.execute(sql, {'migration_hash': migration.hash})
+        self.execute(sql, {"migration_hash": migration.hash})
         if log:
-            self.log_migration(migration, 'unmark')
+            self.log_migration(migration, "unmark")
 
     def mark_one(self, migration, log=True):
         self.ensure_internal_schema_updated()
         logger.info("Marking %s applied", migration.id)
         sql = self.mark_migration_sql.format(self)
-        self.execute(sql, {'migration_hash': migration.hash,
-                           'migration_id': migration.id,
-                           'when': datetime.utcnow()})
+        self.execute(
+            sql,
+            {
+                "migration_hash": migration.hash,
+                "migration_id": migration.id,
+                "when": datetime.utcnow(),
+            },
+        )
         if log:
-            self.log_migration(migration, 'mark')
+            self.log_migration(migration, "mark")
 
     def log_migration(self, migration, operation, comment=None):
         sql = self.log_migration_sql.format(self)
         self.execute(sql, self.get_log_data(migration, operation, comment))
 
-    def get_log_data(self, migration=None, operation='apply', comment=None):
+    def get_log_data(self, migration=None, operation="apply", comment=None):
         """
         Return a dict of data for insertion into the ``_yoyo_log`` table
         """
-        assert operation in {'apply', 'rollback', 'mark', 'unmark'}
+        assert operation in {"apply", "rollback", "mark", "unmark"}
         return {
-            'id': str(uuid.uuid1()),
-            'migration_id': migration.id if migration else None,
-            'migration_hash': migration.hash if migration else None,
-            'username': getpass.getuser(),
-            'hostname': socket.getfqdn(),
-            'created_at_utc': datetime.utcnow(),
-            'operation': operation,
-            'comment': comment,
+            "id": str(uuid.uuid1()),
+            "migration_id": migration.id if migration else None,
+            "migration_hash": migration.hash if migration else None,
+            "username": getpass.getuser(),
+            "hostname": socket.getfqdn(),
+            "created_at_utc": datetime.utcnow(),
+            "operation": operation,
+            "comment": comment,
         }
 
 
 class ODBCBackend(DatabaseBackend):
-    driver_module = 'pyodbc'
+    driver_module = "pyodbc"
 
     def connect(self, dburi):
-        args = [('UID', dburi.username),
-                ('PWD', dburi.password),
-                ('ServerName', dburi.hostname),
-                ('Port', dburi.port),
-                ('Database', dburi.database)]
+        args = [
+            ("UID", dburi.username),
+            ("PWD", dburi.password),
+            ("ServerName", dburi.hostname),
+            ("Port", dburi.port),
+            ("Database", dburi.database),
+        ]
         args.extend(dburi.args.items())
-        s = ';'.join('{}={}'.format(k, v) for k, v in args if v is not None)
+        s = ";".join("{}={}".format(k, v) for k, v in args if v is not None)
         return self.driver.connect(s)
 
 
 class OracleBackend(DatabaseBackend):
 
-    driver_module = 'cx_Oracle'
-    list_tables_sql = 'SELECT table_name FROM all_tables WHERE owner=user'
+    driver_module = "cx_Oracle"
+    list_tables_sql = "SELECT table_name FROM all_tables WHERE owner=user"
 
     def begin(self):
         """Oracle is always in a transaction, and has no "BEGIN" statement."""
@@ -545,89 +577,94 @@ class OracleBackend(DatabaseBackend):
     def connect(self, dburi):
         kwargs = dburi.args
         if dburi.username is not None:
-            kwargs['user'] = dburi.username
+            kwargs["user"] = dburi.username
         if dburi.password is not None:
-            kwargs['password'] = dburi.password
+            kwargs["password"] = dburi.password
         # Oracle combines the hostname, port and database into a single DSN.
         # The DSN can also be a "net service name"
-        kwargs['dsn'] = ''
+        kwargs["dsn"] = ""
         if dburi.hostname is not None:
-            kwargs['dsn'] = dburi.hostname
+            kwargs["dsn"] = dburi.hostname
         if dburi.port is not None:
-            kwargs['dsn'] += ':{0}'.format(dburi.port)
+            kwargs["dsn"] += ":{0}".format(dburi.port)
         if dburi.database is not None:
-            if kwargs['dsn']:
-                kwargs['dsn'] += '/{0}'.format(dburi.database)
+            if kwargs["dsn"]:
+                kwargs["dsn"] += "/{0}".format(dburi.database)
             else:
-                kwargs['dsn'] = dburi.database
+                kwargs["dsn"] = dburi.database
 
         return self.driver.connect(**kwargs)
 
 
 class MySQLBackend(DatabaseBackend):
 
-    driver_module = 'pymysql'
-    list_tables_sql = ("SELECT table_name FROM information_schema.tables "
-                       "WHERE table_schema = :database")
+    driver_module = "pymysql"
+    list_tables_sql = (
+        "SELECT table_name FROM information_schema.tables "
+        "WHERE table_schema = :database"
+    )
 
     def connect(self, dburi):
-        kwargs = {'db': dburi.database}
+        kwargs = {"db": dburi.database}
         kwargs.update(dburi.args)
         if dburi.username is not None:
-            kwargs['user'] = dburi.username
+            kwargs["user"] = dburi.username
         if dburi.password is not None:
-            kwargs['passwd'] = dburi.password
+            kwargs["passwd"] = dburi.password
         if dburi.hostname is not None:
-            kwargs['host'] = dburi.hostname
+            kwargs["host"] = dburi.hostname
         if dburi.port is not None:
-            kwargs['port'] = dburi.port
-        if 'unix_socket' in dburi.args:
-            kwargs['unix_socket'] = dburi.args['unix_socket']
-        kwargs['db'] = dburi.database
+            kwargs["port"] = dburi.port
+        if "unix_socket" in dburi.args:
+            kwargs["unix_socket"] = dburi.args["unix_socket"]
+        kwargs["db"] = dburi.database
         return self.driver.connect(**kwargs)
 
     def quote_identifier(self, identifier):
         sql_mode = self.execute("SHOW VARIABLES LIKE 'sql_mode'").fetchone()[1]
-        if 'ansi_quotes' in sql_mode.lower():
+        if "ansi_quotes" in sql_mode.lower():
             return super(MySQLBackend).quote_identifier(identifier)
         return "`{}`".format(identifier)
 
 
 class MySQLdbBackend(MySQLBackend):
-    driver_module = 'MySQLdb'
+    driver_module = "MySQLdb"
 
 
 class SQLiteBackend(DatabaseBackend):
 
-    driver_module = 'sqlite3'
+    driver_module = "sqlite3"
     list_tables_sql = "SELECT name FROM sqlite_master WHERE type = 'table'"
 
     def connect(self, dburi):
-        conn = self.driver.connect(dburi.database,
-                                   detect_types=self.driver.PARSE_DECLTYPES)
+        conn = self.driver.connect(
+            dburi.database, detect_types=self.driver.PARSE_DECLTYPES
+        )
         conn.isolation_level = None
         return conn
 
 
 class PostgresqlBackend(DatabaseBackend):
 
-    driver_module = 'psycopg2'
+    driver_module = "psycopg2"
     schema = None
-    list_tables_sql = ("SELECT table_name FROM information_schema.tables "
-                       "WHERE table_schema = :schema")
+    list_tables_sql = (
+        "SELECT table_name FROM information_schema.tables "
+        "WHERE table_schema = :schema"
+    )
 
     def connect(self, dburi):
-        kwargs = {'dbname': dburi.database}
+        kwargs = {"dbname": dburi.database}
         kwargs.update(dburi.args)
         if dburi.username is not None:
-            kwargs['user'] = dburi.username
+            kwargs["user"] = dburi.username
         if dburi.password is not None:
-            kwargs['password'] = dburi.password
+            kwargs["password"] = dburi.password
         if dburi.port is not None:
-            kwargs['port'] = dburi.port
+            kwargs["port"] = dburi.port
         if dburi.hostname is not None:
-            kwargs['host'] = dburi.hostname
-        self.schema = kwargs.pop('schema', None)
+            kwargs["host"] = dburi.hostname
+        self.schema = kwargs.pop("schema", None)
         return self.driver.connect(**kwargs)
 
     @contextmanager
@@ -645,7 +682,8 @@ class PostgresqlBackend(DatabaseBackend):
 
     def list_tables(self):
         return super(PostgresqlBackend, self).list_tables(
-            schema=(self.schema if self.schema else 'public'))
+            schema=(self.schema if self.schema else "public")
+        )
 
 
 def get_dbapi_module(name):
