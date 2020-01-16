@@ -1,3 +1,18 @@
+7.0.0
+-----
+
+* Add support for Python 3.8
+
+* Drop compatibility with Python 2.7 and Python 3.6
+
+* Allow migrations to be specified as ``.sql`` files
+
+* Load migrations as modules; this allows migration scripts to access the
+  ``__file__`` attribute.
+
+* Bugfix: the ``--all`` flag now works as expected with the ``rollback``
+  command
+
 6.1.0 (released 2019-02-13)
 ---------------------------
 
