@@ -20,8 +20,9 @@ from itertools import count
 import io
 import os
 import os.path
-import sys
 import re
+import sys
+import textwrap
 
 from mock import Mock, patch, call
 import frozendate
@@ -510,3 +511,29 @@ class TestNewMigration(TestInteractiveScript):
         main(["new", "-b", "-m", "bar", tmpdir, "--database", dburi])
         names = [n for n in sorted(os.listdir(tmpdir)) if n.endswith(".py")]
         assert re.match("foo_.*-bar", names[0]) is not None
+
+    @with_migrations(m1="")
+    def test_it_creates_sql_file(self, tmpdir):
+        main(
+            [
+                "new",
+                "-b",
+                "-m",
+                "comment",
+                "--sql",
+                tmpdir,
+                "--database",
+                dburi,
+            ]
+        )
+        name = next(
+            n for n in sorted(os.listdir(tmpdir)) if n.endswith(".sql")
+        )
+        with io.open(os.path.join(tmpdir, name), "r", encoding="utf-8") as f:
+            assert f.read() == textwrap.dedent(
+                """\
+                -- comment
+                -- depends: m1
+
+                """
+            )

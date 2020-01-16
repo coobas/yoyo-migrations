@@ -54,6 +54,13 @@ migration_template = dedent(
     ]
     '''
 )
+migration_sql_template = dedent(
+    """\
+    -- {message}
+    -- depends: {depends}
+
+    """
+)
 
 
 def install_argparsers(global_parser, subparsers):
@@ -62,6 +69,9 @@ def install_argparsers(global_parser, subparsers):
     )
     parser_new.set_defaults(func=new_migration)
     parser_new.add_argument("--message", "-m", help="Message", default="")
+    parser_new.add_argument(
+        "--sql", help="Create file in SQL format", action="store_true"
+    )
     parser_new.add_argument(
         "--migration-table",
         dest="migration_table",
@@ -91,17 +101,21 @@ def new_migration(args, config):
     message = args.message
     migrations = read_migrations(directory)
     depends = sorted(heads(migrations), key=lambda m: m.id)
-    migration_source = migration_template.format(
-        message=message,
-        depends=", ".join("{!r}".format(m.id) for m in depends),
-    )
+    if args.sql:
+        template = migration_sql_template
+        depends = "  ".join(m.id for m in depends)
+    else:
+        template = migration_template
+        depends = ", ".join("{!r}".format(m.id) for m in depends)
+    migration_source = template.format(message=message, depends=depends)
 
+    extension = ".sql" if args.sql else ".py"
     if args.batch_mode:
-        p = make_filename(config, directory, message)
+        p = make_filename(config, directory, message, extension)
         with io.open(p, "w", encoding="UTF-8") as f:
             f.write(migration_source)
     else:
-        p = create_with_editor(config, directory, migration_source)
+        p = create_with_editor(config, directory, migration_source, extension)
         if p is None:
             return
 
@@ -123,7 +137,7 @@ def slugify(message):
     return s
 
 
-def make_filename(config, directory, message):
+def make_filename(config, directory, message, extension):
     lines = (l.strip() for l in message.split("\n"))
     lines = (l for l in lines if l)
     message = next(lines, None)
@@ -152,12 +166,11 @@ def make_filename(config, directory, message):
             continue
 
     return path.join(
-        directory,
-        "{}{}_{}_{}{}.py".format(prefix, datestr, number, rand, slug),
+        directory, f"{prefix}{datestr}_{number}_{rand}{slug}{extension}"
     )
 
 
-def create_with_editor(config, directory, migration_source):
+def create_with_editor(config, directory, migration_source, extension):
     editor = utils.get_editor(config)
     tmpfile = NamedTemporaryFile(
         dir=directory, prefix=tempfile_prefix, suffix=".py", delete=False
@@ -210,7 +223,7 @@ def create_with_editor(config, directory, migration_source):
 
         sys.path = sys.path[1:]
 
-        filename = make_filename(config, directory, message)
+        filename = make_filename(config, directory, message, extension)
         rename(tmpfile.name, filename)
         return filename
     finally:
