@@ -161,6 +161,33 @@ their only argument:
 
     step(do_step)
 
+
+SQL migration files
+-------------------
+
+Migrations can also be specified as SQL files, eg:
+
+.. code:: sql
+
+    --
+    -- file: migrations/0001.create-foo.sql
+    --
+    CREATE TABLE foo (
+        id INT,
+        bar TEXT,
+        PRIMARY KEY (id)
+    );
+
+Rollback code can be added in a file with the same base name as your migration, but with the extension ``.rollback.sql``::
+
+.. code:: sql
+
+    --
+    -- file: migrations/0001.create-foo.rollback.sql
+    --
+    DROP TABLE foo;
+
+
 Post-apply hook
 ---------------
 
