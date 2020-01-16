@@ -134,6 +134,7 @@ def read_sql_migration(
                     statements[0]
                 )
                 statements[0] = sql
+    statements = [s for s in statements if s.strip()]
     return directives, leading_comment, statements
 
 
