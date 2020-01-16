@@ -20,17 +20,25 @@ from collections.abc import Iterable
 from collections.abc import MutableSequence
 from copy import copy
 from glob import glob
-from itertools import chain, count
+from itertools import chain
+from itertools import count
+from itertools import zip_longest
 from logging import getLogger
+from typing import Dict
+from typing import List
+from typing import Tuple
 import hashlib
 import importlib.util
 import os
 import re
 import sys
 import inspect
+import types
+import textwrap
 import weakref
 
 import pkg_resources
+import sqlparse
 
 from yoyo import exceptions
 from yoyo.utils import plural
@@ -49,7 +57,8 @@ def _is_migration_file(path):
     """
     from yoyo.scripts import newmigration
 
-    return path.endswith(".py") and not path.startswith(
+    _, extension = os.path.splitext(path)
+    return extension in {".py", ".sql"} and not path.startswith(
         newmigration.tempfile_prefix
     )
 
@@ -65,6 +74,67 @@ def get_migration_hash(migration_id):
     if migration_id is None:
         return None
     return hash_function(migration_id.encode("utf-8")).hexdigest()
+
+
+# eg: "-- depends: 1 2"
+DirectivesType = Dict[str, str]
+
+LeadingCommentType = str
+
+SqlType = str
+
+
+def parse_metadata_from_sql_comments(
+    s: str
+) -> Tuple[DirectivesType, LeadingCommentType, SqlType]:
+    directive_names = ["transactional", "depends"]
+    comment_or_empty = re.compile(r"^(\s*|\s*--.*)$").match
+    directive_pattern = re.compile(
+        rf"^\s*--\s*({'|'.join(map(re.escape, directive_names))})\s*:\s*(.*)$"
+    )
+
+    lineending = re.search(r"\n|\r\n|\r", s + "\n").group(0)
+    lines = iter(s.split(lineending))
+    directives = {}
+    leading_comments = []
+    sql = []
+    for line in lines:
+        match = directive_pattern.match(line)
+        if match:
+            k, v = match.groups()
+            if k in directives:
+                directives[k] += f" {v}"
+            else:
+                directives[k] = v
+        elif comment_or_empty(line):
+            decommented = line.strip().lstrip("--").strip()
+            leading_comments.append(decommented)
+        else:
+            sql.append(line)
+            break
+    sql.extend(lines)
+    return (
+        directives,
+        textwrap.dedent(lineending.join(leading_comments)),
+        lineending.join(sql),
+    )
+
+
+def read_sql_migration(
+    path: str
+) -> Tuple[DirectivesType, LeadingCommentType, List[str]]:
+    directives = {}
+    leading_comment = ""
+    statements = []
+    if os.path.exists(path):
+        with open(path, "r", encoding="UTF-8") as f:
+            statements = sqlparse.split(f.read())
+            if statements:
+                directives, leading_comment, sql = parse_metadata_from_sql_comments(
+                    statements[0]
+                )
+                statements[0] = sql
+    return directives, leading_comment, statements
 
 
 class Migration(object):
@@ -86,6 +156,9 @@ class Migration(object):
             self.__class__.__name__, self.id, self.path
         )
 
+    def is_raw_sql(self):
+        return self.path.endswith(".sql")
+
     @property
     def loaded(self):
         return self.steps is not None
@@ -99,21 +172,48 @@ class Migration(object):
         if self.loaded:
             return
 
-        spec = importlib.util.spec_from_file_location(self.path, self.path)
-        self.module = importlib.util.module_from_spec(spec)
         collector = _collectors[self.path] = StepCollector(migration=self)
-        try:
-            self.module.step = collector.add_step
-            self.module.group = collector.add_step_group
-            self.module.transaction = collector.add_step_group
-            self.module.collector = collector
-            spec.loader.exec_module(self.module)
+        if self.is_raw_sql():
+            self.module = types.ModuleType(self.path)
+        else:
+            spec = importlib.util.spec_from_file_location(self.path, self.path)
+            self.module = importlib.util.module_from_spec(spec)
 
-        except Exception as e:
-            logger.exception(
-                "Could not import migration from %r: %r", self.path, e
+        self.module.step = collector.add_step
+        self.module.group = collector.add_step_group
+        self.module.transaction = collector.add_step_group
+        self.module.collector = collector
+        if self.is_raw_sql():
+            directives, leading_comment, statements = read_sql_migration(
+                self.path
             )
-            raise exceptions.BadMigration(self.path, e)
+            _, _, rollback_statements = read_sql_migration(
+                os.path.splitext(self.path)[0] + ".rollback.sql"
+            )
+            rollback_statements.reverse()
+            statements_with_rollback = zip_longest(
+                statements, rollback_statements, fillvalue="--"
+            )
+
+            for s, r in statements_with_rollback:
+                self.module.collector.add_step(s, r)
+            self.module.__doc__ = leading_comment
+            self.module.__transactional__ = {"true": True, "false": False}[
+                directives.get("transactional", "true").lower()
+            ]
+            self.module.__depends__ = {
+                d for d in directives.get("depends", "").split() if d
+            }
+
+        else:
+            try:
+                spec.loader.exec_module(self.module)
+
+            except Exception as e:
+                logger.exception(
+                    "Could not import migration from %r: %r", self.path, e
+                )
+                raise exceptions.BadMigration(self.path, e)
         depends = getattr(self.module, "__depends__", [])
         if isinstance(depends, (str, bytes)):
             depends = [depends]
@@ -378,6 +478,8 @@ def read_migrations(*sources):
             ]
 
         for path in sorted(paths):
+            if path.endswith(".rollback.sql"):
+                continue
             filename = os.path.splitext(os.path.basename(path))[0]
 
             if filename.startswith("post-apply"):

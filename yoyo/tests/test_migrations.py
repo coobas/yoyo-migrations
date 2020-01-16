@@ -448,6 +448,65 @@ class TestReadMigrations(object):
             assert "2" in migration_ids
             assert "3" not in migration_ids
 
+    def test_it_loads_sql_migrations(self):
+        mdir = migrations_dir(
+            **{
+                "1.sql": "CREATE TABLE foo (id int)",
+                "1.rollback.sql": "DROP TABLE foo",
+            }
+        )
+        with mdir as tmp:
+            migrations = read_migrations(tmp)
+            assert [m.id for m in migrations] == ["1"]
+            m = migrations[0]
+            m.load()
+            assert m.steps[0].step._apply == "CREATE TABLE foo (id int)"
+            assert m.steps[0].step._rollback == "DROP TABLE foo"
+
+    def test_it_sets_transactional_for_sql_migrations(self):
+        def check(sql, expected):
+            with migrations_dir(**{"1.sql": sql}) as tmp:
+                migration = read_migrations(tmp)[0]
+                migration.load()
+                assert migration.use_transactions is expected
+                assert migration.steps[0].step._apply == "SELECT 1"
+
+        check("SELECT 1", True)
+        check("-- transactional: true\nSELECT 1", True)
+        check("-- transactional: false\nSELECT 1", False)
+        check("-- transactional: FALSE\nSELECT 1", False)
+        check("-- transactional: FALSE\r\nSELECT 1", False)
+        check("-- I like bananas!\n-- transactional: FALSE\nSELECT 1", False)
+
+    def test_it_sets_docstring_for_sql_migrations(self):
+        def check(sql, expected):
+            with migrations_dir(**{"1.sql": sql}) as tmp:
+                migration = read_migrations(tmp)[0]
+                migration.load()
+                assert migration.module.__doc__ == expected
+                assert migration.steps[0].step._apply == "SELECT 1"
+
+        check("SELECT 1", "")
+        check("-- foo\n-- transactional: true\n--bar\nSELECT 1", "foo\nbar")
+
+    def test_it_sets_depends_for_sql_migrations(self):
+        def check(sql, expected):
+            with migrations_dir(
+                **{"1.sql": "", "2.sql": "", "3.sql": sql}
+            ) as tmp:
+
+                migration = read_migrations(tmp)[-1]
+                migration.load()
+                assert {m.id for m in migration._depends} == expected
+                assert migration.steps[0].step._apply == "SELECT 1"
+
+        check("SELECT 1", set())
+        check("-- depends: 1\nSELECT 1", {"1"})
+        check("-- depends: 1 2\nSELECT 1", {"1", "2"})
+        check("-- depends: 2\n-- depends : 1\nSELECT 1", {"1", "2"})
+        with pytest.raises(exceptions.BadMigration):
+            check("-- depends: true\nSELECT 1", set())
+
 
 class TestPostApplyHooks(object):
     def test_post_apply_hooks_are_run_every_time(self):

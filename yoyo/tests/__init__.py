@@ -63,16 +63,21 @@ class MigrationsContextManager(object):
         self.kwmigrations = kwmigrations
 
     def add_migration(self, id, code):
-        filename = os.path.join(self.tmpdir, "{!s}.py".format(id))
-        with open(filename, "w") as f:
+        _, extension = os.path.splitext(id)
+        if extension in {".py", ".sql"}:
+            filename = id
+        else:
+            filename = id + ".py"
+        path = os.path.join(self.tmpdir, filename)
+        with open(path, "w", encoding="UTF-8") as f:
             f.write(dedent(code).strip())
 
     def __enter__(self):
         tmpdir = self.tmpdir = mkdtemp()
-        for id, code in chain(
+        for mig_id, code in chain(
             enumerate(self.migrations), self.kwmigrations.items()
         ):
-            self.add_migration(id, code)
+            self.add_migration(str(mig_id), code)
         return tmpdir
 
     def __exit__(self, *exc_info):
