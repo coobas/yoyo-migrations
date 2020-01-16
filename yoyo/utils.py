@@ -12,15 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import print_function
 from itertools import count
+import configparser
 import os
 import random
 import re
 import string
 import sys
 
-from yoyo.compat import configparser
 from yoyo.config import CONFIG_EDITOR_KEY
 
 try:

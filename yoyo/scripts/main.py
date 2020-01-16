@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import print_function
 from getpass import getpass
 import argparse
+import configparser
 import logging
 import os
 import sys
@@ -23,7 +23,6 @@ from yoyo import connections
 from yoyo import default_migration_table
 from yoyo import logger
 from yoyo import utils
-from yoyo.compat import configparser
 from yoyo.config import CONFIG_FILENAME
 from yoyo.config import find_config
 from yoyo.config import read_config

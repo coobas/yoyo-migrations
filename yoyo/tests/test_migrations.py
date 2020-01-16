@@ -231,7 +231,7 @@ def test_migrations_can_import_step_and_group(tmpdir):
 def test_migrations_display_selected_data(tmpdir):
     backend = get_backend(dburi)
     migrations = read_migrations(tmpdir)
-    with patch("yoyo.migrations.stdout") as stdout:
+    with patch("yoyo.migrations.sys.stdout") as stdout:
         backend.apply_migrations(migrations)
         written = "".join(a[0] for a, kw in stdout.write.call_args_list)
         assert written == (

@@ -12,9 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import absolute_import
-
 from collections import namedtuple
+from urllib.parse import parse_qsl
+from urllib.parse import quote
+from urllib.parse import unquote
+from urllib.parse import urlencode
+from urllib.parse import urlsplit
+from urllib.parse import urlunsplit
 
 from .migrations import default_migration_table
 from .backends import PostgresqlBackend
@@ -23,12 +27,6 @@ from .backends import ODBCBackend
 from .backends import OracleBackend
 from .backends import MySQLBackend
 from .backends import MySQLdbBackend
-from .compat import parse_qsl
-from .compat import quote
-from .compat import unquote
-from .compat import urlencode
-from .compat import urlsplit
-from .compat import urlunsplit
 
 BACKENDS = {
     "odbc": ODBCBackend,

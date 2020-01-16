@@ -12,12 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import print_function
-from __future__ import unicode_literals
-
 from datetime import date
 from textwrap import dedent
 from tempfile import NamedTemporaryFile
+import configparser
 import glob
 import logging
 import io
@@ -30,7 +28,6 @@ import traceback
 from text_unidecode import unidecode
 
 from yoyo import default_migration_table
-from yoyo.compat import configparser
 from yoyo.config import CONFIG_NEW_MIGRATION_COMMAND_KEY
 from yoyo.migrations import read_migrations, heads, Migration
 from yoyo import utils

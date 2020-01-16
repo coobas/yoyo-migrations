@@ -31,7 +31,6 @@ import inspect
 import pkg_resources
 
 from yoyo import exceptions
-from yoyo.compat import reraise, exec_, ustr, stdout
 from yoyo.utils import plural
 
 logger = getLogger("yoyo.migrations")
@@ -107,14 +106,14 @@ class Migration(object):
             "collector": collector,
         }
         try:
-            exec_(migration_code, ns)
+            exec(migration_code, ns)
         except Exception as e:
             logger.exception(
                 "Could not import migration from %r: %r", self.path, e
             )
             raise exceptions.BadMigration(self.path, e)
         depends = ns.get("__depends__", [])
-        if isinstance(depends, (ustr, bytes)):
+        if isinstance(depends, (str, bytes)):
             depends = [depends]
         self._depends = {self.__all_migrations.get(id, None) for id in depends}
         self.use_transactions = ns.get("__transactional__", True)
@@ -163,7 +162,7 @@ class Migration(object):
                             logger.exception(
                                 "Could not %s step %s", direction, step.id
                             )
-                    reraise(exc_info[0], exc_info[1], exc_info[2])
+                    raise exc_info[1].with_traceback(exc_info[2])
 
 
 class PostApplyHookMigration(Migration):
@@ -267,15 +266,15 @@ class MigrationStep(StepBase):
         tabulated format.
         """
         if out is None:
-            out = stdout
-        if isinstance(stmt, ustr):
+            out = sys.stdout
+        if isinstance(stmt, str):
             logger.debug(" - executing %r", stmt.encode("ascii", "replace"))
         else:
             logger.debug(" - executing %r", stmt)
         cursor.execute(stmt)
         if cursor.description:
             result = [
-                [ustr(value) for value in row] for row in cursor.fetchall()
+                [str(value) for value in row] for row in cursor.fetchall()
             ]
             column_names = [desc[0] for desc in cursor.description]
             column_sizes = [len(c) for c in column_names]
@@ -303,7 +302,7 @@ class MigrationStep(StepBase):
         logger.info(" - applying step %d", self.id)
         if not self._apply:
             return
-        if isinstance(self._apply, (ustr, str)):
+        if isinstance(self._apply, str):
             cursor = backend.cursor()
             try:
                 self._execute(cursor, self._apply)
@@ -319,7 +318,7 @@ class MigrationStep(StepBase):
         logger.info(" - rolling back step %d", self.id)
         if self._rollback is None:
             return
-        if isinstance(self._rollback, (ustr, str)):
+        if isinstance(self._rollback, str):
             cursor = backend.cursor()
             try:
                 self._execute(cursor, self._rollback)
