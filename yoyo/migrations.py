@@ -13,11 +13,11 @@
 # limitations under the License.
 
 from collections import Counter
-from collections import Iterable
-from collections import MutableSequence
 from collections import OrderedDict
 from collections import defaultdict
 from collections import deque
+from collections.abc import Iterable
+from collections.abc import MutableSequence
 from copy import copy
 from glob import glob
 from itertools import chain, count

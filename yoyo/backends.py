@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from collections import Mapping
+from collections.abc import Mapping
 from datetime import datetime
 from contextlib import contextmanager
 from importlib import import_module
