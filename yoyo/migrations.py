@@ -23,10 +23,12 @@ from glob import glob
 from itertools import chain, count
 from logging import getLogger
 import hashlib
+import importlib.util
 import os
 import re
 import sys
 import inspect
+import weakref
 
 import pkg_resources
 
@@ -37,6 +39,8 @@ logger = getLogger("yoyo.migrations")
 default_migration_table = "_yoyo_migration"
 
 hash_function = hashlib.sha256
+
+_collectors = weakref.WeakValueDictionary()
 
 
 def _is_migration_file(path):
@@ -72,10 +76,10 @@ class Migration(object):
         self.hash = get_migration_hash(id)
         self.path = path
         self.steps = None
-        self.source = None
         self.use_transactions = True
         self._depends = None
         self.__all_migrations[id] = self
+        self.module = None
 
     def __repr__(self):
         return "<{} {!r} from {}>".format(
@@ -94,35 +98,31 @@ class Migration(object):
     def load(self):
         if self.loaded:
             return
-        with open(self.path, "r") as f:
-            self.source = source = f.read()
-            migration_code = compile(source, f.name, "exec")
 
-        collector = StepCollector(migration=self)
-        ns = {
-            "step": collector.add_step,
-            "group": collector.add_step_group,
-            "transaction": collector.add_step_group,
-            "collector": collector,
-        }
+        spec = importlib.util.spec_from_file_location(self.path, self.path)
+        self.module = importlib.util.module_from_spec(spec)
+        collector = _collectors[self.path] = StepCollector(migration=self)
         try:
-            exec(migration_code, ns)
+            self.module.step = collector.add_step
+            self.module.group = collector.add_step_group
+            self.module.transaction = collector.add_step_group
+            self.module.collector = collector
+            spec.loader.exec_module(self.module)
+
         except Exception as e:
             logger.exception(
                 "Could not import migration from %r: %r", self.path, e
             )
             raise exceptions.BadMigration(self.path, e)
-        depends = ns.get("__depends__", [])
+        depends = getattr(self.module, "__depends__", [])
         if isinstance(depends, (str, bytes)):
             depends = [depends]
         self._depends = {self.__all_migrations.get(id, None) for id in depends}
-        self.use_transactions = ns.get("__transactional__", True)
+        self.use_transactions = getattr(self.module, "__transactional__", True)
         if None in self._depends:
             raise exceptions.BadMigration(
                 "Could not resolve dependencies in {}".format(self.path)
             )
-        self.ns = ns
-        self.source = source
         self.steps = collector.create_steps(self.use_transactions)
 
     def process_steps(self, backend, direction, force=False):
@@ -534,7 +534,13 @@ class StepCollector(object):
 
 
 def _get_collector(depth=2):
-    return inspect.stack()[depth][0].f_locals["collector"]
+    for stackframe in reversed(inspect.stack()):
+        path = stackframe.frame.f_code.co_filename
+        if path in _collectors:
+            return _collectors[path]
+    raise AssertionError(
+        "Excected to be called in the context of a migration module import"
+    )
 
 
 def step(*args, **kwargs):
