@@ -147,8 +147,8 @@ class TestTransactionHandling(object):
 class TestConcurrency(object):
 
     # How long to lock for: long enough to allow a migration to be loaded and
-    lock_duration = 0.2
     # started without unduly slowing down the test suite
+    lock_duration = 0.3
 
     def do_something_with_lock(self, dburi):
         with get_backend(dburi).lock():
