@@ -681,8 +681,9 @@ class PostgresqlBackend(DatabaseBackend):
             cursor.execute("SET search_path TO {}".format(self.schema))
 
     def list_tables(self):
+        current_schema = self.execute("SELECT current_schema").fetchone()[0]
         return super(PostgresqlBackend, self).list_tables(
-            schema=(self.schema if self.schema else "public")
+            schema=current_schema
         )
 
 

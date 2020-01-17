@@ -261,3 +261,24 @@ class TestInitConnection(object):
         finally:
             with backend.transaction():
                 backend.execute("DROP SCHEMA foo CASCADE")
+
+    def test_postgresql_list_table_uses_current_schema(self):
+        dburi = next(iter(get_test_dburis(only={"postgresql"})), None)
+        if dburi is None:
+            pytest.skip("PostgreSQL backend not available")
+        backend = get_backend(dburi)
+        dbname = backend.uri.database
+        with backend.transaction():
+            backend.execute(
+                f"ALTER DATABASE {dbname} SET SEARCH_PATH = custom_schema,public"
+            )
+        try:
+            with backend.transaction():
+                backend.execute("CREATE SCHEMA custom_schema")
+                backend.execute("CREATE TABLE custom_schema.foo (x int)")
+            assert "foo" in get_backend(dburi).list_tables()
+
+        finally:
+            with backend.transaction():
+                backend.execute(f"ALTER DATABASE {dbname} RESET SEARCH_PATH")
+                backend.execute("DROP SCHEMA custom_schema CASCADE")
