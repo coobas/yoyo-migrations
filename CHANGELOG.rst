@@ -13,6 +13,8 @@
 * Bugfix: the ``--all`` flag now works as expected with the ``rollback``
   command
 
+* Bugfix: fix an error when running under a non-default schema in PostgreSQL
+
 6.1.0 (released 2019-02-13)
 ---------------------------
 
