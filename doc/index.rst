@@ -41,7 +41,9 @@ migrations to apply and rollback.
 Connections
 -----------
 
-Database connections are specified using a URL. Examples::
+Database connections are specified using a URL. Examples:
+
+.. code:: ini
 
   # SQLite: use 4 slashes for an absolute database path on unix like platforms
   database = sqlite:////home/user/mydb.sqlite
@@ -60,6 +62,9 @@ Database connections are specified using a URL. Examples::
 
   # MySQL with the MySQLdb driver (instead of pymysql)
   database = mysql+mysqldb://scott:tiger@localhost/mydatabase
+
+  # MySQL with SSL/TLS enabled
+  database = mysql+mysqldb://scott:tiger@localhost/mydatabase?ssl=yes&sslca=/path/to/cert
 
   # PostgreSQL: database connection
   database = postgresql://scott:tiger@localhost/mydatabase
