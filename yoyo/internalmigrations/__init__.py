@@ -53,8 +53,11 @@ def get_current_version(backend):
     if version_table not in tables:
         return 1
     with backend.transaction():
-        cursor = backend.execute("SELECT max(version) FROM {} "
-                                 .format(backend.quote_identifier(version_table)))
+        cursor = backend.execute(
+            "SELECT max(version) FROM {} ".format(
+                backend.quote_identifier(version_table)
+            )
+        )
         version = cursor.fetchone()[0]
         assert version in schema_versions
         return version
@@ -67,6 +70,9 @@ def mark_schema_version(backend, version):
     assert version in schema_versions
     if version < USE_VERSION_TABLE_FROM:
         return
-    backend.execute("INSERT INTO {0.version_table_quoted} VALUES (:version, :when)"
-                    .format(backend),
-                    {'version': version, 'when': datetime.utcnow()})
+    backend.execute(
+        "INSERT INTO {0.version_table_quoted} VALUES (:version, :when)".format(
+            backend
+        ),
+        {"version": version, "when": datetime.utcnow()},
+    )
