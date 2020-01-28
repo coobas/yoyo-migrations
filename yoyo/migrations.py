@@ -195,7 +195,7 @@ class Migration(object):
             )
             rollback_statements.reverse()
             statements_with_rollback = zip_longest(
-                statements, rollback_statements, fillvalue="--"
+                statements, rollback_statements, fillvalue=None
             )
 
             for s, r in statements_with_rollback:
