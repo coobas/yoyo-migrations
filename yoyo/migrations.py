@@ -85,7 +85,7 @@ SqlType = str
 
 
 def parse_metadata_from_sql_comments(
-    s: str
+    s: str,
 ) -> Tuple[DirectivesType, LeadingCommentType, SqlType]:
     directive_names = ["transactional", "depends"]
     comment_or_empty = re.compile(r"^(\s*|\s*--.*)$").match
@@ -121,7 +121,7 @@ def parse_metadata_from_sql_comments(
 
 
 def read_sql_migration(
-    path: str
+    path: str,
 ) -> Tuple[DirectivesType, LeadingCommentType, List[str]]:
     directives = {}
     leading_comment = ""
@@ -130,9 +130,11 @@ def read_sql_migration(
         with open(path, "r", encoding="UTF-8") as f:
             statements = sqlparse.split(f.read())
             if statements:
-                directives, leading_comment, sql = parse_metadata_from_sql_comments(
-                    statements[0]
-                )
+                (
+                    directives,
+                    leading_comment,
+                    sql,
+                ) = parse_metadata_from_sql_comments(statements[0])
                 statements[0] = sql
     statements = [s for s in statements if s.strip()]
     return directives, leading_comment, statements

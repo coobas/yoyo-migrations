@@ -9,11 +9,7 @@ from . import v2
 
 
 #: Mapping of {schema version number: module}
-schema_versions = {
-    0: None,
-    1: v1,
-    2: v2,
-}
+schema_versions = {0: None, 1: v1, 2: v2}
 
 
 #: First schema version that supports the yoyo_versions table

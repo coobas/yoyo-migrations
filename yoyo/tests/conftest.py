@@ -14,12 +14,13 @@ def backend(request):
     backend = get_backend(request.param)
     with backend.transaction():
         if backend.__class__ is backends.MySQLBackend:
-            backend.execute('CREATE TABLE yoyo_t '
-                            '(id CHAR(1) primary key) '
-                            'ENGINE=InnoDB')
+            backend.execute(
+                "CREATE TABLE yoyo_t "
+                "(id CHAR(1) primary key) "
+                "ENGINE=InnoDB"
+            )
         else:
-            backend.execute('CREATE TABLE yoyo_t '
-                            '(id CHAR(1) primary key)')
+            backend.execute("CREATE TABLE yoyo_t " "(id CHAR(1) primary key)")
     try:
         yield backend
     finally:
@@ -37,7 +38,7 @@ def dburi(request):
 
 def drop_yoyo_tables(backend):
     for table in backend.list_tables():
-        if table.startswith('yoyo') or table.startswith('_yoyo'):
+        if table.startswith("yoyo") or table.startswith("_yoyo"):
             with backend.transaction():
                 backend.execute("DROP TABLE {}".format(table))
 
