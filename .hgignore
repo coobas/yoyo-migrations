@@ -20,6 +20,7 @@ syntax: regexp
 ^htmldocs/
 ^html/
 ^\.pytest_cache/
+^\.mypy_cache/
 .*\.orig$
 ^tags
 
