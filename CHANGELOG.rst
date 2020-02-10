@@ -1,3 +1,13 @@
+7.0.1
+------
+
+* Bugfix: rolling back SQL file migrations now works correctly
+
+* Support MySQL specific encryption options when connecting
+
+* Bugfix: ``yoyo new`` script now always creates temporary files with the
+  correct file extension
+
 7.0.0 (released 2020-01-20)
 ---------------------------
 
