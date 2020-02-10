@@ -90,8 +90,9 @@ Migration files
 ===============
 
 The migrations directory contains a series of migration scripts. Each
-migration script is a python file (``.py``) containing a series of steps. Each
-step should comprise a migration query and (optionally) a rollback query:
+migration script is a python or SQL file (``.py`` or ``.sql``) containing a
+series of steps. Each step should comprise a migration query and (optionally) a
+rollback query:
 
 .. code:: python
 
@@ -104,6 +105,27 @@ step should comprise a migration query and (optionally) a rollback query:
         "DROP TABLE foo",
     )
 
+An SQL migration script should only contain the SQL statements necessary to
+apply the migration:
+
+.. code:: sql
+
+    --
+    -- file: migrations/0001.create-foo.sql
+    --
+    CREATE TABLE foo (id INT, bar VARCHAR(20), PRIMARY KEY (id));
+
+SQL rollback steps should be saved in a separate file, named
+``<migration-name>.rollback.sql``:
+
+.. code:: sql
+
+    --
+    -- file: migrations/0001.create-foo.rollback.sql
+    --
+    DROP TABLE foo;
+
+
 Migrations may also declare dependencies on earlier migrations via the
 ``__depends__`` attribute:
 
@@ -112,15 +134,22 @@ Migrations may also declare dependencies on earlier migrations via the
     #
     # file: migrations/0002.modify-foo.py
     #
-    __depends__ = {'0001.create-foo'}
+    __depends__ = {'0000.initial-schema', '0001.create-foo'}
 
     step(
         "ALTER TABLE foo ADD baz INT",
         "ALTER TABLE foo DROP baz",
     )
 
+For SQL migrations you should use a structured comment specifying
+dependencies as a space separated list:
 
-The filename of each file (without the .py extension) is used as migration's
+.. code:: sql
+
+    -- depends: 0000.initial-schema 0001.create-foo
+    ALTER TABLE foo ADD baz INT
+
+The filename of each file (without the extension) is used as migration's
 identifier. In the absence of a ``__depends__`` attribute, migrations
 are applied in filename order, so it's useful to name your files using a date
 (eg '20090115-xyz.py') or some other incrementing number.
@@ -165,32 +194,6 @@ their only argument:
         )
 
     step(do_step)
-
-
-SQL migration files
--------------------
-
-Migrations can also be specified as SQL files, eg:
-
-.. code:: sql
-
-    --
-    -- file: migrations/0001.create-foo.sql
-    --
-    CREATE TABLE foo (
-        id INT,
-        bar TEXT,
-        PRIMARY KEY (id)
-    );
-
-Rollback code can be added in a file with the same base name as your migration, but with the extension ``.rollback.sql``::
-
-.. code:: sql
-
-    --
-    -- file: migrations/0001.create-foo.rollback.sql
-    --
-    DROP TABLE foo;
 
 
 Post-apply hook
@@ -331,6 +334,14 @@ You can disable transaction handling within a migration by setting
     __transactional__ = False
 
     step("CREATE DATABASE mydb", "DROP DATABASE mydb")
+
+Or for SQL migrations:
+
+.. code:: sql
+
+    -- transactional: false
+
+    CREATE DATABASE mydb
 
 This feature is only tested against the PostgreSQL and SQLite backends.
 
