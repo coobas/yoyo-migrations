@@ -1,5 +1,5 @@
-7.0.1
-------
+7.0.1 (released 2020-02-18)
+---------------------------
 
 * Bugfix: rolling back SQL file migrations now works correctly
 
