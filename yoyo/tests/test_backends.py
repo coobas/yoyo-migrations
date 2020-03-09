@@ -270,7 +270,9 @@ class TestInitConnection(object):
         dbname = backend.uri.database
         with backend.transaction():
             backend.execute(
-                f"ALTER DATABASE {dbname} SET SEARCH_PATH = custom_schema,public"
+                "ALTER DATABASE {} SET SEARCH_PATH = custom_schema,public".format(
+                    dbname
+                )
             )
         try:
             with backend.transaction():
@@ -280,5 +282,7 @@ class TestInitConnection(object):
 
         finally:
             with backend.transaction():
-                backend.execute(f"ALTER DATABASE {dbname} RESET SEARCH_PATH")
+                backend.execute(
+                    "ALTER DATABASE {} RESET SEARCH_PATH".format(dbname)
+                )
                 backend.execute("DROP SCHEMA custom_schema CASCADE")

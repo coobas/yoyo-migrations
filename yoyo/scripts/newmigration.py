@@ -166,7 +166,10 @@ def make_filename(config, directory, message, extension):
             continue
 
     return path.join(
-        directory, f"{prefix}{datestr}_{number}_{rand}{slug}{extension}"
+        directory,
+        "{}{}_{}_{}{}{}".format(
+            prefix, datestr, number, rand, slug, extension
+        ),
     )
 
 

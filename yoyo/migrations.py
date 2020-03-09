@@ -90,7 +90,9 @@ def parse_metadata_from_sql_comments(
     directive_names = ["transactional", "depends"]
     comment_or_empty = re.compile(r"^(\s*|\s*--.*)$").match
     directive_pattern = re.compile(
-        rf"^\s*--\s*({'|'.join(map(re.escape, directive_names))})\s*:\s*(.*)$"
+        r"^\s*--\s*({})\s*:\s*(.*)$".format(
+            "|".join(map(re.escape, directive_names))
+        )
     )
 
     lineending = re.search(r"\n|\r\n|\r", s + "\n").group(0)
@@ -103,7 +105,7 @@ def parse_metadata_from_sql_comments(
         if match:
             k, v = match.groups()
             if k in directives:
-                directives[k] += f" {v}"
+                directives[k] += " {}".format(v)
             else:
                 directives[k] = v
         elif comment_or_empty(line):
