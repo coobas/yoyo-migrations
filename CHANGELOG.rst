@@ -1,5 +1,5 @@
-7.0.2
------
+7.0.2 (released 2020-03-09)
+---------------------------
 
 * Bugfix: removed usage of f-strings to restore python 3.5 compatibility
 
